@@ -1,0 +1,172 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/13/2022 10:00:29 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\Dr
+                    -iver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.lst) TABS(2) 
+                    -OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : yanhaihua
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "app.h"
+  11          #include "uart0.h"
+  12          #include "pwm.h"
+  13          #include "common.h"
+  14          #include "config.h"
+  15          
+  16          volatile uint16_t duty0 = 70; //占空比 = duty/cycle
+  17          volatile uint16_t cycle0 = 100; //pwm频率=时钟频率/cycle
+  18          
+  19          volatile uint16_t duty1 = 50; //占空比 = duty/cycle
+  20          volatile uint16_t cycle1 = 100; //pwm频率=时钟频率/cycle
+  21          
+  22          volatile uint16_t duty2 = 30; //占空比 = duty/cycle
+  23          volatile uint16_t cycle2 = 100; //pwm频率=时钟频率/cycle
+  24          
+  25          /************************************************************************
+  26           * Function     : uart_init
+  27           * Description  : uart_init 串口初始化
+  28           * Input    : none
+  29           * Output     : none
+  30           * Return   : none
+  31           ************************************************************************/
+  32          void uart_init(void)
+  33          {
+  34   1        uart0_init(UART0_BAUD_RATE);
+  35   1      
+  36   1      }
+  37          
+  38          
+  39          /***********************************************************************
+  40           * Function     : pwm0_irq_handler
+  41           * Description  : pwm0中断回调函数
+  42           * Input    : none
+  43           * Output   : none
+  44           * Return   : none
+  45           ***********************************************************************/
+  46          static void pwm0_irq_handler(void)
+  47          {
+  48   1        printfS("PWM0 happen irq \r\n!!!!");
+  49   1      }
+  50          
+  51          /***********************************************************************
+  52           * Function     : pwm0_test
+  53           * Description  : 测试PWM0接口
+C51 COMPILER V9.60.0.0   APP                                                               07/13/2022 10:00:29 PAGE 2   
+
+  54           * Input    : none
+  55           * Output   : none
+  56           * Return   : none
+  57           ***********************************************************************/
+  58          static void pwm0_test(void)
+  59          {
+  60   1        pwm0_init(cycle0, duty0, HIGH);  
+  61   1        pwm0_irq_init(PWM_IRQ_DISABLE,pwm0_irq_handler);
+  62   1        pwm0_start(); 
+  63   1      }
+  64          
+  65          /***********************************************************************
+  66           * Function     : pwm1_irq_handler
+  67           * Description  : pwm1中断回调函数
+  68           * Input    : none
+  69           * Output   : none
+  70           * Return   : none
+  71           ***********************************************************************/
+  72          static void pwm1_irq_handler(void)
+  73          {
+  74   1        printfS("PWM1 happen irq \r\n!!!!");
+  75   1      }
+  76          
+  77          /***********************************************************************
+  78           * Function     : pwm1_test
+  79           * Description  : 测试PWM1接口
+  80           * Input    : none
+  81           * Output   : none
+  82           * Return   : none
+  83           ***********************************************************************/
+  84          static void pwm1_test(void)
+  85          {
+  86   1        pwm1_init(cycle1, duty1, HIGH);   
+  87   1        pwm1_irq_init(PWM_IRQ_DISABLE,pwm1_irq_handler);
+  88   1        pwm1_start(); 
+  89   1        
+  90   1      }
+  91          
+  92          /***********************************************************************
+  93           * Function     : pwm2_irq_handler
+  94           * Description  : pwm2中断回调函数
+  95           * Input    : none
+  96           * Output   : none
+  97           * Return   : none
+  98           ***********************************************************************/
+  99          static void pwm2_irq_handler(void)
+ 100          {
+ 101   1        printfS("PWM2 happen irq \r\n!!!!");
+ 102   1      }
+ 103          
+ 104          /***********************************************************************
+ 105           * Function     : pwm2_test
+ 106           * Description  : 测试PWM2接口
+ 107           * Input    : none
+ 108           * Output   : none
+ 109           * Return   : none
+ 110           ***********************************************************************/
+ 111          static void pwm2_test(void)
+ 112          {
+ 113   1        pwm2_init(cycle2, duty2,HIGH);
+ 114   1        pwm2_irq_init(PWM_IRQ_DISABLE,pwm2_irq_handler);
+ 115   1        pwm2_start();
+C51 COMPILER V9.60.0.0   APP                                                               07/13/2022 10:00:29 PAGE 3   
+
+ 116   1      }
+ 117          
+ 118          /***********************************************************************
+ 119           * Function     : app_run
+ 120           * Description  : app_run
+ 121           * Input    : none
+ 122           * Output   : none
+ 123           * Return   : none
+ 124           ***********************************************************************/
+ 125          void pwm_test(void)
+ 126          {
+ 127   1        printfS("System run at %ldHz\n\r", system_core_clock);
+ 128   1        printfS("PWM TEST START!!!\r\n");
+ 129   1        pwm0_test();    //P1_0输出pwm0
+ 130   1        pwm1_test();    //P1_1输出pwm1
+ 131   1        pwm2_test();    //P1_4输出pwm2
+ 132   1        delay1ms(100);
+ 133   1      
+ 134   1      }
+ 135          
+ 136          void soc_test(void)
+ 137          {
+ 138   1        pwm_test();
+ 139   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    196    ----
+   CONSTANT SIZE    =    111    ----
+   XDATA SIZE       =     12    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

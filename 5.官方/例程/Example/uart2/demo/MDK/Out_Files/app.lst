@@ -1,0 +1,127 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/12/2022 09:56:50 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\Dr
+                    -iver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.lst) TABS(2) 
+                    -OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : shengyu
+   7           * version     : V1.0
+   8           * Modify date : 2021-12-31
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "config.h"
+  13          #include "common.h"
+  14          #include "uart2.h"
+  15          
+  16          volatile uint8_t uart2_rx_flag ;
+  17          volatile uint8_t uart2_rx_buf[32];
+  18          volatile uint8_t uart2_tx_buf[32];
+  19          volatile uint16_t uart2_rx_count = 0;
+  20          volatile uint16_t uart2_tx_count = 0;
+  21          
+  22          
+  23          /************************************************************************
+  24           * Function     : uart2_rec_pro
+  25           * Description  : uart2_rec_pro 串口接收处理回调函数
+  26           * Input        : none
+  27           * Output       : none
+  28           * Return       : none
+  29           ************************************************************************/
+  30          void uart2_rec_pro(void)
+  31          {
+  32   1        uart2_rx_buf[uart2_rx_count++]= uart2_recv_byte();  
+  33   1        uart2_rx_flag = 1;
+  34   1      }
+  35          
+  36          /************************************************************************
+  37           * Function     : uart_init
+  38           * Description  : uart_init 串口初始化
+  39           * Input        : none
+  40           * Output       : none
+  41           * Return       : none
+  42           ************************************************************************/
+  43          void uart_init(void)
+  44          {
+  45   1        uart2_rx_flag = 0;
+  46   1        uart2_init(UART2_BAUD_RATE);
+  47   1        uart2_irq_init(UART2_IRQ_ENABLE,uart2_rec_pro);
+  48   1        
+  49   1      }
+  50          
+  51          
+  52          /************************************************************************
+  53           * Function     : my_memcpy
+C51 COMPILER V9.60.0.0   APP                                                               07/12/2022 09:56:50 PAGE 2   
+
+  54           * Description  : my_memcpy
+  55           * Input    : uint8_t *dst  目的地址
+  56           *            uint8_t *src  源地址
+  57           *            uint16_t n   数据长度
+  58           * Output   : none
+  59           * Return   : none
+  60           ************************************************************************/
+  61          void my_memcpy(uint8_t *dst,uint8_t *src,uint16_t n)
+  62          {
+  63   1        while(n--)
+  64   1        { 
+  65   2          *dst++ = *src++;
+  66   2        }
+  67   1      }
+  68          
+  69          /************************************************************************
+  70           * Function     : uart2_test
+  71           * Description  : uart2_test
+  72           * Input        : none
+  73           * Output       : none
+  74           * Return       : none
+  75           ************************************************************************/
+  76          void uart2_test(void)
+  77          {
+  78   1        printfS("System run at %ldHz\n\r", system_core_clock);
+  79   1        printfS("start test uart! \n");
+  80   1        printfS("waiting for output data.....! \n");
+  81   1        
+  82   1        while(1)
+  83   1        {   
+  84   2          if(uart2_rx_flag)
+  85   2          {
+  86   3            my_memcpy(uart2_tx_buf, uart2_rx_buf, uart2_rx_count);  
+  87   3            uart2_tx_count = uart2_rx_count;
+  88   3            uart2_rx_count = 0;  
+  89   3            uart2_send_bytes(uart2_tx_buf,uart2_tx_count);  
+  90   3            uart2_rx_flag = 0;
+  91   3        
+  92   3          }
+  93   2          delay1ms(50);   
+  94   2        }    
+  95   1      }
+  96          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    249    ----
+   CONSTANT SIZE    =     73    ----
+   XDATA SIZE       =     69       8
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,141 @@
+C51 COMPILER V9.60.0.0   EFLASH                                                            04/26/2022 18:18:02 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE EFLASH
+OBJECT MODULE PLACED IN .\Out_Files\eflash.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\eflash.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDI
+                    -R(..\..\..\..\MCU\Common;..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\e
+                    -flash.lst) TABS(2) OBJECT(.\Out_Files\eflash.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : eflash.c
+   5           * Description : eflash driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-29
+   9           ***********************************************************************/
+  10          #include  "eflash.h"
+  11          
+  12          void eflash_init(uint32_t system_clk_hz)  
+  13          { 
+  14   1        uint8_t system_clk_mhz;
+  15   1        
+  16   1        if(system_clk_hz < 2000000)
+  17   1        {
+  18   2          return;
+  19   2        }
+  20   1        
+  21   1        system_clk_mhz = system_clk_hz/1000000;
+  22   1        
+  23   1        OPSET |= (0<<3);               //RD_WAIT = 0
+  24   1          
+  25   1        //OUS = (system_clk_mhz/2)-1;      //系统时钟频率(MHz)/2-1
+  26   1          OUS = 0x0f; 
+  27   1        OINTUS = 0x3f;                 //清除所有中断标志位
+  28   1        OINTEN = 0x00;                 //关闭所有中断功能
+  29   1          
+  30   1      }
+  31          
+  32          void eflash_erase_page(uint16_t page_addr)  
+  33          {
+  34   1        OPSET &= ~(7<<0);
+  35   1        OPSET |= EFC_PAGE_ERASE_MODE;     //开启page擦除模式
+  36   1        
+  37   1        OADR = page_addr;
+  38   1        OCTRL |= (0x1<<3);          //PUMP_SEL = 6.75v
+  39   1        OCTRL |= (1<<6);          //PUMP_EN=1
+  40   1        while(!(OCTRL & (1<<1)));     //wait for PUMP OK
+  41   1        OCTRL |= (1<<7);          //VPPO_EN = 1
+  42   1        while((OCTRL & (1<<7)));      //wait for VPPO_EN = 0
+  43   1        OCTRL &= ~(1<<6);         //PUMP_EN=0
+  44   1        
+  45   1        OPSET &= ~EFC_PAGE_ERASE_MODE;    //关闭page擦除模式
+  46   1      }
+  47          
+  48          void eflash_write_byte(uint16_t addr,uint8_t value)  
+  49          {
+  50   1        OPSET &= ~(7<<0);
+  51   1        OPSET |= EFC_WRITE_MODE;      //使能写模式
+  52   1        
+  53   1        OADR = addr;
+C51 COMPILER V9.60.0.0   EFLASH                                                            04/26/2022 18:18:02 PAGE 2   
+
+  54   1        ODATA = value;
+  55   1        OCTRL |= (0x1<<3);          //PUMP_SEL = 6.75v
+  56   1        OCTRL |= (1<<6);          //PUMP_EN=1
+  57   1        while(!(OCTRL & (1<<1)));     //wait for PUMP OK;
+  58   1        OCTRL |= (1<<7);          //VPPO_EN = 1
+  59   1        while((OCTRL & (1<<7)));      //wait for VPPO_EN = 0
+  60   1        OCTRL &= ~(1<<6);         //PUMP_EN=0
+  61   1      
+  62   1        OPSET &= ~EFC_WRITE_MODE;     //关闭写模式
+  63   1        
+  64   1      }
+  65          
+  66          void eflash_write_bytes(uint16_t addr, uint8_t *buff, uint32_t length)   
+  67          { 
+  68   1        OPSET &= ~(7<<0);
+  69   1        OPSET |= EFC_WRITE_MODE;      //使能写模式
+  70   1          
+  71   1          while(length--)
+  72   1          {
+  73   2              OADR = addr++;
+  74   2              ODATA = *buff++;
+  75   2              OCTRL |= (0x1<<3);        //PUMP_SEL = 6.75v
+  76   2              OCTRL |= (1<<6);        //PUMP_EN=1
+  77   2              while(!(OCTRL & (1<<1)));     //wait for PUMP OK;
+  78   2              OCTRL |= (1<<7);        //VPPO_EN = 1
+  79   2              while((OCTRL & (1<<7)));      //wait for VPPO_EN = 0
+  80   2              OCTRL &= ~(1<<6);       //PUMP_EN=0     
+  81   2          }
+  82   1      
+  83   1        OPSET &= ~EFC_WRITE_MODE;     //关闭写模式
+  84   1      }
+  85          
+  86          uint8_t eflash_read_byte(uint16_t addr)
+  87          {
+  88   1        uint8_t value;
+  89   1      
+  90   1        value = (*(volatile uint8_t code *)(addr));
+  91   1            
+  92   1        return value;
+  93   1      
+  94   1      }
+  95          
+  96          uint32_t eflash_read_bytes(uint16_t addr, uint8_t *buff, uint32_t length)
+  97          {
+  98   1        uint32_t index;
+  99   1          
+ 100   1          for(index = 0; index<length; index++)
+ 101   1          {
+ 102   2              buff[index] = (*(volatile uint8_t code *)(addr+index));        
+ 103   2          }
+ 104   1        
+ 105   1        return index;
+ 106   1      }
+ 107          
+ 108          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    353    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----      27
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V9.60.0.0   EFLASH                                                            04/26/2022 18:18:02 PAGE 3   
+
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,56 @@
+C51 COMPILER V9.60.0.0   MAIN                                                              07/29/2022 10:06:21 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Out_Files\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\main.c COMPACT OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(.\Common;.\
+                    -UM800Y\driver;.\UM800Y\system;..\..\..\..\Driver\src;..\..\..\..\Driver\inc;..\..\..\..\MCU\Device;..\..\..\..\MCU\Commo
+                    -n) DEBUG PRINT(.\Out_Files\main.lst) TABS(2) OBJECT(.\Out_Files\main.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2020, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : main.c
+   5           * Description : main source file
+   6           * Author(s)   : wanyi
+   7           * version     : V1.0
+   8           * Modify date : 2020-07-16
+   9           ***********************************************************************/
+  10          #include  "system_um800y.h"           
+  11          #include  "app.h"
+  12          #include  "common.h"
+  13          #include  "uart0.h"
+  14          
+  15          void main(void)  
+  16          {     
+  17   1        system_init();
+  18   1        
+  19   1        uart_init();
+  20   1        
+  21   1        beeper_test();  
+  22   1          
+  23   1        while(1) 
+  24   1        {
+  25   2        
+  26   2        }
+  27   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     11    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

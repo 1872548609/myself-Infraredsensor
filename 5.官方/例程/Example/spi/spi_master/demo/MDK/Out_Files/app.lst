@@ -1,0 +1,237 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/19/2022 10:32:23 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\..
+                    -\Driver\inc;..\..\..\..\..\Driver\src;..\..\..\..\..\MCU\Common;..\..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.l
+                    -st) TABS(2) OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "common.h"
+  13          #include "uart0.h"
+  14          #include "spi_master.h"
+  15          
+  16          volatile uint8_t rx_flag ;
+  17          volatile uint8_t uart0_rx_buf[32];
+  18          volatile uint8_t uart0_tx_buf[32];
+  19          volatile uint16_t rx_count = 0;
+  20          volatile uint16_t tx_count = 0;
+  21          
+  22          volatile uint8_t spi_rx_data;
+  23          volatile uint8_t spi_rx_flag = 0;
+  24          uint8_t xdata spi_tx_buf[256];
+  25          uint8_t xdata spi_rx_buf[256];
+  26          /************************************************************************
+  27           * Function     : uart0_rec_pro
+  28           * Description  : uart0_rec_pro 串口接收处理回调函数
+  29           * Input    : none
+  30           * Output     : none
+  31           * Return   : none
+  32           ************************************************************************/
+  33          void uart0_rec_pro(void)
+  34          {
+  35   1        uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  36   1        rx_flag = 1;  
+  37   1      }
+  38          
+  39          /************************************************************************
+  40           * Function     : uart_init
+  41           * Description  : uart_init 串口初始化
+  42           * Input    : none
+  43           * Output     : none
+  44           * Return   : none
+  45           ************************************************************************/
+  46          void uart_init(void)
+  47          {
+  48   1        rx_flag = 0;
+  49   1        uart0_init(UART0_BAUD_RATE);
+  50   1          uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+  51   1      }
+  52          /************************************************************************
+  53           * Function     : spi_irq_func
+C51 COMPILER V9.60.0.0   APP                                                               07/19/2022 10:32:23 PAGE 2   
+
+  54           * Description  : spi_irq_func spi中断服务函数
+  55           * Input    : none
+  56           * Output     : none
+  57           * Return   : none
+  58           ************************************************************************/
+  59          void spi_irq_func(void)
+  60          {
+  61   1        spi_rx_data = spi_receive_byte();
+  62   1        spi_rx_flag = 1;
+  63   1      }
+  64          /************************************************************************
+  65           * Function     : datacmp
+  66           * Description  : datacmp 比较数据
+  67           * Input    : none
+  68           * Output     : none
+  69           * Return   : none
+  70           ************************************************************************/
+  71          void datacmp(uint8_t *data1,uint8_t* data2,uint32_t len)
+  72          {
+  73   1        uint8_t i = len;
+  74   1        while(len--)
+  75   1        {
+  76   2          if((*data1++) == (*data2++))
+  77   2          i--;  
+  78   2        }
+  79   1        if(i == 0)
+  80   1        {
+  81   2          printfS("SPI测试成功！\n\r");
+  82   2        }
+  83   1        else
+  84   1        {
+  85   2          printfS("SPI测试失败！\n\r");
+  86   2        }
+  87   1      }
+  88          
+  89          /************************************************************************
+  90           * Function     : spi_full_duplex_tranfer
+  91           * Description  : spi_full_duplex_tranfer spi全双共通信 主机发0xa0-0xa7 从机发0x00-0x07
+  92           * Input    : none
+  93           * Output     : none
+  94           * Return   : none
+  95           ************************************************************************/
+  96          void spi_full_duplex_tranfer()
+  97          {
+  98   1        uint16_t xdata i;
+  99   1        printfS("SPI full duplex tranfer test start!! \r\n");
+ 100   1      #ifdef SPI_IRQ_MODE                   //中断方式，在app.h中开启
+ 101   1        printfS("SPI Master RXNE irq test start!! \r\n");
+ 102   1        spi_irq_init(SPI_IRQ_ENABLE,SPI_RXNE_IE,spi_irq_func);
+ 103   1        while(1)
+ 104   1        {
+ 105   2          spi_cs_enable();
+ 106   2        
+ 107   2          for(i=0;i<LEN;i++)
+ 108   2          {
+ 109   3            
+ 110   3            spi_send_byte(spi_tx_buf[i]);
+ 111   3            while(!spi_rx_flag);
+ 112   3            spi_rx_buf[i] = spi_rx_data;
+ 113   3            spi_rx_flag = 0;
+ 114   3      
+ 115   3          }   
+C51 COMPILER V9.60.0.0   APP                                                               07/19/2022 10:32:23 PAGE 3   
+
+ 116   2          spi_cs_disable();
+ 117   2          printfS("spi master receive data:\r\n");
+ 118   2          printfB8(spi_rx_buf,LEN);
+ 119   2          
+ 120   2          delay1ms(1000);
+ 121   2        }
+ 122   1            
+ 123   1          
+ 124   1      #else                               //查询方式  
+                spi_irq_init(SPI_IRQ_DISABLE,SPI_RXNE_IE,spi_irq_func);   //关闭中断使能
+                while(1)
+                {
+                  spi_cs_enable();  
+                  spi0_master_full_duplex_tranfer(spi_tx_buf,spi_rx_buf,LEN);  //全双工
+                  spi_cs_disable();
+                  printfS("spi master receive data:\r\n");  
+                  printfB8(spi_rx_buf,LEN);
+                  
+                  delay1ms(1000);
+                }
+              #endif
+ 137   1        
+ 138   1        
+ 139   1      }
+ 140          
+ 141          /************************************************************************
+ 142           * Function     : spi_half_duplex_tranfer
+ 143           * Description  : spi_half_duplex_tranfer spi半双工
+ 144           * Input    : none
+ 145           * Output     : none
+ 146           * Return   : none
+ 147           ************************************************************************/
+ 148          void spi_half_duplex_tranfer()
+ 149          {
+ 150   1        uint16_t xdata a;
+ 151   1        uint8_t xdata result = 0;
+ 152   1        printfS("SPI half duplex tranfer test start!! \r\n");
+ 153   1        while(1)
+ 154   1        {
+ 155   2          spi_cs_enable();
+ 156   2          spi_master_half_duplex_send_bytes(spi_tx_buf, LEN);
+ 157   2          delay1ms(10);
+ 158   2          spi_master_half_duplex_receive_bytes(spi_rx_buf, LEN);
+ 159   2          spi_cs_disable();
+ 160   2          
+ 161   2          printfS("spi master receive data:\r\n");  
+ 162   2          printfB8(spi_rx_buf,LEN);
+ 163   2            
+ 164   2          delay1ms(1000);
+ 165   2          datacmp(spi_tx_buf,spi_rx_buf,LEN);
+ 166   2          for(a=0;a<LEN;a++)
+ 167   2          {
+ 168   3            spi_tx_buf[a]+= 0x10;
+ 169   3          }
+ 170   2        }   
+ 171   1      } 
+ 172          /************************************************************************
+ 173           * Function     : spi_test
+ 174           * Description  : spi_test 
+ 175           * Input    : none
+ 176           * Output     : none
+ 177           * Return   : none
+C51 COMPILER V9.60.0.0   APP                                                               07/19/2022 10:32:23 PAGE 4   
+
+ 178           ************************************************************************/
+ 179          void spi_test(void)
+ 180          {
+ 181   1        uint16_t xdata i;
+ 182   1        
+ 183   1        for(i=0;i<LEN;i++)
+ 184   1        {
+ 185   2          spi_tx_buf[i]= i+0xa0;
+ 186   2        }
+ 187   1        
+ 188   1        printfS("SPI Master test start!! \r\n");
+ 189   1        spi_master_init(WORK_MODE_0,SPI_CLK_DIV_4);//SPI初始化，选择工作模式，SPI通信速率=fSYSCLK/波特率分频
+ 190   1      
+ 191   1      #ifdef FULL_DUPLEX_MODE
+ 192   1        spi_full_duplex_tranfer();    //全双工传输 主机发送的数据带0xa?,从机的数据带0x0
+ 193   1      #elif defined HALF_DUPLEX_MODE 
+                spi_half_duplex_tranfer();    //半双工传输  
+              #endif
+ 196   1        
+ 197   1      }
+ 198          
+ 199          void soc_test(void)
+ 200          {
+ 201   1        spi_test();
+ 202   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    536    ----
+   CONSTANT SIZE    =    202    ----
+   XDATA SIZE       =    583      14
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

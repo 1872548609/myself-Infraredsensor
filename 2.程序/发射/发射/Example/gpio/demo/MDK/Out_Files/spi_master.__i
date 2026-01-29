@@ -1,0 +1,1 @@
+"..\..\..\..\Driver\src\spi_master.c" LARGE OMF2 OPTIMIZE (8,SIZE) BROWSE INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\spi_master.lst) TABS (2) OBJECT(.\Out_Files\spi_master.obj)

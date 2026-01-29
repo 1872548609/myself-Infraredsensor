@@ -1,0 +1,649 @@
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE GPIO
+OBJECT MODULE PLACED IN .\Out_Files\gpio.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\gpio.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE IN
+                    -CDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_File
+                    -s\gpio.lst) OBJECT(.\Out_Files\gpio.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2020, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : gpio.c
+   5           * Description : gpio source file
+   6           * Author(s)   : wanyi
+   7           * version     : V1.0
+   8           * Modify date : 2021-2-26
+   9           ***********************************************************************/
+  10          #include "gpio.h"
+  11          
+  12          void (*gpiofunc[24])(void) = { 0 };
+  13          /************************************************************************
+  14           * function   : GPIO_IRQHandler
+  15           * Description: GPIO interrupt handling
+  16           * input : none
+  17           * return: none
+  18           ************************************************************************/
+  19          //void GPIO_IRQHandler(void) interrupt 0
+  20          //{
+  21          //  uint8_t i=0;
+  22          //  for(i=0;i<24;i++)
+  23          //      {
+  24          //    if(gpio_irq_get(i) == 0x01)
+  25          //    {
+  26          //      if(gpiofunc[i] != NULL)
+  27          //                      {
+  28          //                              gpiofunc[i]();
+  29          //                      }
+  30          //                              gpio_irq_clr(i);
+  31          //    }         
+  32          //  }
+  33          //   
+  34          //}
+  35          
+  36          /************************************************************************
+  37           * function   : gpio_init
+  38           * Description : gpio initial 
+  39           * GPIO初始化，包括开时钟，模块正常工作
+  40           * input : uint8_t pin ： P00，P01，P02 ...
+  41           ************************************************************************/
+  42          void gpio_init(uint8_t pin)
+  43          {
+  44   1        uint8_t gpio_pin = pin/8;
+  45   1              uint8_t gpio_num = pin%8;
+  46   1          
+  47   1          //开启GPIO时钟，GPIO模块正常工作
+  48   1              if(gpio_pin == PORT0)
+  49   1              {
+  50   2                      PCLK1 |= (1<<0);                      
+  51   2                PRESET1 |= (1<<0);         
+  52   2              }
+  53   1              else if(gpio_pin == PORT1)
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 2   
+
+  54   1              {
+  55   2                      PCLK1 |= (1<<1);                     
+  56   2                  PRESET1 |= (1<<1);         
+  57   2              }
+  58   1              else if(gpio_pin == PORT2)
+  59   1              {
+  60   2                      PCLK1 |= (1<<2);                      
+  61   2                      PRESET1 |= (1<<2);        
+  62   2              }
+  63   1      }
+  64          
+  65          /************************************************************************
+  66           * function   : gpio_dir_set
+  67           * Description: set direction of gpio pin
+  68           * GPIO管脚数据流方向配置
+  69           * input :uint8_t pin  ： P00，P01，P02 ...
+  70                    uint8_t dir  ： GPIO_DIR_OUT：输出；GPIO_DIR_IN：输入
+  71           ************************************************************************/
+  72          void gpio_dir_set(uint8_t pin, uint8_t dir)
+  73          {
+  74   1        uint8_t gpio_pin = pin/8;
+  75   1              uint8_t gpio_num = pin%8;
+  76   1          
+  77   1              if(dir)                //输入
+  78   1              {               
+  79   2          if(gpio_pin == PORT0)    
+  80   2                      {
+  81   3                              P0OEN |= (1<<gpio_num);
+  82   3                      }
+  83   2                      else if(gpio_pin == PORT1)    
+  84   2                      {
+  85   3                              P1OEN |= (1<<gpio_num);
+  86   3                      }       
+  87   2                      else if(gpio_pin == PORT2)
+  88   2                      {
+  89   3                              P2OEN |= (1<<gpio_num);
+  90   3                      }
+  91   2                      
+  92   2              }
+  93   1              else                      //输出
+  94   1              {       
+  95   2          if(gpio_pin == PORT0)    
+  96   2                      {
+  97   3                              P0OEN &= (~(1<<gpio_num));
+  98   3                      }
+  99   2                      else if(gpio_pin == PORT1)    
+ 100   2                      {
+ 101   3                              P1OEN &= (~(1<<gpio_num));
+ 102   3                      }       
+ 103   2                      else if(gpio_pin == PORT2)
+ 104   2                      {
+ 105   3                              P2OEN &= (~(1<<gpio_num));
+ 106   3                      }       
+ 107   2              }       
+ 108   1      }
+ 109          
+ 110          /************************************************************************
+ 111           * function   : gpio_in_enable
+ 112           * Description: gpio in enable
+ 113           * input :  uint8_t pin  ： P00，P01，P02       ...
+ 114           *                      uint8_t mode ： IN_ENABLE：输入使能；IN_DISABLE：输入禁止
+ 115           ************************************************************************/
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 3   
+
+ 116          void gpio_in_enable(uint8_t pin, uint8_t mode)
+ 117          {
+ 118   1        uint8_t gpio_pin = pin/8;
+ 119   1              uint8_t gpio_num = pin%8;
+ 120   1      
+ 121   1              if(mode)       //输入使能
+ 122   1              {
+ 123   2                      if(gpio_pin == PORT0)    
+ 124   2                      {
+ 125   3                              REG_P0_IE |= (1<<gpio_num);
+ 126   3                      }
+ 127   2                      else if(gpio_pin == PORT1)    
+ 128   2                      {
+ 129   3                              REG_P1_IE |= (1<<gpio_num);
+ 130   3                      }       
+ 131   2                      else if(gpio_pin == PORT2)
+ 132   2                      {
+ 133   3                              REG_P2_IE |= (1<<gpio_num);
+ 134   3                      }               
+ 135   2      
+ 136   2              }
+ 137   1              else             //输入禁止
+ 138   1              {
+ 139   2                      if(gpio_pin == PORT0)    
+ 140   2                      {
+ 141   3                              REG_P0_IE &= (~(1<<gpio_num));
+ 142   3                      }
+ 143   2                      else if(gpio_pin == PORT1)    
+ 144   2                      {
+ 145   3                              REG_P1_IE &= (~(1<<gpio_num));
+ 146   3                      }       
+ 147   2                      else if(gpio_pin == PORT2)
+ 148   2                      {
+ 149   3                              REG_P2_IE &= (~(1<<gpio_num));
+ 150   3                      }
+ 151   2      
+ 152   2              }
+ 153   1      }
+ 154          
+ 155          /************************************************************************
+ 156           * function    : gpio_pu_set
+ 157           * Description : set pullup function
+ 158           * GPIO管脚上拉配置
+ 159           * input :uint8_t pin  ： P00，P01，P02 ...
+ 160           *        uint8_t mode ： GPIO_PU_ENABLE：上拉使能; GPIO_PU_DISABLE：上拉禁止
+ 161           ************************************************************************/
+ 162          void gpio_pu_set(uint8_t pin, uint8_t mode)
+ 163          {
+ 164   1        uint8_t gpio_pin = pin/8;
+ 165   1              uint8_t gpio_num = pin%8;
+ 166   1          
+ 167   1              if (mode)       //上拉禁止
+ 168   1              {
+ 169   2                      if (gpio_pin == PORT0)    
+ 170   2                      {
+ 171   3                              P0PU |= (1<<gpio_num);
+ 172   3                      }
+ 173   2                      else if (gpio_pin == PORT1)    
+ 174   2                      {
+ 175   3                              P1PU |= (1<<gpio_num);
+ 176   3                      }       
+ 177   2                      else if (gpio_pin == PORT2)
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 4   
+
+ 178   2                      {
+ 179   3                              P2PU |= (1<<gpio_num);
+ 180   3                      }               
+ 181   2              }
+ 182   1              else               //上拉使能
+ 183   1              {       
+ 184   2          if (gpio_pin == PORT0)    
+ 185   2                      {
+ 186   3                              P0PU &= (~(1<<gpio_num));
+ 187   3                      }
+ 188   2                      else if (gpio_pin == PORT1)    
+ 189   2                      {
+ 190   3                              P1PU &= (~(1<<gpio_num));
+ 191   3                      }       
+ 192   2                      else if (gpio_pin == PORT2)
+ 193   2                      {
+ 194   3                              P2PU &= (~(1<<gpio_num));
+ 195   3                      }       
+ 196   2              }       
+ 197   1      }
+ 198          
+ 199          /************************************************************************
+ 200           * function    : gpio_pd_set
+ 201           * Description : set pulldown function 
+ 202           * GPIO管脚下拉配置
+ 203           * input :uint8_t pin  ： P00，P01，P02 ...
+ 204           *        uint8_t mode ： GPIO_PD_ENABLE：下拉使能; GPIO_PD_DISABLE：下拉禁止
+ 205           ************************************************************************/
+ 206          void gpio_pd_set(uint8_t pin, uint8_t mode)
+ 207          {
+ 208   1        uint8_t gpio_pin = pin/8;
+ 209   1              uint8_t gpio_num = pin%8;
+ 210   1          
+ 211   1              if (mode)       //下拉使能
+ 212   1              {
+ 213   2                      if(gpio_pin == PORT0)    
+ 214   2                      {
+ 215   3                              P0PD |= (1<<gpio_num);
+ 216   3                      }
+ 217   2                      else if (gpio_pin == PORT1)    
+ 218   2                      {
+ 219   3                              P1PD |= (1<<gpio_num);
+ 220   3                      }       
+ 221   2                      else if (gpio_pin == PORT2)
+ 222   2                      {
+ 223   3                              P2PD |= (1<<gpio_num);
+ 224   3                      }       
+ 225   2              }
+ 226   1              else               //下拉禁止
+ 227   1              {       
+ 228   2                      if(gpio_pin == PORT0)    
+ 229   2                      {
+ 230   3                              P0PD &= (~(1<<gpio_num));
+ 231   3                      }
+ 232   2                      else if (gpio_pin == PORT1)    
+ 233   2                      {
+ 234   3                              P1PD &= (~(1<<gpio_num));
+ 235   3                      }       
+ 236   2                      else if (gpio_pin == PORT2)
+ 237   2                      {
+ 238   3                              P2PD &= (~(1<<gpio_num));
+ 239   3                      }       
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 5   
+
+ 240   2              }       
+ 241   1      }
+ 242          
+ 243          /************************************************************************
+ 244           * function    : gpio_od_set
+ 245           * Description : set gpio output open drain
+ 246           * GPIO管脚开漏输出配置
+ 247           * input :uint8_t pin  ： P00，P01，P02 ...
+ 248           *        uint8_t mode ： GPIO_OD_ENABLE：开漏使能; GPIO_OD_DISABLE：开漏禁止
+ 249           ************************************************************************/
+ 250          void gpio_od_set(uint8_t pin, uint8_t mode)
+ 251          {
+ 252   1        uint8_t gpio_pin = pin/8;
+ 253   1              uint8_t gpio_num = pin%8;
+ 254   1          
+ 255   1              if (mode)       //开漏使能
+ 256   1              {
+ 257   2                      if(gpio_pin == PORT0)    
+ 258   2                      {
+ 259   3                              P0OD |= (1<<gpio_num);
+ 260   3                      }
+ 261   2                      else if (gpio_pin == PORT1)    
+ 262   2                      {
+ 263   3                              P1OD |= (1<<gpio_num);
+ 264   3                      }       
+ 265   2                      else if (gpio_pin == PORT2)
+ 266   2                      {
+ 267   3                              P2OD |= (1<<gpio_num);
+ 268   3                      }       
+ 269   2              }
+ 270   1              else               //开漏禁止
+ 271   1              {       
+ 272   2                      if(gpio_pin == PORT0)    
+ 273   2                      {
+ 274   3                              P0OD &= (~(1<<gpio_num));
+ 275   3                      }
+ 276   2                      else if (gpio_pin == PORT1)    
+ 277   2                      {
+ 278   3                              P1OD &= (~(1<<gpio_num));
+ 279   3                      }       
+ 280   2                      else if (gpio_pin == PORT2)
+ 281   2                      {
+ 282   3                              P2OD &= (~(1<<gpio_num));
+ 283   3                      }       
+ 284   2              }       
+ 285   1      }
+ 286          
+ 287          /************************************************************************
+ 288           * function    : gpio_cs_set
+ 289           * Description : set gpio input type
+ 290           * GPIO管脚输入类型配置
+ 291           * input :uint8_t pin  ： P00，P01，P02 ...
+ 292           *        uint8_t mode ： GPIO_CS_CMOS：CMOS input buffer; 
+ 293                                    GPIO_CS_SCHMITT：Schmitt input buffer 
+ 294           ************************************************************************/
+ 295          void gpio_cs_set(uint8_t pin, uint8_t mode)
+ 296          {
+ 297   1        uint8_t gpio_pin = pin/8;
+ 298   1              uint8_t gpio_num = pin%8;
+ 299   1          
+ 300   1              if(mode)       //CMOS input buffer
+ 301   1              {
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 6   
+
+ 302   2                      if(gpio_pin == PORT0)    
+ 303   2                      {
+ 304   3                              P0CS |= (1<<gpio_num);
+ 305   3                      }
+ 306   2                      else if (gpio_pin == PORT1)    
+ 307   2                      {
+ 308   3                              P1CS |= (1<<gpio_num);
+ 309   3                      }       
+ 310   2                      else if (gpio_pin == PORT2)
+ 311   2                      {
+ 312   3                              P2CS |= (1<<gpio_num);
+ 313   3                      }       
+ 314   2              }
+ 315   1              else               //Schmitt input buffer 
+ 316   1              {       
+ 317   2                      if(gpio_pin == PORT0)    
+ 318   2                      {
+ 319   3                              P0CS &= (~(1<<gpio_num));
+ 320   3                      }
+ 321   2                      else if (gpio_pin == PORT1)    
+ 322   2                      {
+ 323   3                              P1CS &= (~(1<<gpio_num));
+ 324   3                      }       
+ 325   2                      else if (gpio_pin == PORT2)
+ 326   2                      {
+ 327   3                              P2CS &= (~(1<<gpio_num));
+ 328   3                      }       
+ 329   2              }       
+ 330   1      }
+ 331          
+ 332          /************************************************************************
+ 333           * function    : gpio_dr_set
+ 334           * Description : set gpio driving power
+ 335           * GPIO管脚驱动能力配置
+ 336           * input :uint8_t pin  ： P00，P01，P02 ...
+ 337           *        uint8_t mode ： GPIO_DR_HIGH：高驱动能力 ; GPIO_DR_LOW：低驱动能力
+ 338           ************************************************************************/
+ 339          void gpio_dr_set(uint8_t pin, uint8_t mode)
+ 340          {
+ 341   1        uint8_t gpio_pin = pin/8;
+ 342   1              uint8_t gpio_num = pin%8;
+ 343   1          
+ 344   1              if(mode)       //低驱动能力
+ 345   1              {
+ 346   2                      if(gpio_pin == PORT0)    
+ 347   2                      {
+ 348   3                              P0DR |= (1<<gpio_num);
+ 349   3                      }
+ 350   2                      else if(gpio_pin == PORT1)    
+ 351   2                      {
+ 352   3                              P1DR |= (1<<gpio_num);
+ 353   3                      }       
+ 354   2                      else if(gpio_pin == PORT2)
+ 355   2                      {
+ 356   3                              P2DR |= (1<<gpio_num);
+ 357   3                      }       
+ 358   2              }
+ 359   1              else               //高驱动能力 
+ 360   1              {       
+ 361   2                      if(gpio_pin == PORT0)    
+ 362   2                      {
+ 363   3                              P0DR &= (~(1<<gpio_num));
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 7   
+
+ 364   3                      }
+ 365   2                      else if(gpio_pin == PORT1)    
+ 366   2                      {
+ 367   3                              P1DR &= (~(1<<gpio_num));
+ 368   3                      }       
+ 369   2                      else if(gpio_pin == PORT2)
+ 370   2                      {
+ 371   3                              P2DR &= (~(1<<gpio_num));
+ 372   3                      }       
+ 373   2              }       
+ 374   1      }
+ 375          
+ 376          /************************************************************************
+ 377           * function    : gpio_sr_set
+ 378           * Description : set gpio speed
+ 379           * GPIO管脚速度配置
+ 380           * input :uint8_t pin  ： P00，P01，P02 ...
+ 381           *        uint8_t mode ： GPIO_SR_HIGH：快速 ; GPIO_SR_LOW：慢速
+ 382           ************************************************************************/
+ 383          void gpio_sr_set(uint8_t pin, uint8_t mode)
+ 384          {
+ 385   1        uint8_t gpio_pin = pin/8;
+ 386   1              uint8_t gpio_num = pin%8;
+ 387   1          
+ 388   1              if (mode)       //慢速
+ 389   1              {
+ 390   2                      if(gpio_pin == PORT0)    
+ 391   2                      {
+ 392   3                              REG_P0_SR |= (1<<gpio_num);
+ 393   3                      }
+ 394   2                      else if(gpio_pin == PORT1)    
+ 395   2                      {
+ 396   3                              REG_P1_SR |= (1<<gpio_num);
+ 397   3                      }       
+ 398   2                      else if(gpio_pin == PORT2)
+ 399   2                      {
+ 400   3                              REG_P2_SR |= (1<<gpio_num);
+ 401   3                      }       
+ 402   2              }
+ 403   1              else               //快速 
+ 404   1              {       
+ 405   2                      if(gpio_pin == PORT0)    
+ 406   2                      {
+ 407   3                              REG_P0_SR &= (~(1<<gpio_num));
+ 408   3                      }
+ 409   2                      else if(gpio_pin == PORT1)    
+ 410   2                      {
+ 411   3                              REG_P1_SR &= (~(1<<gpio_num));
+ 412   3                      }       
+ 413   2                      else if(gpio_pin == PORT2)
+ 414   2                      {
+ 415   3                              REG_P2_SR &= (~(1<<gpio_num));
+ 416   3                      }       
+ 417   2              }       
+ 418   1      }
+ 419          
+ 420          /************************************************************************
+ 421           * function    : gpio_io_get
+ 422           * Description : get gpio pin value
+ 423           * GPIO输入电平获取
+ 424           * input : uint8_t pin  :  P00，P01，P02...
+ 425           * return: 管脚电平状态
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 8   
+
+ 426           ************************************************************************/
+ 427          uint8_t gpio_io_get(uint8_t pin)
+ 428          {
+ 429   1        uint8_t gpio_pin = pin/8;
+ 430   1              uint8_t gpio_num = pin%8;
+ 431   1          
+ 432   1        if(gpio_pin == PORT0)    
+ 433   1              {
+ 434   2          return ((P0 >> gpio_num) & 0x01);   
+ 435   2              }
+ 436   1              else if (gpio_pin == PORT1)    
+ 437   1              {
+ 438   2          return ((P1 >> gpio_num) & 0x01);                   
+ 439   2              }       
+ 440   1        else
+ 441   1              {
+ 442   2          return ((P2 >> gpio_num) & 0x01);                           
+ 443   2              }
+ 444   1      
+ 445   1      }
+ 446          
+ 447          
+ 448          /************************************************************************
+ 449           * function    : gpio_io_set
+ 450           * Description : gpio set 1 or 0
+ 451           * GPIO电平输出
+ 452           * input : uint8_t pin   :  P00，P01，P02...
+ 453           *                 uint8_t level :  GPIO_HIGH：1; GPIO_LOW：0
+ 454           ************************************************************************/
+ 455          void gpio_io_set(uint8_t pin, uint8_t level)
+ 456          {
+ 457   1        uint8_t gpio_pin = pin/8;
+ 458   1              uint8_t gpio_num = pin%8;
+ 459   1          
+ 460   1              if(level)         //输出高电平
+ 461   1              {
+ 462   2                      if (gpio_pin == PORT0)    
+ 463   2                      {
+ 464   3                              P0 |= 1<< gpio_num;
+ 465   3                      }
+ 466   2                      else if (gpio_pin == PORT1)    
+ 467   2                      {
+ 468   3                              P1 |= 1<< gpio_num;             
+ 469   3                      }       
+ 470   2                      else if (gpio_pin == PORT2)
+ 471   2                      {
+ 472   3                              P2 |= 1<< gpio_num;             
+ 473   3                      }
+ 474   2              }
+ 475   1              else              //输出低电平
+ 476   1              {
+ 477   2                      if (gpio_pin == PORT0)    
+ 478   2                      {
+ 479   3                              P0 &= (~(1<<gpio_num));
+ 480   3                      }
+ 481   2                      else if (gpio_pin == PORT1)    
+ 482   2                      {
+ 483   3                              P1 &= (~(1<<gpio_num));         
+ 484   3                      }       
+ 485   2                      else if (gpio_pin == PORT2)
+ 486   2                      {
+ 487   3                              P2 &= (~(1<<gpio_num));         
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 9   
+
+ 488   3                      }
+ 489   2              }
+ 490   1      }
+ 491          
+ 492          /************************************************************************
+ 493           * function   : gpio_irq_set
+ 494           * Description: gpio interrupt configuration
+ 495           * GPIO中断使能，失能
+ 496           * input : uint8_t pin  :  P00，P01，P02...
+ 497           *                 uint8_t mode :  GPIO_IRQ_ENABLE: 使能; GPIO_IRQ_DISABLE：失能
+ 498                     void (*pfunc)() :中断处理回调函数
+ 499           ************************************************************************/
+ 500          void gpio_irq_set(uint8_t pin, uint8_t mode, void (*pfunc)())
+ 501          {
+ 502   1        uint8_t gpio_pin = pin/8;
+ 503   1              
+ 504   1              uint8_t gpio_num = pin%8;
+ 505   1          
+ 506   1              if(mode)            //中断使能
+ 507   1              {
+ 508   2                      gpiofunc[pin] = pfunc;
+ 509   2                      
+ 510   2                      EA = 1;         //总中断开启
+ 511   2                      EX0 = 1;        //外部中断初级使能开启
+ 512   2                      gpio_irq_clr(pin);      //清除GPIO端口中断状态
+ 513   2                      if (gpio_pin == PORT0)    
+ 514   2                      {
+ 515   3                              P0IEN |= (1<<gpio_num);
+ 516   3                      }
+ 517   2                      else if (gpio_pin == PORT1)    
+ 518   2                      {
+ 519   3                              P1IEN |= (1<<gpio_num);
+ 520   3                      }       
+ 521   2                      else if (gpio_pin == PORT2)
+ 522   2                      {
+ 523   3                              P2IEN |= (1<<gpio_num);
+ 524   3                      }       
+ 525   2              }
+ 526   1              else               //中断失能
+ 527   1              { 
+ 528   2                      EX0 = 0;        //外部中断初级使能关闭
+ 529   2                      if (gpio_pin == PORT0)    
+ 530   2                      {
+ 531   3                              P0IEN &= (~(1<<gpio_num));
+ 532   3                      }
+ 533   2                      else if (gpio_pin == PORT1)    
+ 534   2                      {
+ 535   3                              P1IEN &= (~(1<<gpio_num));
+ 536   3                      }       
+ 537   2                      else if (gpio_pin == PORT2)
+ 538   2                      {
+ 539   3                              P2IEN &= (~(1<<gpio_num));
+ 540   3                      }
+ 541   2              }       
+ 542   1              
+ 543   1      }
+ 544          
+ 545          
+ 546          
+ 547          
+ 548          /************************************************************************
+ 549           * function   : gpio_irq_clr
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 10  
+
+ 550           * Description: clear the interrupt flag of gpio pin
+ 551           * GPIO中断清除
+ 552           * input : uint8_t pin : P00，P01，P02  ...
+ 553           * return: none
+ 554           ************************************************************************/
+ 555          void gpio_irq_clr(uint8_t pin)
+ 556          {
+ 557   1        uint8_t gpio_pin = pin/8;
+ 558   1              uint8_t gpio_num = pin%8;
+ 559   1          
+ 560   1              if(gpio_pin == PORT0)        //写0清除
+ 561   1              {
+ 562   2                      P0IRQ &= (~(1<<gpio_num));
+ 563   2              }
+ 564   1              else if(gpio_pin == PORT1)    
+ 565   1              {
+ 566   2                      P1IRQ &= (~(1<<gpio_num));              
+ 567   2              }       
+ 568   1              else if(gpio_pin == PORT2)
+ 569   1              {
+ 570   2                      P2IRQ &= (~(1<<gpio_num));              
+ 571   2              }               
+ 572   1      }
+ 573          
+ 574          /************************************************************************
+ 575           * function   : gpio_irq_get
+ 576           * Description: get the interrupt flag of gpio pin
+ 577           * GPIO中断状态获取
+ 578           * input : uint8_t pin : P00，P01，P02  ...
+ 579           * return: 管脚中断状态
+ 580           ************************************************************************/
+ 581          uint8_t gpio_irq_get(uint8_t pin)
+ 582          {
+ 583   1        uint8_t gpio_pin = pin/8;
+ 584   1              uint8_t gpio_num = pin%8;
+ 585   1          
+ 586   1        if(gpio_pin == PORT0)    
+ 587   1              {
+ 588   2          return ( P0IRQ >> gpio_num) & 0x01; 
+ 589   2              }
+ 590   1              else if(gpio_pin == PORT1)    
+ 591   1              {
+ 592   2          return ( P1IRQ >> gpio_num) & 0x01;                 
+ 593   2              }       
+ 594   1        else
+ 595   1              {
+ 596   2          return ( P2IRQ >> gpio_num) & 0x01;                         
+ 597   2              }
+ 598   1      }
+ 599          
+ 600          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1629    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     72       3
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+C51 COMPILER V9.57.0.0   GPIO                                                              01/07/2026 10:18:56 PAGE 11  
+
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

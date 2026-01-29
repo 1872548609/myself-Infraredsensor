@@ -1,0 +1,271 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:09:58 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\..
+                    -\MCU\Common;..\..\..\..\..\MCU\Device;..\..\..\..\..\Driver\inc;..\..\..\..\..\Driver\src) DEBUG PRINT(.\Out_Files\app.l
+                    -st) TABS(2) OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "common.h"
+  13          #include "config.h"
+  14          #include "uart0.h"
+  15          #include "can_rx.h"
+  16          
+  17          volatile uint8_t rx_flag ;
+  18          volatile uint8_t uart0_rx_buf[32];
+  19          volatile uint8_t uart0_tx_buf[32];
+  20          volatile uint16_t rx_count = 0;
+  21          volatile uint16_t tx_count = 0;
+  22          
+  23          volatile uint8_t can_rx_flag ;
+  24          S_Can_Filter_Msg can_filter_msg;
+  25          S_Can_Tx_Msg can_tx_msg;
+  26          S_Can_Rx_Msg can_rx_msg;
+  27          
+  28          /*用于测试接收的数据是否正确；接收和发送的数据保持一致,用户可自行设置*/
+  29          static uint8_t test_data[8] = {0xa0,0xa1,0xa2,0xa3,0xa4,0xa5,0xa6,0xa7}; 
+  30          /************************************************************************
+  31           * Function     : uart0_rec_pro
+  32           * Description  : uart0_rec_pro 串口接收处理回调函数
+  33           * Input    : none
+  34           * Output     : none
+  35           * Return   : none
+  36           ************************************************************************/
+  37          void uart0_rec_pro(void)
+  38          {
+  39   1        uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  40   1        rx_flag = 1;  
+  41   1      }
+  42          
+  43          /************************************************************************
+  44           * Function     : uart_init
+  45           * Description  : uart_init 串口初始化
+  46           * Input    : none
+  47           * Output     : none
+  48           * Return   : none
+  49           ************************************************************************/
+  50          void uart_init(void)
+  51          {
+  52   1        rx_flag = 0;
+  53   1        uart0_init(UART0_BAUD_RATE);
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:09:58 PAGE 2   
+
+  54   1        uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+  55   1      }
+  56          
+  57          /************************************************************************
+  58           * function   : can_irq_rim
+  59           * Description: can_irq_rim 接受中断服务函数
+  60           * input : none
+  61           * return: none
+  62           ************************************************************************/
+  63          void can_irq_rim(void)
+  64          {
+  65   1        can_rx_flag = 1;
+  66   1      }
+  67          /************************************************************************
+  68           * function   : compare_data
+  69           * Description: compare_data  比较数据
+  70           * input : none
+  71           * return: none
+  72           ************************************************************************/
+  73          uint8_t compare_data(uint8_t *p, uint8_t *q, uint32_t len)
+  74          {
+  75   1        uint32_t i;
+  76   1        for(i=0; i<len; i++)
+  77   1        {
+  78   2          if(*p == *q)
+  79   2          {
+  80   3            p++;
+  81   3            q++;
+  82   3          }
+  83   2          else
+  84   2          {
+  85   3            return 0; //不相等
+  86   3          }
+  87   2        }
+  88   1        return 1;     //相等
+  89   1      }
+  90          
+  91          /************************************************************************
+  92           * function   : user_app_pro
+  93           * Description: user app pro , 添加用户代码
+  94           * input : none
+  95           * return: none
+  96           ************************************************************************/
+  97          static void user_app_pro(void)
+  98          {
+  99   1        uint8_t i;
+ 100   1        //以下代码为打印测试，用户可添加应用代码
+ 101   1        if(can_rx_msg.rtr)
+ 102   1        {//如果是遥控帧
+ 103   2          printfS("received remote frame!! \r\n");
+ 104   2          
+ 105   2          if(can_rx_msg.ide)
+ 106   2          {//扩展帧
+ 107   3            printfS("ext_id = 0x%x\r\n", can_rx_msg.ext_id);
+ 108   3          }
+ 109   2          else
+ 110   2          {//标准帧
+ 111   3            printfS("std_id = 0x%x\r\n", can_rx_msg.std_id);
+ 112   3          }
+ 113   2          printfS("ide = 0x%x\r\n", can_rx_msg.ide);
+ 114   2          printfS("rtr = 0x%x\r\n", can_rx_msg.rtr);
+ 115   2          
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:09:58 PAGE 3   
+
+ 116   2          
+ 117   2        }
+ 118   1        else
+ 119   1        {//如果是数据帧
+ 120   2          printfS("received data frame!! \r\n");
+ 121   2          
+ 122   2          if(can_rx_msg.ide)
+ 123   2          {//扩展帧
+ 124   3            printfS("ext_id = 0x%lx\r\n", can_rx_msg.ext_id);
+ 125   3          }
+ 126   2          else
+ 127   2          {//标准帧
+ 128   3            printfS("std_id = 0x%lx\r\n", can_rx_msg.std_id);
+ 129   3          }
+ 130   2          printfS("ide = 0x%bx\r\n", can_rx_msg.ide);
+ 131   2          printfS("rtr = 0x%bx\r\n", can_rx_msg.rtr);
+ 132   2          printfS("len = 0x%bx\r\n", can_rx_msg.len);
+ 133   2          printfS("recv data:\r\n");
+ 134   2          for(i=0;i<can_rx_msg.len;i++)
+ 135   2          {
+ 136   3            printfS("%02bx   ", can_rx_msg.recv_data[i]);
+ 137   3          }
+ 138   2          printfS("\r\n");
+ 139   2          if(compare_data(&can_rx_msg.recv_data[0], test_data, can_rx_msg.len))
+ 140   2          {
+ 141   3            printfS("can test data pass!! \r\n");
+ 142   3          }
+ 143   2          else
+ 144   2          {
+ 145   3            printfS("can test data error error!!!!! \r\n");
+ 146   3          }
+ 147   2          printfS("\r\n\r\n");
+ 148   2          
+ 149   2        }
+ 150   1      }
+ 151          /************************************************************************
+ 152           * function   : can_filter_set
+ 153           * Description: can_filter_set过滤器设置，用户可自行设置
+ 154           * input : none
+ 155           * return: none
+ 156           ************************************************************************/
+ 157          void can_filter_set()
+ 158          {
+ 159   1        /* 过滤器信息设置 */
+ 160   1        can_filter_msg.std_id1 = 0x592;         //使用的标准ID1
+ 161   1      //  can_filter_msg.std_id2 = 0x127;         //使用的标准ID2 
+ 162   1      //  can_filter_msg.ide = 0x00;            //标准模式
+ 163   1      //  can_filter_msg.rtr = 0x00;            //接收的是数据帧
+ 164   1        
+ 165   1        can_filter_msg.ext_id1 = 0x11E8E477;      // 使用的扩展ID1
+ 166   1      //  can_filter_msg.ext_id2 = 0x176054af;      // 使用的扩展ID2
+ 167   1        can_filter_msg.ide = 0x01;            // 扩展模式
+ 168   1        can_filter_msg.rtr = 0x00;            //接收的是数据帧
+ 169   1      }
+ 170          /************************************************************************
+ 171           * function   : can_test
+ 172           * Description: can test
+ 173           * input : none
+ 174           * return: none
+ 175           ************************************************************************/
+ 176          
+ 177          void can_test(void)
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:09:58 PAGE 4   
+
+ 178          { 
+ 179   1        printfS("System run at %ldHz\n\r", system_core_clock);
+ 180   1        printfS("start test CAN rx function! \n");
+ 181   1        printfS("can rx test!!!!\r\n");
+ 182   1        
+ 183   1        can_init(CAN_RATE_500K);    //can初始化
+ 184   1        /*配置过滤器*/
+ 185   1        can_filter_set();
+ 186   1        can_filter_config(&can_filter_msg,CAN_DOUBLE_FILTER,CAN_FILTER_DISABLE); 
+ 187   1      
+ 188   1      #ifdef CAN_RX_INT_MODE                //如果中断使能
+ 189   1        can_irq_init(CAN_IRQ_ENABLE, can_irq_rim);    //RI接收中断开启
+ 190   1      #else
+                can_irq_init(CAN_IRQ_DISABLE, NULL);      //RI接收中断关闭
+              #endif
+ 193   1        
+ 194   1      
+ 195   1        while(1)
+ 196   1        {
+ 197   2      #ifdef CAN_RX_INT_MODE            //接收中断模式
+ 198   2          if(can_rx_flag)         
+ 199   2          {  
+ 200   3            
+ 201   3            can_rx_flag = 0;
+ 202   3            can_recv_data(&can_rx_msg);
+ 203   3            user_app_pro();
+ 204   3            
+ 205   3          }
+ 206   2      #else                   //查询模式
+                  if(can_get_sr_reg()&CAN_SR_RBS)   //FIFO中有数据
+                  {
+                    while(can_get_rmc_reg())    //处理收到的数据帧
+                    {
+                      can_recv_data(&can_rx_msg);  
+                      user_app_pro(); 
+                    }
+                  }
+              #endif
+ 216   2      
+ 217   2        }
+ 218   1      }
+ 219          /************************************************************************
+ 220           * function   : soc_test
+ 221           * Description: soc test
+ 222           * input : none
+ 223           * return: none
+ 224           ************************************************************************/
+ 225          void soc_test(void)
+ 226          {
+ 227   1        can_test(); 
+ 228   1       
+ 229   1      }
+ 230          /***************************file end************************************/
+ 231          
+ 232          
+ 233          
+ 234          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    617    ----
+   CONSTANT SIZE    =    344    ----
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:09:58 PAGE 5   
+
+   XDATA SIZE       =    134      15
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

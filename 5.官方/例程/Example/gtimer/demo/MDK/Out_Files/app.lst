@@ -1,0 +1,206 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:58:19 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\Dr
+                    -iver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.lst) TABS(2) 
+                    -OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : shengyu
+   7           * version     : V1.0
+   8           * Modify date : 2021-12-30
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "config.h"
+  13          #include "common.h"
+  14          #include "uart0.h"
+  15          #include "gtimer.h"
+  16          
+  17          volatile uint8_t rx_flag ;
+  18          volatile uint8_t uart0_rx_buf[32];
+  19          volatile uint8_t uart0_tx_buf[32];
+  20          volatile uint16_t rx_count = 0;
+  21          volatile uint16_t tx_count = 0;
+  22          
+  23          /************************************************************************
+  24           * Function     : uart0_rec_pro
+  25           * Description  : uart0_rec_pro 串口接收处理回调函数
+  26           * Input    : none
+  27           * Output     : none
+  28           * Return   : none
+  29           ************************************************************************/
+  30          void uart0_rec_pro(void)
+  31          {
+  32   1        uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  33   1        rx_flag = 1;  
+  34   1      }
+  35          
+  36          /************************************************************************
+  37           * function   : gtimer0_ue_func
+  38           * Description: gtimer0_ue_func GTIMER0 Update处理回调函数
+  39           * input : none
+  40           * return: none
+  41           ************************************************************************/
+  42          void gtimer0_ue_func(void)
+  43          {
+  44   1        printfS("gtimer0 update irq!!!\r\n");
+  45   1      
+  46   1      }
+  47          /************************************************************************
+  48           * function   : gtimer0_ccie_func
+  49           * Description: gtimer0_ccie_func GTIMER0 Update处理回调函数
+  50           * input : none
+  51           * return: none
+  52           ************************************************************************/
+  53          void gtimer0_ccie_func(void)
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:58:19 PAGE 2   
+
+  54          {
+  55   1        printfS("gtimer0 ccie irq!!!\r\n");
+  56   1      
+  57   1      }
+  58          /************************************************************************
+  59           * function   : gtimer0_bke_func
+  60           * Description: gtimer0_bke_func GTIMER0 刹车处理回调函数
+  61           * input : none
+  62           * return: none
+  63           ************************************************************************/
+  64          void gtimer0_bke_func(void)
+  65          {
+  66   1        printfS("gtimer0 bke irq!!!\r\n");
+  67   1      
+  68   1      }
+  69          /************************************************************************
+  70           * Function     : uart_init
+  71           * Description  : uart_init 串口初始化
+  72           * Input    : none
+  73           * Output     : none
+  74           * Return   : none
+  75           ************************************************************************/
+  76          void uart_init(void)
+  77          {
+  78   1        rx_flag = 0;
+  79   1        uart0_init(UART0_BAUD_RATE);
+  80   1        uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+  81   1      }
+  82          /************************************************************************
+  83           * function   : gtimer0_count_test
+  84           * Description: gtimer0_count_test GTIMER0定时器函数
+  85           * input : none
+  86           * return: none
+  87           ************************************************************************/
+  88          void gtimer0_count_test(void)
+  89          {
+  90   1        gtimer0_count_init(16000,1000-1);   //时钟源为系统时钟16M，1000分频，1S溢出产生中断
+  91   1        
+  92   1        gtimer0_irq_init(GTIMER_IRQ_ENABLE,GTIMER0_UIE_IRQ,gtimer0_ue_func);  //配置Update中断
+  93   1        
+  94   1        gtimer0_start();    //启动gtimer0计数
+  95   1        
+  96   1      }
+  97          
+  98          
+  99          /************************************************************************
+ 100           * function   : gtimer0_pwm_test
+ 101           * Description: gtimer0_pwm_test GTIMER0 PWM输出函数
+ 102           * input : none
+ 103           * return: none
+ 104           ************************************************************************/
+ 105          void gtimer0_pwm_test(void)
+ 106          {
+ 107   1        gtimer0_pwm_init(160,10-1,80);  //10KHz PWM输出,占空比为50%  
+ 108   1        
+ 109   1        gtimer0_irq_init(GTIMER_IRQ_DISABLE,GTIMER0_CCIE_IRQ,gtimer0_ccie_func);    //配置CCIE中断
+ 110   1        
+ 111   1        gtimer0_start();    //启动gtimer0计数
+ 112   1      
+ 113   1      }
+ 114          
+ 115          /************************************************************************
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:58:19 PAGE 3   
+
+ 116           * function   : gtimer0_capture_test
+ 117           * Description: gtimer0_capture_test GTIMER0捕捉函数
+ 118           * input : none
+ 119           * return: none
+ 120           ************************************************************************/
+ 121          void gtimer0_capture_test(void)
+ 122          {
+ 123   1        gtimer0_capture_init(16000,GTIMER_DIV1,GTIMER0_CAP_CH);
+ 124   1        
+ 125   1        gtimer0_irq_init(GTIMER_IRQ_ENABLE,GTIMER0_CCIE_IRQ,gtimer0_ccie_func);   //配置CCIE中断
+ 126   1        
+ 127   1        gtimer0_start();    //启动gtimer0计数
+ 128   1      
+ 129   1      }
+ 130          
+ 131          /************************************************************************
+ 132           * function   : gtimer0_bke_test
+ 133           * Description: gtimer0_bke_test GTIMER0刹车函数
+ 134           * input : none
+ 135           * return: none
+ 136           ************************************************************************/  
+ 137          void gtimer0_bke_test(void)
+ 138          {
+ 139   1        gtimer0_bke_init();         //刹车初始化
+ 140   1        
+ 141   1        gtimer0_pwm_init(160,10-1,80);    //10KHz PWM输出,占空比为50%  
+ 142   1        
+ 143   1        gtimer0_irq_init(GTIMER_IRQ_ENABLE,GTIMER0_BKE_IE_IRQ,gtimer0_bke_func);  //配置刹车中断
+ 144   1        
+ 145   1        gtimer0_start();            //启动gtimer0计数
+ 146   1      
+ 147   1      }
+ 148          
+ 149          
+ 150          void gtimer0_test(void)
+ 151          {
+ 152   1      //  gtimer0_count_test();       //gtimer0 计数测试
+ 153   1        
+ 154   1        gtimer0_pwm_test();       //gtimer0 PWM输出测试
+ 155   1        
+ 156   1      // gtimer0_capture_test();    //gtimer0 输入捕获测试
+ 157   1        
+ 158   1      //  gtimer0_bke_test();       //gtimer0 刹车测试
+ 159   1      }
+ 160          
+ 161          
+ 162          
+ 163          void soc_test(void)
+ 164          {
+ 165   1        printfS("System run at %ldHz\n\r", system_core_clock);
+ 166   1        printfS("gtimer0 test start\r\n");
+ 167   1        
+ 168   1        gtimer0_test();     
+ 169   1        
+ 170   1      }
+ 171          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    240    ----
+   CONSTANT SIZE    =    110    ----
+   XDATA SIZE       =     69    ----
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:58:19 PAGE 4   
+
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

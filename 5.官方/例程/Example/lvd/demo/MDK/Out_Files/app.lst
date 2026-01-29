@@ -1,0 +1,106 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/18/2022 09:35:57 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\Dr
+                    -iver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.lst) TABS(2) 
+                    -OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "config.h"
+  13          #include "common.h"
+  14          #include "uart0.h"
+  15          #include "lvd.h"
+  16          
+  17          volatile uint8_t rx_flag ;
+  18          volatile uint8_t uart0_rx_buf[32];
+  19          volatile uint8_t uart0_tx_buf[32];
+  20          volatile uint16_t rx_count = 0;
+  21          volatile uint16_t tx_count = 0;
+  22          extern uint8_t lvd_flag;
+  23          /************************************************************************
+  24           * Function     : uart0_rec_pro
+  25           * Description  : uart0_rec_pro 串口接收处理回调函数
+  26           * Input    : none
+  27           * Output     : none
+  28           * Return   : none
+  29           ************************************************************************/
+  30          void uart0_rec_pro(void)
+  31          {
+  32   1        uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  33   1        rx_flag = 1;  
+  34   1      }
+  35          
+  36          /************************************************************************
+  37           * Function     : uart_init
+  38           * Description  : uart_init 串口初始化
+  39           * Input    : none
+  40           * Output     : none
+  41           * Return   : none
+  42           ************************************************************************/
+  43          void uart_init(void)
+  44          {
+  45   1        rx_flag = 0;
+  46   1        uart0_init(UART0_BAUD_RATE);
+  47   1        uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+  48   1      }
+  49          
+  50          /************************************************************************
+  51           * Function     : lvd_test
+  52           * Description  : lvd_test
+  53           * Input    : none
+C51 COMPILER V9.60.0.0   APP                                                               07/18/2022 09:35:57 PAGE 2   
+
+  54           * Output   : none
+  55           * Return   : none
+  56           ************************************************************************/
+  57          void lvd_test(void)
+  58          {
+  59   1        printfS("System run at %ldHz\n\r", system_core_clock);
+  60   1        printfS("start test lvd! \n");  
+  61   1        
+  62   1        lvd_init();     //低压检测初始化
+  63   1        
+  64   1        while(1)
+  65   1        {
+  66   2          if(lvd_flag == 1)
+  67   2          {
+  68   3            printfS("LVD IRQ!\r\n");
+  69   3            lvd_flag = 0;
+  70   3          }
+  71   2        }
+  72   1      }
+  73          
+  74          
+  75          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    116    ----
+   CONSTANT SIZE    =     51    ----
+   XDATA SIZE       =     69    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

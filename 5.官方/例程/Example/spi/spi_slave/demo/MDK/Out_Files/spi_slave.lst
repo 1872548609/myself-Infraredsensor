@@ -1,0 +1,359 @@
+C51 COMPILER V9.60.0.0   SPI_SLAVE                                                         07/19/2022 10:32:42 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE SPI_SLAVE
+OBJECT MODULE PLACED IN .\Out_Files\spi_slave.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\..\Driver\src\spi_slave.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE
+                    - INCDIR(..\..\..\..\..\Driver\inc;..\..\..\..\..\Driver\src;..\..\..\..\..\MCU\Common;..\..\..\..\..\MCU\Device) DEBUG P
+                    -RINT(.\Out_Files\spi_slave.lst) TABS(2) OBJECT(.\Out_Files\spi_slave.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2020, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : spi.c
+   5           * Description : spi driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2020-08-03
+   9           ***********************************************************************/
+  10          #include "spi_slave.h"
+  11          
+  12          void (*spi_func)(void) = {0};
+  13          
+  14          
+  15          /************************************************************************
+  16           * Function     : SPI_IRQHandler
+  17           * Description  : SPI中断处理函数
+  18           * Input    : none
+  19           * Output   : none   
+  20           * Return   : none
+  21           ************************************************************************/
+  22          void SPI_IRQHandler(void) interrupt 7
+  23          {
+  24   1        if((REG_SPI_SPSR & (0x01<<0)))    //RXNE
+  25   1        {
+  26   2          if(spi_func != NULL)
+  27   2          {
+  28   3            spi_func();
+  29   3          } 
+  30   2        }
+  31   1            
+  32   1      }
+  33          
+  34          /************************************************************************
+  35           * Function     : spi_master_init
+  36           * Description  : spi_master_init SPI主机初始化
+  37           * Input    : uint8_t work_mode 选择SPI工作模式0/1/2/3 
+  38           *          uint8_t spi_baudrate_psc  选择SPI波特率分频 SPI通信速率=fSYSCLK/波特率分频
+  39           * Output   : none   
+  40           * Return   : none
+  41           ************************************************************************/
+  42          void spi_master_init(uint8_t work_mode,uint8_t spi_baudrate_psc)
+  43          {       
+  44   1        PRESET0 |= (1<<3);                //SPI复位释放
+  45   1        PCLK0   |= (1<<3);                //SPI模块时钟使能
+  46   1        
+  47   1        REG_SPI_SPCR1 = 0x00;
+  48   1        REG_SPI_SPCR2 = 0x00;
+  49   1        REG_SPI_SPCR3 = 0xF4;
+  50   1        
+  51   1        REG_SPI_SPCR1 |= (1<<2);            //master模式
+  52   1        REG_SPI_SPCR1 &= ~(1<<3);           //先发送MSB
+  53   1        REG_SPI_SPCR1 |= (spi_baudrate_psc<<5);     //波特率分频
+C51 COMPILER V9.60.0.0   SPI_SLAVE                                                         07/19/2022 10:32:42 PAGE 2   
+
+  54   1        REG_SPI_SPCR2 |= (1<<4);            //软件控制SSN
+  55   1          
+  56   1        
+  57   1        switch(work_mode)
+  58   1        {
+  59   2          case WORK_MODE_0:
+  60   2            REG_SPI_SPCR1 &= ~(1<<0);         //在SCK第一个边沿采样
+  61   2            REG_SPI_SPCR1 &= ~(1<<1);       //SCK空闲时低电平 
+  62   2            break;    
+  63   2          case WORK_MODE_1:   
+  64   2            REG_SPI_SPCR1 |= (1<<0);            //在SCK第二个边沿采样 
+  65   2            REG_SPI_SPCR1 &= ~(1<<1);         //SCK空闲时低电平 
+  66   2            break;    
+  67   2          case WORK_MODE_2:   
+  68   2            REG_SPI_SPCR1 &= ~(1<<0);           //在SCK第一个边沿采样 
+  69   2            REG_SPI_SPCR1 |= (1<<1);            //SCK空闲时高电平 
+  70   2            break;    
+  71   2          case WORK_MODE_3:   
+  72   2            REG_SPI_SPCR1 |= (1<<0);            //在SCK第二个边沿采样
+  73   2            REG_SPI_SPCR1 |= (1<<1);            //SCK空闲时高电平 
+  74   2            break;
+  75   2          default:    
+  76   2            break;
+  77   2        }
+  78   1        
+  79   1        REG_SPI_SPCR2 |= (1<<5);            //使能SPI
+  80   1      
+  81   1      }
+  82          
+  83          /************************************************************************
+  84           * Function     : spi_slave_init
+  85           * Description  : spi_slave_init  SPI从机初始化
+  86           * Input    : uint8_t work_mode 选择SPI工作模式0/1/2/3 
+  87           * Output   : none   
+  88           * Return   : none
+  89           ************************************************************************/
+  90          void spi_slave_init(uint8_t work_mode)
+  91          {
+  92   1        PRESET0 |= (1<<3);                //SPI复位释放
+  93   1        PCLK0   |= (1<<3);                //SPI模块时钟使能
+  94   1        
+  95   1        REG_SPI_SPCR1 = 0x00;
+  96   1        REG_SPI_SPCR2 = 0x00;
+  97   1        REG_SPI_SPCR3 = 0xF4;
+  98   1        
+  99   1        REG_SPI_SPCR1 &= ~(1<<2);           //slave模式
+ 100   1        REG_SPI_SPCR3 |= (1<<1);            //对SSN/SCK/MOSI上可能产生的毛刺数字滤波
+ 101   1      //  REG_SPI_SPCR3 |= (1<<0);            //slave模式下，提前半个周期发送(速率12MHz时用)
+ 102   1      
+ 103   1        switch(work_mode)
+ 104   1        {
+ 105   2          case WORK_MODE_0:
+ 106   2            REG_SPI_SPCR1 &= ~(1<<0);         //在SCK第一个边沿采样
+ 107   2            REG_SPI_SPCR1 &= ~(1<<1);       //SCK空闲时低电平 
+ 108   2            break;    
+ 109   2          case WORK_MODE_1:   
+ 110   2            REG_SPI_SPCR1 |= (1<<0);            //在SCK第二个边沿采样 
+ 111   2            REG_SPI_SPCR1 &= ~(1<<1);         //SCK空闲时低电平 
+ 112   2            break;    
+ 113   2          case WORK_MODE_2:   
+ 114   2            REG_SPI_SPCR1 &= ~(1<<0);           //在SCK第一个边沿采样 
+ 115   2            REG_SPI_SPCR1 |= (1<<1);            //SCK空闲时高电平 
+C51 COMPILER V9.60.0.0   SPI_SLAVE                                                         07/19/2022 10:32:42 PAGE 3   
+
+ 116   2            break;    
+ 117   2          case WORK_MODE_3:   
+ 118   2            REG_SPI_SPCR1 |= (1<<0);            //在SCK第二个边沿采样
+ 119   2            REG_SPI_SPCR1 |= (1<<1);            //SCK空闲时高电平 
+ 120   2            break;
+ 121   2          default:    
+ 122   2            break;
+ 123   2        }
+ 124   1        
+ 125   1        REG_SPI_SPCR2 |= (1<<5);            //使能SPI
+ 126   1      }
+ 127            
+ 128          /************************************************************************
+ 129           * Function     : spi_deinit
+ 130           * Description  : spi_deinit  关闭SPI模块
+ 131           * Input    : none
+ 132           * Output   : none   
+ 133           * Return   : none
+ 134           ************************************************************************/
+ 135          void spi_deinit(void)
+ 136          {
+ 137   1        PRESET0 &= ~(1<<3);               //SPI复位
+ 138   1        PCLK0   &= ~(1<<3);               //SPI模块时钟关闭
+ 139   1      }
+ 140          
+ 141          /************************************************************************
+ 142           * Function     : spi_irq_enable
+ 143           * Description  : spi_irq_enable spi中断使能
+ 144           * Input    : uint8_t spi_irq_type 中断类型
+ 145           *                void (*pfunc)() 中断回调函数
+ 146           * Output   : none   
+ 147           * Return   : none
+ 148           ************************************************************************/
+ 149          void spi_irq_init(uint8_t irq_enable, uint8_t spi_irq_type,void (*pfunc)())
+ 150          {
+ 151   1        if(irq_enable == SPI_IRQ_ENABLE)
+ 152   1        {
+ 153   2          switch(spi_irq_type)
+ 154   2          {
+ 155   3            case SPI_RXNE_IE:
+ 156   3              REG_SPI_SPIIE |= (1<<SPI_RXNE_IE);      //SPI错误中断使能
+ 157   3              break;
+ 158   3            case SPI_TXE_IE:
+ 159   3              REG_SPI_SPIIE |= (1<<SPI_TXE_IE);     //SPI TXBUF空中断使能
+ 160   3              break;
+ 161   3            case SPI_ERROR_IE:
+ 162   3              REG_SPI_SPIIE |= (1<<SPI_ERROR_IE);     //SPI RXBUF非空中断使能
+ 163   3              break;
+ 164   3            default:
+ 165   3              break;
+ 166   3          }
+ 167   2          
+ 168   2        spi_func = pfunc;                 //SPI中断回调函数
+ 169   2        SPIINTEN = 1;                   //使能SPI中断
+ 170   2        EA = 1;                       //使能总中断
+ 171   2        }
+ 172   1        else
+ 173   1        {
+ 174   2          REG_SPI_SPIIE = 0x00;
+ 175   2          
+ 176   2          spi_func = NULL;
+ 177   2          SPIINTEN = 0;                   //关闭SPI中断
+C51 COMPILER V9.60.0.0   SPI_SLAVE                                                         07/19/2022 10:32:42 PAGE 4   
+
+ 178   2          EA = 0;                       //关闭总中断
+ 179   2          
+ 180   2        }
+ 181   1      }
+ 182          
+ 183          /************************************************************************
+ 184           * Function     : spi_irq_disable
+ 185           * Description  : spi_irq_disable
+ 186           * Input    : none
+ 187           * Output   : none   
+ 188           * Return   : none
+ 189           ************************************************************************/
+ 190          void spi_irq_disable(void)
+ 191          {
+ 192   1        REG_SPI_SPIIE = 0x00;
+ 193   1        SPIINTEN = 0;
+ 194   1      }
+ 195          
+ 196          /************************************************************************
+ 197           * Function     : spi_send_byte
+ 198           * Description  : spi_send_byte 写入一字节
+ 199           * Input    : uint8_t txdata  写入一字节数据
+ 200           * Output   : none   
+ 201           * Return   : none
+ 202           ************************************************************************/
+ 203          void spi_send_byte(uint8_t txdata)
+ 204          { 
+ 205   1        while(!(REG_SPI_SPSR & (1<<1)));              //等待发送缓存为空，TXBE事件
+ 206   1        
+ 207   1        REG_SPI_TXBUF = txdata;
+ 208   1      }
+ 209          
+ 210          /************************************************************************
+ 211           * Function     : spi_receive_byte
+ 212           * Description  : spi_receive_byte 读取一字节
+ 213           * Input    : none
+ 214           * Output   : none   
+ 215           * Return   : REG_SPI_RXBUF 读取一字节数据
+ 216           ************************************************************************/
+ 217          uint8_t spi_receive_byte(void)
+ 218          {
+ 219   1        while(!(REG_SPI_SPSR & (1<<0)));              //等待接收缓存非空，RXBF事件
+ 220   1        
+ 221   1        return REG_SPI_RXBUF;                   //返回读取寄存器的值
+ 222   1      
+ 223   1      }
+ 224          
+ 225          /************************************************************************
+ 226           * Function     : spi_write_read_byte
+ 227           * Description  : spi_write_read_byte 读取一字节
+ 228           * Input    : uint8_t byte  写入的一个字节
+ 229           * Output   : none   
+ 230           * Return   : REG_SPI_RXBUF   读取到的一个字节
+ 231           ************************************************************************/
+ 232          uint8_t spi_write_read_byte(uint8_t byte)
+ 233          { 
+ 234   1        while(!(REG_SPI_SPSR & (1<<1)));              //等待发送缓存为空，TXBE事件
+ 235   1      
+ 236   1        REG_SPI_TXBUF = byte;                   //写入数据寄存器，把要写入的数据写入发送缓存  
+ 237   1        
+ 238   1        while(!(REG_SPI_SPSR & (1<<0)));              //等待接收缓存非空，RXBF事件
+ 239   1      
+C51 COMPILER V9.60.0.0   SPI_SLAVE                                                         07/19/2022 10:32:42 PAGE 5   
+
+ 240   1        return REG_SPI_RXBUF;                   //返回读取寄存器的值
+ 241   1      
+ 242   1      }
+ 243          
+ 244          //全双工
+ 245          uint8_t spi0_master_full_duplex_tranfer(uint8_t *send_buff, uint8_t *rec_buff, uint32_t length)
+ 246          {
+ 247   1        while(length--)
+ 248   1        {
+ 249   2          while(!(REG_SPI_SPSR & (1<<SPI_TXE_IF)));   //等待发送缓存为空
+ 250   2          
+ 251   2          REG_SPI_TXBUF = *send_buff++;
+ 252   2          
+ 253   2          while(!(REG_SPI_SPSR & (1<<SPI_RXF_IF)));       //等待接收缓存非空，RXBF事件    
+ 254   2          
+ 255   2          *rec_buff++ = REG_SPI_RXBUF;
+ 256   2        }
+ 257   1        
+ 258   1        return 0;
+ 259   1      }
+ 260          
+ 261          
+ 262          //半双工传输
+ 263          uint8_t spi_master_half_duplex_send_bytes(uint8_t *buff, uint32_t length)
+ 264          {
+ 265   1        REG_SPI_SPCR3 |= (1<<3);          //txonly
+ 266   1        while(length--)
+ 267   1        {
+ 268   2          while(!(REG_SPI_SPSR & (1<<SPI_TXE_IF)));   //等待发送缓存为空
+ 269   2        
+ 270   2          REG_SPI_TXBUF = *buff++;
+ 271   2        }
+ 272   1        while((REG_SPI_SPSR & (1<<SPI_BUSY_IF)));       //等待BUSY=0
+ 273   1        
+ 274   1        REG_SPI_SPCR3 &= ~(1<<3);               //关闭txonly
+ 275   1        
+ 276   1        return 0;
+ 277   1      }
+ 278           
+ 279          uint8_t  spi_master_half_duplex_receive_bytes(uint8_t *buff, uint32_t length)
+ 280          {
+ 281   1        uint32_t time_out = 0xFFFFFFFF;
+ 282   1        while(length--)
+ 283   1        {
+ 284   2          while(!(REG_SPI_SPSR & (1<<SPI_RXF_IF)))  //等待接收缓存非空
+ 285   2          {
+ 286   3            if((time_out--) == 0) 
+ 287   3            {
+ 288   4              return 1;
+ 289   4            }
+ 290   3          }
+ 291   2          *buff++ = REG_SPI_RXBUF;
+ 292   2        }
+ 293   1      
+ 294   1          return 0;
+ 295   1      
+ 296   1      }
+ 297          /************************************************************************
+ 298           * Function     : spi_cs_enable
+ 299           * Description  : spi_cs_enable CS片选拉低开始工作
+ 300           * Input    : none
+ 301           * Output   : none   
+C51 COMPILER V9.60.0.0   SPI_SLAVE                                                         07/19/2022 10:32:42 PAGE 6   
+
+ 302           * Return   : none
+ 303           ************************************************************************/ 
+ 304          void spi_cs_enable(void)
+ 305          {
+ 306   1         REG_SPI_SPCR3 &= ~(1<<2); 
+ 307   1      }
+ 308          
+ 309          /************************************************************************
+ 310           * Function     : spi_cs_disable
+ 311           * Description  : spi_cs_disable CS片选拉高停止工作
+ 312           * Input    : none
+ 313           * Output   : none   
+ 314           * Return   : none
+ 315           ************************************************************************/
+ 316          void spi_cs_disable(void)
+ 317          { 
+ 318   1        REG_SPI_SPCR3 |= (1<<2); 
+ 319   1        
+ 320   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    667    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      3      28
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

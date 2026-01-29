@@ -1,0 +1,11 @@
+".\Out_Files\STARTUP.obj",
+".\Out_Files\system_um800y.obj",
+".\Out_Files\common.obj",
+".\Out_Files\uart1.obj",
+".\Out_Files\app.obj",
+".\Out_Files\main.obj" 
+TO ".\Out_Files\um800y" 
+
+PRINT(".\Out_Files\um800y.map") REMOVEUNUSED 
+CLASSES (XDATA (X:0x0-X:0x7FF), HDATA (X:0x0-X:0x7FF), 
+ECODE (C:0x0-C:0xFFFF), HCONST (C:0x0-C:0xFFFF)) 

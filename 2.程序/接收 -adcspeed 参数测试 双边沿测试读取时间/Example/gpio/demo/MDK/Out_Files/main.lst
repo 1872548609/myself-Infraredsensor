@@ -1,0 +1,359 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:20:16 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Out_Files\main.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..
+                    -\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\main.lst) O
+                    -BJECT(.\Out_Files\main.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : main.c
+   5           * Description : main source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/     
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "gtimer.h"
+  13          #include "pwm.h"
+  14          #include "common.h"
+  15          #include "config.h"
+  16          #include "gpio.h"
+  17          #include "adc.h"
+  18          
+  19          #define impulse         P1_4
+  20          #define impulsetGPIO_HIGH();    gpio_io_set(P1_4, GPIO_LOW);
+  21          #define impulsetGPIO_LOW();     gpio_io_set(P1_4, GPIO_HIGH);
+  22          
+  23          volatile uint16_t duty2 = 8000; //占空比 = duty/cycle
+  24          volatile uint16_t cycle2 = 64000;       //pwm频率=时钟频率/cycle
+  25          uint16_t ADC_Flag = 0;
+  26          uint16_t adc_data = 0;
+  27          uint16_t adc_data2 = 0;
+  28          volatile uint16_t adc_data1 = 0;
+  29          uint16_t adc_datap= 0;
+  30          uint16_t adc_datan = 0;
+  31          uint16_t adc_set = 100;
+  32          float vol_value = 0.0;
+  33          
+  34          uint16_t status = 0;
+  35          uint16_t adcount =0;
+  36          uint16_t adcount1 =0;
+  37          
+  38          bit adget = 0;
+  39          bit state = 0;
+  40          
+  41          uint16_t adc_value = 0;
+  42          uint8_t exitintcount = 0;
+  43          
+  44          uint8_t adflag=0;
+  45          
+  46          
+  47          volatile int get_Delay = 0;
+  48          char adstate=0;
+  49          
+  50          void gtimer0_UECallBack(void);
+  51          void gtimer1_UECallBack(void);
+  52          
+  53          void GPIO_Init(void);
+C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:20:16 PAGE 2   
+
+  54          void ADC_Init(void);
+  55          void gpio_int_pro(void);
+  56          
+  57          void main(void)  
+  58          {               
+  59   1              system_init();
+  60   1              GPIO_Init();
+  61   1              uart_init();
+  62   1              
+  63   1              gtimer0_count_init(100,16-1);           //gtimer0_count_init(16000,1000-1);             //时钟源为系统时钟16M，1000�
+             -��频，100us溢出产生中断
+  64   1              gtimer0_irq_init(GTIMER_IRQ_ENABLE,GTIMER0_UIE_IRQ,gtimer0_UECallBack);
+  65   1      
+  66   1              gtimer0_start();                //启动gtimer0计数   
+  67   1      
+  68   1              adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 1, ADC_ENABLE);     //1.ADC时钟源选择 2.ADC�
+             -��压基准源选择 3.ADC内部时钟分频倍数
+  69   1      
+  70   1              adc_sample_clk_config(ADC_SAMPCLK_4);                                                                           //采样时钟脉冲宽度配置
+  71   1              
+  72   1              adc_io_config(ADC_CHANNEL_1|ADC_CHANNEL_2);                                                             //配置相应IO为ADC输入
+  73   1              
+  74   1              adc_scan_mode_config(ADC_MODE_SINGLE);                                                                  //ADC工作模式
+  75   1              
+  76   1              adc_power_config(ADC_ENABLE);                                                                                           //ADC上电
+  77   1              adc_controller_config(ADC_ENABLE);                                                                                      //ADC控制器使能
+  78   1                      
+  79   1              while(1) 
+  80   1              {
+  81   2                      
+  82   2      
+  83   2                      
+  84   2              }
+  85   1      }
+  86          
+  87          void gtimer0_UECallBack(void)
+  88          {
+  89   1      //      gpio_io_set(P1_2, GPIO_LOW);
+  90   1      //      gpio_io_set(P1_0, GPIO_LOW);
+  91   1      //      gpio_io_set(P1_3, GPIO_LOW);
+  92   1              adstate=0;
+  93   1      }
+  94          
+  95          uint32_t adc_sum;
+  96          
+  97          void GPIO_IRQHandler(void) interrupt 0
+  98          {
+  99   1          if(gpio_irq_get(P1_4))                                                                                      
+ 100   1          {
+ 101   2                                      
+ 102   2               gpio_io_set(P1_0, GPIO_HIGH);//常闭  
+ 103   2      //                                      adc_convert_start(ADC_CHANNEL_1);                                                                       //选择转换通道并启动转换
+ 104   2      
+ 105   2      //                                      while((ADCGCR1 & 0x04) != 0);
+ 106   2      //                                      
+ 107   2      //                                      while(!(ADCCSTAT & 0x01))       ;
+ 108   2      //                                      
+ 109   2      //                                      ADCCSTAT = 0x1;                                                                                 //清除BUF状态位
+ 110   2      //                                      
+ 111   2      //                                      adc_sum+=adc_get_value();       //读值
+ 112   2      //                              
+ 113   2                                      
+C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:20:16 PAGE 3   
+
+ 114   2      //                                      adc_convert_start(ADC_CHANNEL_2);                                                                       //选择转换通道并启动转换
+ 115   2      //                                      
+ 116   2      //                                      while((ADCGCR1 & 0x04) != 0);
+ 117   2      //                                      
+ 118   2      //                                      while(!(ADCCSTAT & 0x01))       ;
+ 119   2      //                                      
+ 120   2      //                                      ADCCSTAT = 0x1;                                                                                 //清除BUF状态位
+ 121   2      //                                      
+ 122   2      //                                      adc_data1=adc_get_value();      //读值
+ 123   2      //                              
+ 124   2      //                                      if(adc_data >=3500&&adc_data<4095)                                                                                      
+ 125   2      //                                      {
+ 126   2      //                                                              adc_set=3000;
+ 127   2      //                                      } 
+ 128   2      //                                      else if(adc_data >=3000&&adc_data<3500)                                                                                 
+ 129   2      //                                      {
+ 130   2      //                                                              adc_set=2000;
+ 131   2      //                                      } 
+ 132   2      //                                      else if(adc_data >=2500&&adc_data<3000)                                                                                 
+ 133   2      //                                      {
+ 134   2      //                                                              adc_set=1000;
+ 135   2      //                                      } 
+ 136   2      //                                      else if(adc_data >=2000&&adc_data<2500)                                                                                 
+ 137   2      //                                      {
+ 138   2      //                                                              adc_set=800;
+ 139   2      //                                      } 
+ 140   2      //                                      
+ 141   2      //                              //两次
+ 142   2      //                                      adc_convert_start(ADC_CHANNEL_1);                                                                       //选择转换通道并启动转换
+ 143   2      
+ 144   2      //                                      while((ADCGCR1 & 0x04) != 0);
+ 145   2      //                                      
+ 146   2      //                                      while(!(ADCCSTAT & 0x01))       ;
+ 147   2      //                                      
+ 148   2      //                                      ADCCSTAT = 0x1;                                                                                 //清除BUF状态位
+ 149   2      //                                      
+ 150   2      //                                      adc_sum+=adc_get_value();       //读值
+ 151   2      //                              
+ 152   2      //                                      adc_convert_start(ADC_CHANNEL_1);                                                                       //选择转换通道并启动转换
+ 153   2      
+ 154   2      //                                      while((ADCGCR1 & 0x04) != 0);
+ 155   2      //                                      
+ 156   2      //                                      while(!(ADCCSTAT & 0x01))       ;
+ 157   2      //                                      
+ 158   2      //                                      ADCCSTAT = 0x1;                                                                                 //清除BUF状态位
+ 159   2      //                                      
+ 160   2      //                                      adc_sum+=adc_get_value();       //读值
+ 161   2      //                                      
+ 162   2      //                                      adc_data=adc_sum/2;
+ 163   2      //                                      adc_sum=0;      
+ 164   2                              {
+ 165   3      //                              REG_GTIM0_CR0 &= ~(1<<0);                               
+ 166   3                              
+ 167   3                                      adc_convert_start(ADC_CHANNEL_2);                                                               
+ 168   3                                      
+ 169   3                                      while((ADCGCR1 & 0x04) != 0);
+ 170   3                                      
+ 171   3                                      while(!(ADCCSTAT & 0x01))       ;
+ 172   3                                      
+ 173   3                                      ADCCSTAT = 0x1;                                                                         
+ 174   3                                      
+ 175   3                                      adc_data1=adc_get_value();      
+C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:20:16 PAGE 4   
+
+ 176   3                              
+ 177   3                              
+ 178   3                                      if(adc_data1 >=3500&&adc_data1<4095)                                                                                    
+ 179   3                                      {
+ 180   4                                                              
+ 181   4                                                              adc_set=2500;
+ 182   4                                      } 
+ 183   3                                      else if(adc_data1 >=3200&&adc_data1<3500)                                                                                       
+ 184   3                                      {
+ 185   4                                                      
+ 186   4                                                              adc_set=2000;
+ 187   4                                      } 
+ 188   3                                      else if(adc_data1 >=3000&&adc_data1<3200)                                                                                       
+ 189   3                                      {
+ 190   4                                                      
+ 191   4                                                              adc_set=1800;
+ 192   4                                      } 
+ 193   3                                      else if(adc_data1 >=2700&&adc_data1<3000)                                                                                       
+ 194   3                                      {
+ 195   4                                                              
+ 196   4                                                              adc_set=1600;
+ 197   4                                      } 
+ 198   3                                      else if(adc_data1 >=2500&&adc_data1<2700)                                                                                       
+ 199   3                                      {
+ 200   4                                                      
+ 201   4                                                              adc_set=1400;
+ 202   4                                      } 
+ 203   3                                      else if(adc_data1 >=2200&&adc_data1<2500)                                                                                       
+ 204   3                                      {
+ 205   4                                                      
+ 206   4                                                              adc_set=1200;
+ 207   4                                      } 
+ 208   3                                      else if(adc_data1 >=2000&&adc_data1<2200)                                                                                       
+ 209   3                                      {
+ 210   4                                      
+ 211   4                                                              adc_set=1000;
+ 212   4                                              
+ 213   4                                      } 
+ 214   3                              }
+ 215   2                       
+ 216   2      
+ 217   2                                      //两次不平均
+ 218   2                          
+ 219   2                                              adc_convert_start(ADC_CHANNEL_1);                                                                       //选择转换通道并启动转换
+ 220   2      
+ 221   2                                              while((ADCGCR1 & 0x04) != 0);
+ 222   2                                              
+ 223   2                                              while(!(ADCCSTAT & 0x01))       ;
+ 224   2                                              
+ 225   2                                              ADCCSTAT = 0x1;                                                                                 //清除BUF状态位
+ 226   2                                              
+ 227   2                                              adc_data=adc_get_value();       //读值
+ 228   2                                      
+ 229   2                                              adc_convert_start(ADC_CHANNEL_1);                                                                       //选择转换通道并启动转换
+ 230   2      
+ 231   2                                              while((ADCGCR1 & 0x04) != 0);
+ 232   2                                              
+ 233   2                                              while(!(ADCCSTAT & 0x01))       ;
+ 234   2                                              
+ 235   2                                              ADCCSTAT = 0x1;                                                                                 //清除BUF状态位
+ 236   2                                              
+ 237   2                                              adc_data=adc_get_value();       //读值
+C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:20:16 PAGE 5   
+
+ 238   2                                              
+ 239   2                                                      
+ 240   2                                              adc_convert_start(ADC_CHANNEL_1);                                                                       //选择转换通道并启动转换
+ 241   2      
+ 242   2                                              while((ADCGCR1 & 0x04) != 0);
+ 243   2                                              
+ 244   2                                              while(!(ADCCSTAT & 0x01))       ;
+ 245   2                                              
+ 246   2                                              ADCCSTAT = 0x1;                                                                                 //清除BUF状态位
+ 247   2                                              
+ 248   2                                              adc_data=adc_get_value();       //读值
+ 249   2                                      
+ 250   2                                      
+ 251   2                                      if(adc_data >=adc_set&&adc_data<ADC_INVALID-1)                                                                                  
+ 252   2                                      {
+ 253   3                                              gpio_io_set(P1_2, GPIO_HIGH);//常闭
+ 254   3                                              
+ 255   3                                              
+ 256   3                                              
+ 257   3                                              gpio_io_set(P1_3, GPIO_HIGH);
+ 258   3                                              
+ 259   3                                      }       
+ 260   2                                      else
+ 261   2                                      {
+ 262   3                                              gpio_io_set(P1_2, GPIO_LOW);//常闭
+ 263   3                                              
+ 264   3                                              
+ 265   3                                              gpio_io_set(P1_3, GPIO_LOW);
+ 266   3                                      }
+ 267   2                                      
+ 268   2                          gpio_io_set(P1_0, GPIO_LOW);//常闭
+ 269   2                              }               
+ 270   1                      gpio_irq_clr(P1_4);
+ 271   1      
+ 272   1      }
+ 273          
+ 274          void gpio_UECallBack(void)
+ 275          {
+ 276   1              
+ 277   1      }
+ 278          
+ 279          void GPIO_Init(void)
+ 280          {
+ 281   1                      //常开
+ 282   1              REG_P10_CFG=0x00;
+ 283   1              gpio_init(P1_0);
+ 284   1              gpio_dir_set(P1_0, GPIO_DIR_OUT);
+ 285   1              gpio_dr_set(P1_0, GPIO_SR_HIGH);
+ 286   1              gpio_io_set(P1_0, GPIO_HIGH);
+ 287   1              
+ 288   1              //常闭
+ 289   1              REG_P12_CFG=0x00;
+ 290   1              gpio_init(P1_2);
+ 291   1              gpio_dir_set(P1_2, GPIO_DIR_OUT);
+ 292   1              gpio_dr_set(P1_2, GPIO_SR_HIGH);
+ 293   1              gpio_io_set(P1_2, GPIO_HIGH);
+ 294   1              
+ 295   1              
+ 296   1              //指示灯
+ 297   1              REG_P13_CFG=0x00;
+ 298   1              gpio_init(P1_3);
+ 299   1              gpio_dir_set(P1_3, GPIO_DIR_OUT);
+C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:20:16 PAGE 6   
+
+ 300   1              gpio_dr_set(P1_3, GPIO_SR_HIGH);
+ 301   1              gpio_io_set(P1_3, GPIO_LOW);
+ 302   1              
+ 303   1              
+ 304   1              gpio_init(P1_4);
+ 305   1              gpio_dir_set(P1_4, GPIO_DIR_IN);
+ 306   1              gpio_dr_set(P1_4, GPIO_SR_HIGH);
+ 307   1              gpio_in_enable(P1_4, IN_ENABLE);         
+ 308   1              gpio_irq_set(P1_4,GPIO_IRQ_ENABLE,gpio_UECallBack);
+ 309   1              P1AH&=~(0x02);//下降沿
+ 310   1              P1AH|=(0x01);//上升沿
+ 311   1              REG_P14_CFG=0x20;
+ 312   1              
+ 313   1              //脉冲接收口
+ 314   1              REG_P15_CFG=0x00;
+ 315   1              gpio_init(P1_5);                          //时钟初始化，模块正常工作
+ 316   1              gpio_dir_set(P1_5, GPIO_DIR_IN);          //配置为输入
+ 317   1              gpio_in_enable(P1_5, IN_ENABLE);          //输入使能 
+ 318   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    783    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     39    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

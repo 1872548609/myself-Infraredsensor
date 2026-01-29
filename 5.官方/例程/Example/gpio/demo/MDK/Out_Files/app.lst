@@ -1,0 +1,181 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/27/2022 10:09:04 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\Dr
+                    -iver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.lst) TABS(2) 
+                    -OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "config.h"
+  13          #include "common.h"
+  14          #include "uart0.h"
+  15          #include "gpio.h"
+  16          #include "res_gpio.h"
+  17          
+  18          volatile uint8_t rx_flag ;
+  19          volatile uint8_t uart0_rx_buf[32];
+  20          volatile uint8_t uart0_tx_buf[32];
+  21          volatile uint16_t rx_count = 0;
+  22          volatile uint16_t tx_count = 0;
+  23          
+  24          /************************************************************************
+  25           * Function     : uart0_rec_pro
+  26           * Description  : uart0_rec_pro 串口接收处理回调函数
+  27           * Input    : none
+  28           * Output     : none
+  29           * Return   : none
+  30           ************************************************************************/
+  31          void uart0_rec_pro(void)
+  32          {
+  33   1        uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  34   1        rx_flag = 1;  
+  35   1      }
+  36          
+  37          /************************************************************************
+  38           * Function     : uart_init
+  39           * Description  : uart_init 串口初始化
+  40           * Input    : none
+  41           * Output     : none
+  42           * Return   : none
+  43           ************************************************************************/
+  44          void uart_init(void)
+  45          {
+  46   1        rx_flag = 0;
+  47   1        uart0_init(UART0_BAUD_RATE);
+  48   1        uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+  49   1      }
+  50          
+  51          
+  52          /************************************************************************
+  53           * function   : gpio_int_pro
+C51 COMPILER V9.60.0.0   APP                                                               07/27/2022 10:09:04 PAGE 2   
+
+  54           * Description: gpio_int_pro GPIO中断处理回调函数
+  55           * input : none
+  56           * return: none
+  57           ************************************************************************/
+  58          void gpio_int_pro(void)
+  59          {
+  60   1        printfS("gpio interrupt !!! \n\r");
+  61   1      }
+  62          
+  63          
+  64          /************************************************************************
+  65           * function     : gpio_in_test
+  66           * Description  : gpio_in_test
+  67           * input        : uint8_t pin
+  68           * Output       : none
+  69           * return       : none
+  70           ************************************************************************/
+  71          void gpio_in_test(uint8_t pin)
+  72          {
+  73   1        uint8_t temp; 
+  74   1        
+  75   1        gpio_init(pin);                       //时钟初始化，模块正常工作
+  76   1        gpio_dir_set(pin, GPIO_DIR_IN);       //配置为输入
+  77   1        gpio_pu_set(pin, GPIO_PU_ENABLE);     //使能内部上拉电阻
+  78   1        gpio_in_enable(pin, IN_ENABLE);       //输入使能 
+  79   1      
+  80   1        while (1) 
+  81   1        {
+  82   2          temp = gpio_io_get(pin);
+  83   2          printfS("gpio level is: =  %bd\n\r",temp);
+  84   2          delay1ms(1000);
+  85   2        }
+  86   1      }
+  87          
+  88          /************************************************************************
+  89           * function     : gpio_out_test
+  90           * Description  : gpio_out_test
+  91           * input        : none
+  92           * Output       : none
+  93           * return       : none
+  94           ************************************************************************/
+  95          void gpio_out_test(uint8_t pin)
+  96          { 
+  97   1        gpio_init(pin);                      //时钟初始化，模块正常工作
+  98   1      
+  99   1        gpio_dir_set(pin, GPIO_DIR_OUT);     //配置为输出
+ 100   1      
+ 101   1        while(1) 
+ 102   1        {
+ 103   2          gpio_io_set(pin, GPIO_HIGH);            
+ 104   2          delay1ms(1000);
+ 105   2          
+ 106   2          gpio_io_set(pin, GPIO_LOW); 
+ 107   2          delay1ms(1000);
+ 108   2        }                
+ 109   1      }
+ 110          
+ 111          
+ 112          /************************************************************************
+ 113           * function   : gpio_irq_test
+ 114           * Description: gpio_irq_test
+ 115           * GPIO中断测试
+C51 COMPILER V9.60.0.0   APP                                                               07/27/2022 10:09:04 PAGE 3   
+
+ 116           * input : none
+ 117           * return: none
+ 118           ************************************************************************/
+ 119          void gpio_irq_test(uint8_t pin)
+ 120          {   
+ 121   1        gpio_init(pin);                          //时钟初始化，模块正常工作
+ 122   1        gpio_dir_set(pin, GPIO_DIR_IN);          //配置为输入
+ 123   1        gpio_pu_set(pin, GPIO_PU_ENABLE);        //使能内部上拉电阻
+ 124   1        gpio_in_enable(pin, IN_ENABLE);          //输入使能 
+ 125   1        gpio_irq_set(pin, GPIO_IRQ_ENABLE, gpio_int_pro); //使能中断
+ 126   1        
+ 127   1        while(1)
+ 128   1        {
+ 129   2          
+ 130   2        }
+ 131   1          
+ 132   1      }
+ 133          
+ 134          void soc_test(void)
+ 135          {
+ 136   1        printfS("System run at %ldHz\n\r", system_core_clock);
+ 137   1        printfS("start test gpio! \n");
+ 138   1      
+ 139   1      //  gpio_in_test(P0_3);   //GPIO输入测试
+ 140   1      
+ 141   1      //  gpio_out_test(P0_3);    //GPIO输出测试
+ 142   1        
+ 143   1        gpio_irq_test(P0_3);      //GPIO中断测试
+ 144   1        
+ 145   1      //  res_gpio_test();        //复位脚P0_2复用成GPIO功能
+ 146   1        
+ 147   1      }
+ 148          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    298    ----
+   CONSTANT SIZE    =     87    ----
+   XDATA SIZE       =     69       4
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

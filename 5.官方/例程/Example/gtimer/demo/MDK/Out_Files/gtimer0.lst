@@ -1,0 +1,307 @@
+C51 COMPILER V9.60.0.0   GTIMER0                                                           07/29/2022 10:58:19 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE GTIMER0
+OBJECT MODULE PLACED IN .\Out_Files\gtimer0.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\gtimer0.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCD
+                    -IR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\
+                    -gtimer0.lst) TABS(2) OBJECT(.\Out_Files\gtimer0.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : gtimer0.c
+   5           * Description : gtimer0 driver source file
+   6           * Author(s)   : shengyu
+   7           * version     : V1.0
+   8           * Modify date : 2021-12-30
+   9           ***********************************************************************/
+  10          #include "gtimer.h"
+  11          
+  12          void (*gtimer0_callback[3])(void) = { 0 };
+  13          
+  14          
+  15          /***********************************************************************
+  16           * Function     : GTIM0_IRQHandler
+  17           * Description  : GTIM0 interrupt handling
+  18           * Input    : none
+  19           * Output   : none   
+  20           * Return   : none
+  21           ***********************************************************************/
+  22          void GTIM0_IRQHandler(void) interrupt 21
+  23          {
+  24   1        if((REG_GTIM0_SR & GTIMER0_UIF)  && (REG_GTIM0_IER & GTIMER0_UIE))    //UE中断
+  25   1        {
+  26   2          if(gtimer0_callback[0] != NULL)
+  27   2          {
+  28   3            gtimer0_callback[0]();
+  29   3          }
+  30   2          REG_GTIM0_SR = GTIMER0_UIF;           //清除UE中断标志
+  31   2        }
+  32   1        else if((REG_GTIM0_SR & GTIMER0_CCIF)  && (REG_GTIM0_IER & GTIMER0_CCIE))   //比较中断/捕捉中断
+  33   1        {
+  34   2          if(gtimer0_callback[1] != NULL)
+  35   2          {
+  36   3            gtimer0_callback[1]();
+  37   3          }
+  38   2          REG_GTIM0_SR = GTIMER0_CCIF;          //清除中断/捕捉中断
+  39   2        }
+  40   1        else if((REG_GTIM0_SR & GTIMER0_BKE_IF) && (REG_GTIM0_IER & GTIMER0_BKE_IE))      //刹车中断
+  41   1        {
+  42   2          if(gtimer0_callback[2] != NULL)
+  43   2          {
+  44   3            gtimer0_callback[2]();
+  45   3          }
+  46   2          REG_GTIM0_SR = GTIMER0_BKE_IF;      //清除刹车中断标志
+  47   2        }
+  48   1        else
+  49   1        {
+  50   2          REG_GTIM0_SR = 0x7;                 //清除所有中断标志
+  51   2        }
+  52   1      }  
+  53          
+C51 COMPILER V9.60.0.0   GTIMER0                                                           07/29/2022 10:58:19 PAGE 2   
+
+  54          
+  55          /************************************************************************
+  56           * Function     : gtimer0_count_init
+  57           * Description  : gtimer0_count_init GTIMER0 中断初始化
+  58           * Input    : uint8_t arr GTIMER0重载值
+  59                        uint8_t psc GTIMER0分频值
+  60           * Output   : none
+  61           * Return   : none
+  62           ************************************************************************/  
+  63          void gtimer0_count_init(uint16_t arr,uint16_t psc)
+  64          {
+  65   1        PCLK1 |= (1<<3);                    //开Gtim0时钟使能   
+  66   1        PRESET1 |= (1<<3);                  //GTim0正常工作
+  67   1        
+  68   1        REG_GTIM0_CR0 |= (1<<6);            //使能auto-repload 
+  69   1      
+  70   1        REG_GTIM0_PSC1 = (psc>>8)&0xFF;     //高8位 FCK_CNT=FCK_PSC/(PSC[15:0]+1);  FCK_PSC = APBCLK 
+  71   1        REG_GTIM0_PSC0 = psc&0xFF;          //低8位 FCK_CNT=FCK_PSC/(PSC[15:0]+1);  FCK_PSC = APBCLK 
+  72   1        
+  73   1        REG_GTIM0_ARR1 = ((arr-1)>>8)&0xFF;     //高8位 自动装载值
+  74   1        REG_GTIM0_ARR0 = (arr-1)&0xFF;          //低8位 自动装载值
+  75   1        
+  76   1        REG_GTIM0_EGR = 0x1;                //产生UE事件，将PSC的值立即载入shadow寄存器
+  77   1        REG_GTIM0_SR |= (1<<0);             //清除UE产生的中断，否则会直接进入中断服务函数
+  78   1        
+  79   1      }
+  80          
+  81          
+  82          /************************************************************************
+  83           * Function     : gtimer0_pwm_init
+  84           * Description  : gtimer0_pwm_init GTIMER0 中断初始化
+  85           * Input    : uint16_t arr  GTIMER0重载值
+  86                        uint16_t psc  GTIMER0分频值
+  87                        uint16_t ccr  GTIMER0比较值
+  88           * Output   : none
+  89           * Return   : none
+  90           ************************************************************************/  
+  91          void gtimer0_pwm_init(uint16_t arr, uint16_t psc, uint16_t ccr)
+  92          {
+  93   1        PCLK1 |= (1<<3);                    //开Gtim0时钟使能 
+  94   1        PRESET1 |= (1<<3);                  //GTim0正常工作 
+  95   1        
+  96   1        REG_P13_CFG = 0x06;                 //P13 CH 
+  97   1        REG_P15_CFG = 0x04;                 //P15 CH 
+  98   1      //  REG_P25_CFG = 0x04;               //P25 CH 
+  99   1        
+ 100   1        REG_P14_CFG = 0x05;                 //P14 CHN
+ 101   1        REG_P20_CFG = 0x06;                 //P20 CHN
+ 102   1      //  REG_P23_CFG = 0x05;               //P23 CHN 
+ 103   1        
+ 104   1        REG_GTIM0_CR0 |= (1<<6);            //使能auto-repload 
+ 105   1        
+ 106   1        REG_GTIM0_PSC1 = (psc>>8)&0xFF;     //高8位 FCK_CNT=FCK_PSC/(PSC[15:0]+1);  FCK_PSC = APBCLK 
+ 107   1        REG_GTIM0_PSC0 = psc&0xFF;          //低8位 FCK_CNT=FCK_PSC/(PSC[15:0]+1);  FCK_PSC = APBCLK 
+ 108   1        
+ 109   1        REG_GTIM0_ARR1 = ((arr-1)>>8)&0xFF;     //高8位 自动装载值 
+ 110   1        REG_GTIM0_ARR0 = (arr-1)&0xFF;          //低8位 自动装载值 
+ 111   1        
+ 112   1        REG_GTIM0_ARRN1 = ((arr-1)>>8)&0xFF;    //高8位 自动装载值 
+ 113   1        REG_GTIM0_ARRN0 = (arr-1)&0xFF;         //低8位 自动装载值 
+ 114   1              
+ 115   1        REG_GTIM0_CCR1 = ((ccr)>>8)&0xFF;   //高8位 比较寄存器 
+C51 COMPILER V9.60.0.0   GTIMER0                                                           07/29/2022 10:58:19 PAGE 3   
+
+ 116   1        REG_GTIM0_CCR0 = (ccr)&0xFF;          //低8位 比较寄存器 
+ 117   1              
+ 118   1        REG_GTIM0_CCRN1 = ((ccr)>>8)&0xFF;  //高8位 比较寄存器
+ 119   1        REG_GTIM0_CCRN0 = (ccr)&0xFF;       //低8位 比较寄存器
+ 120   1              
+ 121   1        REG_GTIM0_CR1 |= (1<<0);            //互补PWM和原PWM反相位
+ 122   1              
+ 123   1        REG_GTIM0_CR1 |= (1<<1);            //避免死区功能使能
+ 124   1              
+ 125   1        REG_GTIM0_EGR = 0x1;                //产生UE事件，将PSC的值立即载入shadow寄存器
+ 126   1        REG_GTIM0_SR |= (1<<0);             //清除UE产生的中断，否则会直接进入中断服务函数
+ 127   1        
+ 128   1        REG_GTIM0_CR2 |= (1<<2);            //输出总使能
+ 129   1        
+ 130   1        REG_GTIM0_CCER |= (1<<0);           //使能输出
+ 131   1        
+ 132   1        
+ 133   1      }
+ 134          
+ 135          /***********************************************************************
+ 136           * Function     : gtimer0_capture_init
+ 137           * Description  : gtimer0_capture_init GTIMER0输入捕获
+ 138           * Input    : uint16_t arr          装载值
+ 139           *          : uint8_t capture_div   捕捉源预分频位
+ 140           *          : uint8_t capssel       捕捉源选择位
+ 141           * Output   : none
+ 142           * Return   : none
+ 143           ***********************************************************************/
+ 144          void gtimer0_capture_init(uint16_t arr,uint8_t capture_div,uint8_t capssel)
+ 145          {
+ 146   1        PCLK1 |= (1<<3);                      //开Gtim0时钟使能
+ 147   1        PRESET1 |= (1<<3);                    //GTim0正常工作
+ 148   1          
+ 149   1        REG_P13_CFG = 0x06;                   //P13 GTIMER0_CH 
+ 150   1      
+ 151   1        REG_GTIM0_ARR1 = ((arr-1)>>8)&0xFF;       //高8位 自动装载值 
+ 152   1        REG_GTIM0_ARR0 = (arr-1)&0xFF;            //低8位 自动装载值 
+ 153   1          
+ 154   1        REG_GTIM0_CCMR0 &= ~(1<<7);           //外部计数源滤波使能：无滤波功能 
+ 155   1        REG_GTIM0_CCMR0 |= (1<<0);            //配置CCS为输入 
+ 156   1        
+ 157   1        REG_GTIM0_CCMR1 = (REG_GTIM0_CCMR1&(~(0x03<<0)))|(capssel<<0);      //捕捉源选择位  
+ 158   1      
+ 159   1        REG_GTIM0_CCMR1 = (REG_GTIM0_CCMR1&(~(3<<5)))|(capture_div<<5); //分频配置
+ 160   1          
+ 161   1        REG_GTIM0_CCMR1 &= ~(0x03<<2);        //捕获沿触发控制位：上升沿触发 
+ 162   1          
+ 163   1        REG_GTIM0_CCER |= (1<<0);             //使能捕捉功能 
+ 164   1        
+ 165   1      }
+ 166          
+ 167          void gtimer0_bke_init(void)
+ 168          {
+ 169   1        PCLK1 |= (1<<3);                //开Gtim0时钟使能   
+ 170   1        PRESET1 |= (1<<3);              //GTim0正常工作 
+ 171   1      
+ 172   1        REG_P01_CFG = 0x05;             //P01 GTIMER0_BKE 
+ 173   1      //  REG_P22_CFG = 0x05;             //P22 GTIMER0_BKE   
+ 174   1      //  REG_P25_CFG = 0x05;             //P25 GTIMER0_BKE 
+ 175   1        
+ 176   1        REG_GTIM0_CR1 &= ~(3<<6);       //PWM刹车触发后，PWM正向电平状态设置位:低电平 
+ 177   1        REG_GTIM0_CR2 &= ~(3<<0);       // PWM刹车触发后，PWM互补电平状态设置位:低电平 
+C51 COMPILER V9.60.0.0   GTIMER0                                                           07/29/2022 10:58:19 PAGE 4   
+
+ 178   1      
+ 179   1        REG_GTIM0_CR1 &= ~(1<<3);       //刹车信号高电平有效
+ 180   1        
+ 181   1        REG_GTIM0_CR1 |= (1<<2);        //使能刹车功能 
+ 182   1      
+ 183   1        REG_GTIM0_CCER |= (1<<0);       //使能输出 
+ 184   1      }
+ 185          
+ 186          /************************************************************************
+ 187           * Function     : gtimer0_irq_init
+ 188           * Description  : gtimer0_irq_init  GTIMER0 中断初始化
+ 189           * Input    : uint8_t irq_enable    GTIMER0中断使能开关 1：使能 0：禁止
+ 190           *            uint8_t gtimer_irq_type GTIMER0中断类型选择
+ 191           *            void (*pfunc)()         GTIMER0中断回调函数
+ 192           * Output   : none
+ 193           * Return   : none
+ 194           ************************************************************************/  
+ 195          void gtimer0_irq_init(uint8_t irq_enable,uint8_t gtimer_irq_type,void (*pfunc)())
+ 196          {
+ 197   1        REG_GTIM0_SR = 0x7;   //清除状态标志
+ 198   1        
+ 199   1        if(irq_enable == GTIMER_IRQ_ENABLE)
+ 200   1        {
+ 201   2          switch(gtimer_irq_type)
+ 202   2          {
+ 203   3            case GTIMER0_UIE_IRQ:
+ 204   3                gtimer0_callback[0] = pfunc;
+ 205   3                REG_GTIM0_IER |= GTIMER0_UIE;       //使能UPDATE中断
+ 206   3                break;
+ 207   3            case GTIMER0_CCIE_IRQ:
+ 208   3                gtimer0_callback[1] = pfunc;
+ 209   3                REG_GTIM0_IER |= GTIMER0_CCIE;      //使能比较/捕捉中断
+ 210   3                break;  
+ 211   3            case GTIMER0_BKE_IE_IRQ:
+ 212   3                gtimer0_callback[2] = pfunc;
+ 213   3                REG_GTIM0_IER |= GTIMER0_BKE_IE;    //使能刹车中断
+ 214   3                break;
+ 215   3            default:
+ 216   3                break;        
+ 217   3          } 
+ 218   2          EA = 1 ;                                  //开启总中断
+ 219   2          IEN1 |= (1<<0);                           //开启gtimer0中断 
+ 220   2        }
+ 221   1        else
+ 222   1        {
+ 223   2          switch(gtimer_irq_type)
+ 224   2          {
+ 225   3            case GTIMER0_UIE_IRQ:
+ 226   3                gtimer0_callback[0] = pfunc;
+ 227   3                REG_GTIM0_IER |= ~GTIMER0_UIE;      //禁止UPDATE中断
+ 228   3                break;
+ 229   3            case GTIMER0_CCIE_IRQ:
+ 230   3                gtimer0_callback[1] = pfunc;
+ 231   3                REG_GTIM0_IER |= ~GTIMER0_CCIE;     //禁止比较/捕捉中断
+ 232   3                break;  
+ 233   3            case GTIMER0_BKE_IE_IRQ:
+ 234   3                gtimer0_callback[2] = pfunc;
+ 235   3                REG_GTIM0_IER |= ~GTIMER0_BKE_IE;   //禁止刹车中断
+ 236   3                break;    
+ 237   3            default:
+ 238   3                break;        
+ 239   3          } 
+C51 COMPILER V9.60.0.0   GTIMER0                                                           07/29/2022 10:58:19 PAGE 5   
+
+ 240   2        }
+ 241   1        
+ 242   1      }
+ 243          
+ 244          /************************************************************************
+ 245           * Function     : gtimer0_start
+ 246           * Description  : gtimer0_start 启动GTIMER0计数
+ 247           * Input    : none
+ 248           * Output   : none
+ 249           * Return   : none
+ 250           ************************************************************************/  
+ 251          void gtimer0_start(void)
+ 252          {
+ 253   1        REG_GTIM0_CR0 |= (1<<0);        //使能计数器 
+ 254   1      }
+ 255          
+ 256          
+ 257          
+ 258          /***********************************************************************
+ 259           * Function     : gtimer0_stop
+ 260           * Description  : gtimer0_stop  停止GTIMER0计数器
+ 261           * Input    : none
+ 262           * Output   : none
+ 263           * Return   : none
+ 264           ***********************************************************************/
+ 265          void gtimer0_stop(void)
+ 266          {
+ 267   1        REG_GTIM0_CR0 &= ~(1<<0);       //不使能计数器
+ 268   1      }
+ 269          
+ 270          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    693    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      9       7
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

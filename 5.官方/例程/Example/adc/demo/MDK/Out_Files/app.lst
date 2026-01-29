@@ -1,0 +1,435 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:04:49 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\MC
+                    -U\Device;..\..\..\..\MCU\Common;..\..\..\..\Driver\src;..\..\..\..\Driver\inc) DEBUG PRINT(.\Out_Files\app.lst) TABS(2) 
+                    -OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "common.h"
+  13          #include "uart0.h"
+  14          #include "adc.h"
+  15          
+  16          uint8_t adc_irq_flag = 0;
+  17          uint8_t adc_count = 0;
+  18          uint16_t adc_data_buf[10];
+  19          
+  20          volatile uint8_t rx_flag ;
+  21          volatile uint8_t uart0_rx_buf[32];
+  22          volatile uint8_t uart0_tx_buf[32];
+  23          volatile uint16_t rx_count = 0;
+  24          volatile uint16_t tx_count = 0;
+  25          
+  26          /************************************************************************
+  27           * Function     : uart0_rec_pro
+  28           * Description  : uart0_rec_pro ´®¿Ú½ÓÊÕ´¦Àí»Øµ÷º¯Êý
+  29           * Input    : none
+  30           * Output     : none
+  31           * Return   : none
+  32           ************************************************************************/
+  33          void uart0_rec_pro(void)
+  34          {
+  35   1        uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  36   1        rx_flag = 1;  
+  37   1      }
+  38          
+  39          /************************************************************************
+  40           * Function     : uart_init
+  41           * Description  : uart_init ´®¿Ú³õÊ¼»¯
+  42           * Input    : none
+  43           * Output     : none
+  44           * Return   : none
+  45           ************************************************************************/
+  46          void uart_init(void)
+  47          {
+  48   1        rx_flag = 0;
+  49   1        uart0_init(UART0_BAUD_RATE);
+  50   1        uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+  51   1      }
+  52          
+  53          
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:04:49 PAGE 2   
+
+  54           /************************************************************************
+  55           * function     : adc_pro
+  56           * Description  : adc call back function of single mode
+  57           * input    : none
+  58           * return   : none
+  59           ************************************************************************/
+  60          void adc_single_pro(void)
+  61          {
+  62   1        adc_irq_flag = 1;                             //ÖÃÎ»adc_irq_flag±êÖ¾
+  63   1      }
+  64          
+  65           /************************************************************************
+  66           * function     : adc_continuous_pro
+  67           * Description  : adc call back function of continuous mode
+  68           * input    : none
+  69           * return   : none
+  70           ************************************************************************/
+  71          void adc_continuous_pro(void)
+  72          {
+  73   1        adc_data_buf[adc_count++] = adc_get_value();
+  74   1        if(adc_count == 10)
+  75   1        {
+  76   2          adc_irq_flag = 1;                           //ÖÃÎ»adc_irq_flag±êÖ¾  
+  77   2          adc_controller_config(ADC_DISABLE);                   //ADC¿ØÖÆÆ÷¹Ø±Õ
+  78   2        }
+  79   1      }
+  80          
+  81           /************************************************************************
+  82           * function     : adc_single_mode_test
+  83           * Description  : adc_single_mode_test 
+  84           * input    : none
+  85           * return   : none
+  86           ************************************************************************/
+  87          void adc_single_mode_test(void)
+  88          {
+  89   1        uint8_t i = 0, j = 0;
+  90   1        
+  91   1        uint16_t adc_data = 0;
+  92   1        float vol_value = 0.0;
+  93   1      
+  94   1        /* ADC²ÉÑùËÙÂÊÉèÖÃ1Msps£¬ADC²ÉÑùËÙÂÊ = f(ADCCLK) / (²ÉÑùÊ±¼ä+×ª»»Ê±¼ä) = 16MHz/(4clk+12clk) = 1Msps */
+  95   1        /*Ê±ÖÓÔ´Ñ¡ÔñÏµÍ³Ê±ÖÓ·¢ÉúÆ÷²úÉúµÄÊ±ÖÓÊ±£¬ADCCDR·ÖÆµÎÞÐ§*/
+  96   1        adc_clk_config(ADC_CLKSOURCE_DIVCLK, ADC_VREFSOURCE_AVDD33, 2, ADC_ENABLE); //1.ADCÊ±ÖÓÔ´Ñ¡Ôñ 2.ADCµçÑ¹»ù
+             -×¼Ô´Ñ¡Ôñ 3.ADCÄÚ²¿Ê±ÖÓ·ÖÆµ±¶Êý
+  97   1      
+  98   1        adc_sample_clk_config(ADC_SAMPCLK_4);                   //²ÉÑùÊ±ÖÓÂö³å¿í¶ÈÅäÖÃ  
+  99   1        
+ 100   1        adc_io_config(ADC_CHANNEL_0 | ADC_CHANNEL_1 | ADC_CHANNEL_2 | 
+ 101   1                ADC_CHANNEL_3 | ADC_CHANNEL_4 | ADC_CHANNEL_7);       //ÅäÖÃÏàÓ¦IOÎªADCÊäÈë
+ 102   1        adc_scan_mode_config(ADC_MODE_SINGLE);                    //ADC¹¤×÷Ä£Ê½
+ 103   1        
+ 104   1        adc_power_config(ADC_ENABLE);                       //ADCÉÏµç
+ 105   1        adc_controller_config(ADC_ENABLE);                      //ADC¿ØÖÆÆ÷Ê¹ÄÜ
+ 106   1      
+ 107   1      /********************ÖÐ¶Ï·½Ê½********************/
+ 108   1      #if ADC_IRQ_MODE == ADC_IRQ_ENABLE  
+                adc_priority_level_config(ADC_PRIORITY_LEVEL0);               //ADCÖÐ¶ÏÓÅÏÈ¼¶
+                adc_irq_config(adc_single_pro, ADC_ENABLE);                 //Ê¹ÄÜADCÖÐ¶Ï£¬×¢²áÖÐ¶Ï»Øµ÷º¯Êý
+                
+                delay1ms(1000);
+                printfS("single irq adc! \n");  
+                
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:04:49 PAGE 3   
+
+                adc_convert_start(ADC_CHANNEL_1);                     //Æô¶¯×ª»»
+                
+                while(1)
+                {
+                  if(adc_irq_flag == 1)                         //µÈ´ýÖÐ¶ÏÖÃÎ»adc_irq_flag±êÖ¾
+                  {
+                    adc_irq_flag = 0;                         //ÇåÁãadc_irq_flag±êÖ¾
+                    
+                    adc_data = adc_get_value();                     //¶ÁÈ¡Êý¾Ý
+                    vol_value = (float)(adc_data * ADC_VREF_VDDA)/4095;
+                    printfS("ADC irq data : %d\r\n", adc_data);
+                    printfS("vol : %0.3fV\r\n", vol_value);     
+                    printfS("\r\n");
+                    delay1ms(1000);
+                    adc_convert_start(ADC_CHANNEL_1);                 //Æô¶¯×ª»»
+                  }
+                }
+              
+              /********************²éÑ¯·½Ê½********************/  
+              #else
+ 135   1        
+ 136   1        printfS("single adc! \n");  
+ 137   1        adc_priority_level_config(ADC_PRIORITY_LEVEL0);         //ADCÖÐ¶ÏÓÅÏÈ¼¶
+ 138   1        adc_irq_config(NULL, ADC_DISABLE);                      //²»Ê¹ÄÜADCÖÐ¶Ï
+ 139   1      
+ 140   1        while(1)
+ 141   1        {
+ 142   2          /*µ¥Í¨µÀ*/
+ 143   2          adc_data = adc_get_ch_value(ADC_CHANNEL_1);               //Æô¶¯×ª»»£¬µÈ´ý×ª»»Íê³É£¬¶ÁÈ¡Êý¾Ý
+ 144   2          if(adc_data == ADC_INVALID)                       //Êý¾ÝÎÞÐ§
+ 145   2          {
+ 146   3            printfS("Êý¾ÝÎÞÐ§\r\n");
+ 147   3          }
+ 148   2          else                                  //Êý¾ÝÓÐÐ§
+ 149   2          {
+ 150   3            vol_value = (float)(adc_data * ADC_VREF_VDDA)/4095;
+ 151   3            printfS("ADC data : %d\r\n", adc_data);
+ 152   3            printfS("vol : %0.3fV\r\n", vol_value); 
+ 153   3          }
+ 154   2          printfS("\r\n");
+ 155   2          delay1ms(1000);
+ 156   2          
+ 157   2          /*¶àÍ¨µÀ*/
+ 158   2      //    for(i = ADC_CHANNEL_0, j = 0;i <= ADC_CHANNEL_3; i = i<<1)
+ 159   2      //    {
+ 160   2      //      adc_data = adc_get_ch_value(i);                   //Æô¶¯×ª»»£¬µÈ´ý×ª»»Íê³É£¬¶ÁÈ¡Êý¾Ý
+ 161   2      //      if(adc_data == ADC_INVALID)                     //Êý¾ÝÎÞÐ§
+ 162   2      //      {
+ 163   2      //        printfS("--------Í¨µÀ%bd--------\r\n", j);
+ 164   2      //        printfS("Êý¾ÝÎÞÐ§\r\n");
+ 165   2      //      }
+ 166   2      //      else                                //Êý¾ÝÓÐÐ§
+ 167   2      //      {
+ 168   2      //        vol_value = (float)(adc_data * ADC_VREF_VDDA)/4095;
+ 169   2      //        printfS("--------Í¨µÀ%bd--------\r\n", j);
+ 170   2      //        printfS("ADC data : %d\r\n", adc_data);
+ 171   2      //        printfS("vol : %0.3fV\r\n", vol_value); 
+ 172   2      //      }
+ 173   2      //      j++;
+ 174   2      //      adc_convert_stop();
+ 175   2      //    }
+ 176   2      //    printfS("\r\n");
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:04:49 PAGE 4   
+
+ 177   2      //    delay1ms(1000);
+ 178   2        }   
+ 179   1      #endif
+ 180   1        
+ 181   1      }
+ 182          
+ 183           /************************************************************************
+ 184           * function     : adc_continuous_mode_test
+ 185           * Description  : adc_continuous_mode_test 
+ 186           * input    : none
+ 187           * return   : none
+ 188           ************************************************************************/
+ 189          void adc_continuous_mode_test(void)
+ 190          {
+ 191   1        uint16_t adc_data = 0;
+ 192   1        float vol_value = 0.0;
+ 193   1        
+ 194   1        adc_clk_config(ADC_CLKSOURCE_DIVCLK, ADC_VREFSOURCE_AVDD33, 4, ADC_ENABLE); //1.ADCÊ±ÖÓÔ´Ñ¡Ôñ 2.ADCµçÑ¹»ù
+             -×¼Ô´Ñ¡Ôñ 3.ADCÄÚ²¿Ê±ÖÓ·ÖÆµ±¶Êý
+ 195   1      
+ 196   1        adc_sample_clk_config(ADC_SAMPCLK_4);                   //²ÉÑùÊ±ÖÓÂö³å¿í¶ÈÅäÖÃ
+ 197   1        
+ 198   1        adc_io_config(ADC_CHANNEL_0 | ADC_CHANNEL_1 | ADC_CHANNEL_2 | ADC_CHANNEL_3);               //ÅäÖÃÏàÓ¦IOÎªADCÊäÈ
+             -ë
+ 199   1        
+ 200   1        adc_scan_mode_config(ADC_MODE_CONTINUOUS);                  //ADC¹¤×÷Ä£Ê½
+ 201   1        
+ 202   1        adc_power_config(ADC_ENABLE);                       //ADCÉÏµç
+ 203   1        adc_controller_config(ADC_ENABLE);                      //ADC¿ØÖÆÆ÷Ê¹ÄÜ
+ 204   1        
+ 205   1      /********************ÖÐ¶Ï·½Ê½********************/  
+ 206   1      #if ADC_IRQ_MODE == ADC_IRQ_ENABLE
+                
+                printfS("continuous irq adc! \n");    
+                adc_priority_level_config(ADC_PRIORITY_LEVEL0);               //ADCÖÐ¶ÏÓÅÏÈ¼¶
+                adc_irq_config(adc_continuous_pro, ADC_ENABLE);               //²»Ê¹ÄÜADCÖÐ¶Ï
+                
+                adc_convert_start(ADC_CHANNEL_1);                     //Æô¶¯×ª»»  
+                
+                while(1)
+                {
+                  if(adc_irq_flag == 1)                         //µÈ´ýÖÐ¶ÏÖÃÎ»adc_irq_flag±êÖ¾
+                  {
+                    while(adc_count)                          //Ñ­»·´òÓ¡10´ÎµÄ×ª»»Öµ
+                    {
+                      vol_value = (float)(adc_data_buf[10 - adc_count] * ADC_VREF_VDDA)/4095;
+                      printfS("ADC irq data : %d\r\n", adc_data_buf[10 - adc_count]);
+                      printfS("vol : %0.3fV\r\n", vol_value); 
+                      adc_data_buf[10 - adc_count] = 0;     
+                      adc_count--;
+                    }
+                    printfS("\r\n");  
+                    adc_irq_flag = 0;                         //ÇåÁãadc_irq_flag±êÖ¾
+                    delay1ms(1000);
+                    adc_controller_config(ADC_ENABLE);                  //ADC¿ØÖÆÆ÷¹Ø±Õ 
+                    adc_convert_start(ADC_CHANNEL_1);                 //Æô¶¯×ª»»  
+                  }
+                }
+              
+              /********************²éÑ¯·½Ê½********************/    
+              #else
+ 236   1        
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:04:49 PAGE 5   
+
+ 237   1        printfS("continuous adc! \n");  
+ 238   1        adc_priority_level_config(ADC_PRIORITY_LEVEL0);               //ADCÖÐ¶ÏÓÅÏÈ¼¶
+ 239   1        adc_irq_config(NULL, ADC_DISABLE);                      //²»Ê¹ÄÜADCÖÐ¶Ï
+ 240   1        
+ 241   1        adc_convert_start(ADC_CHANNEL_2);                     //Æô¶¯×ª»»
+ 242   1      
+ 243   1        while(1)
+ 244   1        {
+ 245   2      //    /*¿ªÆô×ª»»ºó²»Í£*/
+ 246   2      //    adc_data = adc_get_value();                       //¶ÁÈ¡Êý¾Ý
+ 247   2      //    vol_value = (float)(adc_data * ADC_VREF_VDDA)/4095;
+ 248   2      //    printfS("ADC data : %d\r\n", adc_data);
+ 249   2      //    printfS("vol : %0.3fV\r\n", vol_value);   
+ 250   2      //    printfS("\r\n");
+ 251   2      //    delay1ms(1000);
+ 252   2          
+ 253   2          /*¿ªÆô×ª»»ºóÍ£Ö¹*/
+ 254   2          adc_data = adc_get_value();                       //¶ÁÈ¡Êý¾Ý
+ 255   2          printfS("ADCDR: %d\r\n", ADCDR & 0x0FFF);
+ 256   2          vol_value = (float)(adc_data * ADC_VREF_VDDA)/4095;
+ 257   2          printfS("ADC data : %d\r\n", adc_data);
+ 258   2          printfS("vol : %0.3fV\r\n", vol_value); 
+ 259   2          printfS("\r\n");
+ 260   2          adc_controller_config(ADC_DISABLE);                   //ADC¿ØÖÆÆ÷¹Ø±Õ   
+ 261   2          delay1ms(1000);   
+ 262   2          adc_controller_config(ADC_ENABLE);                    //ADC¿ØÖÆÆ÷´ò¿ª
+ 263   2          adc_convert_start(ADC_CHANNEL_2);                   //Æô¶¯×ª»»    
+ 264   2        }
+ 265   1      
+ 266   1          
+ 267   1      //    /*¿ªÆô×ª»»ºóÍ£Ö¹*/
+ 268   1      //    adc_data = adc_get_value();                       //¶ÁÈ¡Êý¾Ý
+ 269   1      //    printfS("ADCDR: %d\r\n", ADCDR & 0x0FFF);
+ 270   1      //    vol_value = (float)(adc_data * ADC_VREF_VDDA)/4095;
+ 271   1      //    printfS("ADC data : %d\r\n", adc_data);
+ 272   1      //    printfS("vol : %0.3fV\r\n", vol_value); 
+ 273   1      //    printfS("\r\n");
+ 274   1      //    adc_controller_config(ADC_DISABLE);                   //ADC¿ØÖÆÆ÷¹Ø±Õ
+ 275   1      //    delay1ms(1000); 
+ 276   1      //    
+ 277   1      //  adc_controller_config(ADC_ENABLE);                    //ADC¿ØÖÆÆ÷¹Ø±Õ 
+ 278   1      //  adc_convert_start(ADC_CHANNEL_2);                     //Æô¶¯×ª»»
+ 279   1      //  while(1)
+ 280   1      //  {
+ 281   1      //    adc_data = adc_get_value();                       //¶ÁÈ¡Êý¾Ý
+ 282   1      //    printfS("ADCDR: %d\r\n", ADCDR & 0x0FFF);
+ 283   1      //    vol_value = (float)(adc_data * ADC_VREF_VDDA)/4095;
+ 284   1      //    printfS("ADC data : %d\r\n", adc_data);
+ 285   1      //    printfS("vol : %0.3fV\r\n", vol_value); 
+ 286   1      //    printfS("\r\n");
+ 287   1      //    delay1ms(1000);     
+ 288   1      //  }
+ 289   1      
+ 290   1      #endif
+ 291   1        
+ 292   1      }
+ 293          
+ 294           /************************************************************************
+ 295           * function     : adc_performance_test
+ 296           * Description  : adc_performance_test 
+ 297           * input    : none
+ 298           * return   : none
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:04:49 PAGE 6   
+
+ 299           ************************************************************************/
+ 300          void adc_performance_test(void)
+ 301          {
+ 302   1        uint8_t times = 1;
+ 303   1        int len = 2;
+ 304   1        uint8_t count = 1;    
+ 305   1        uint16_t adc_data;
+ 306   1      //  float vol_value;
+ 307   1        
+ 308   1        printfS("Start single scan of single channel test \r\n");
+ 309   1        /* ADC²ÉÑùËÙÂÊÉèÖÃ1Msps£¬ADC²ÉÑùËÙÂÊ = f(ADCCLK) / (²ÉÑùÊ±¼ä+×ª»»Ê±¼ä) = 16MHz/(4clk+12clk) = 1Msps */
+ 310   1        /*Ê±ÖÓÔ´Ñ¡ÔñÏµÍ³Ê±ÖÓ·¢ÉúÆ÷²úÉúµÄÊ±ÖÓÊ±£¬ADCCDR·ÖÆµÎÞÐ§*/
+ 311   1        adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 8, ADC_ENABLE); //1.ADCÊ±ÖÓÔ´Ñ¡Ôñ 2.ADCµçÑ¹»ù
+             -×¼Ô´Ñ¡Ôñ 3.ADCÄÚ²¿Ê±ÖÓ·ÖÆµ±¶Êý
+ 312   1      
+ 313   1        adc_sample_clk_config(ADC_SAMPCLK_4);                   //²ÉÑùÊ±ÖÓÂö³å¿í¶ÈÅäÖÃ
+ 314   1        
+ 315   1        adc_io_config(ADC_CHANNEL_0 | ADC_CHANNEL_1 | ADC_CHANNEL_2 | 
+ 316   1                ADC_CHANNEL_3 | ADC_CHANNEL_4 | ADC_CHANNEL_7);                       //ÅäÖÃÏàÓ¦IOÎªADCÊäÈë
+ 317   1        adc_scan_mode_config(ADC_MODE_SINGLE);                    //ADC¹¤×÷Ä£Ê½
+ 318   1        
+ 319   1        adc_power_config(ADC_ENABLE);                       //ADCÉÏµç
+ 320   1        adc_controller_config(ADC_ENABLE);                      //ADC¿ØÖÆÆ÷Ê¹ÄÜ
+ 321   1      
+ 322   1      //  adc_priority_level_config(ADC_PRIORITY_LEVEL0);               //ADCÖÐ¶ÏÓÅÏÈ¼¶
+ 323   1      //  adc_irq_config(NULL, ADC_DISABLE);                      //²»Ê¹ÄÜADCÖÐ¶Ï
+ 324   1      
+ 325   1        printfS("´®¿Ú·¢ËÍ\"start\"¿ªÊ¼×ª»»¡£\r\n"); 
+ 326   1      
+ 327   1        while(1)
+ 328   1        {
+ 329   2          if(rx_flag)
+ 330   2          {
+ 331   3            delay1ms(50); 
+ 332   3            printfS(">>\r\n", times);
+ 333   3            if(strncmp((char *)uart0_rx_buf,"start", sizeof(5)) == 0)
+ 334   3            {
+ 335   4              printfS("----------×ª»»¿ªÊ¼%d----------\r\n", times);
+ 336   4              times++;
+ 337   4              if(times > 200)
+ 338   4              {
+ 339   5                times = 1;
+ 340   5              }
+ 341   4              
+ 342   4              count = 100;
+ 343   4              while(count--)
+ 344   4              {     
+ 345   5                adc_data = adc_get_ch_value(ADC_CHANNEL_1);         //Æô¶¯×ª»»£¬µÈ´ý×ª»»Íê³É£¬¶ÁÈ¡Êý¾Ý
+ 346   5      //          vol_value = (float)(adc_data * ADC_VREF_VDDA)/4095;
+ 347   5      //          printfS("ADC data : %d\r\n", adc_data);
+ 348   5      //          printfS("vol : %0.3fV\r\n", vol_value); 
+ 349   5                printfS("%d\n", adc_data);
+ 350   5      //          delay1ms(100);          
+ 351   5              }
+ 352   4              printfS("\r\n\r\n");
+ 353   4            } 
+ 354   3            else
+ 355   3            {
+ 356   4              printfS("²»Æ¥Åä\r\n");
+ 357   4            }
+ 358   3        
+ 359   3            rx_count = 0;       
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:04:49 PAGE 7   
+
+ 360   3            rx_flag = 0;
+ 361   3            for(len = 0; len < 32; len++)
+ 362   3            {
+ 363   4              uart0_rx_buf[len] = 0;
+ 364   4            }     
+ 365   3               
+ 366   3          }
+ 367   2          
+ 368   2        }
+ 369   1      }
+ 370          
+ 371          /************************************************************************
+ 372           * Function     : soc_test
+ 373           * Description  : soc_test
+ 374           * Input    : none
+ 375           * Output     : none
+ 376           * Return   : none
+ 377           ************************************************************************/
+ 378          void soc_test(void)
+ 379          {
+ 380   1        printfS("System run at %ldHz\n\r", system_core_clock);
+ 381   1        printfS("start test adc! \n");
+ 382   1      
+ 383   1        
+ 384   1        adc_single_mode_test();
+ 385   1      //  adc_continuous_mode_test();
+ 386   1        
+ 387   1      //  adc_performance_test();
+ 388   1      }
+ 389          
+ 390          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    916    ----
+   CONSTANT SIZE    =    262    ----
+   XDATA SIZE       =     91      20
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

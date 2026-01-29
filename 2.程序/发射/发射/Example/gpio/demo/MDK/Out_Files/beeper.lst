@@ -1,0 +1,79 @@
+C51 COMPILER V9.57.0.0   BEEPER                                                            01/07/2026 15:10:18 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE BEEPER
+OBJECT MODULE PLACED IN .\Out_Files\beeper.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\beeper.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE 
+                    -INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Fi
+                    -les\beeper.lst) OBJECT(.\Out_Files\beeper.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2020, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : beeper.c
+   5           * Description : wdt driver source file
+   6           * Author(s)   : wanyi
+   7           * version     : V1.0
+   8           * Modify date : 2020-07-28
+   9           ***********************************************************************/
+  10          #include  "beeper.h"
+  11          
+  12          
+  13          /************************************************************************
+  14           * function   : beeper_init
+  15           * Description: beeper init
+  16           * input : none
+  17           * Output: none
+  18           * return: none
+  19           ************************************************************************/
+  20          void beeper_init(void)
+  21          {
+  22   1               BEEPCTR |= (1<<4);         //BEEPER使能,P2.5作为BEEP功能
+  23   1      }
+  24          
+  25          /************************************************************************
+  26           * function   : beeper_level_set
+  27           * Description: set beeper output polarity 
+  28           * input : level ：0 低电平
+  29                             1 高电平
+  30           *         sel
+  31           * Output: none
+  32           * return: none
+  33           ************************************************************************/
+  34          void beeper_level_set(uint8_t level,uint8_t freq)
+  35          {
+  36   1              if(LOW == level)
+  37   1              {
+  38   2                  BEEPCTR &= ~(1<<2);         //BEEP输出低电平
+  39   2              }
+  40   1              else
+  41   1              {
+  42   2                  BEEPCTR |= (1<<2);         //BEEP输出高电平
+  43   2              }
+  44   1              BEEPCTR &= ~(3<<0);
+  45   1              BEEPCTR |= (freq<<0);          //输出频率
+  46   1      }
+  47          
+  48          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     22    ----
+   CONSTANT SIZE    =   ----    ----
+C51 COMPILER V9.57.0.0   BEEPER                                                            01/07/2026 15:10:18 PAGE 2   
+
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

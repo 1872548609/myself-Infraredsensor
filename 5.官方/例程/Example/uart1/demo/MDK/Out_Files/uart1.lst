@@ -1,0 +1,229 @@
+C51 COMPILER V9.60.0.0   UART1                                                             07/12/2022 18:20:16 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE UART1
+OBJECT MODULE PLACED IN .\Out_Files\uart1.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\uart1.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR
+                    -(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\ua
+                    -rt1.lst) TABS(2) OBJECT(.\Out_Files\uart1.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : uart1.c
+   5           * Description : uart1 driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include  "uart1.h"
+  11          #include "config.h"
+  12          
+  13          volatile uint8_t tx_flag = 0;
+  14          extern uint32_t system_core_clock;
+  15          void (*uart1_func)(void) = { 0 };
+  16          
+  17          /************************************************************************
+  18           * Function     : UART1_IRQHandler
+  19           * Description  : uart interrupt handling
+  20           * Input    : none
+  21           * Output   : none   
+  22           * Return   : none
+  23           ************************************************************************/
+  24          void UART1_IRQHandler(void) interrupt 2
+  25          {
+  26   1      
+  27   1        if((S1CON&0x1) == 0x1)            //Rx int
+  28   1        { 
+  29   2          if(uart1_func != NULL)
+  30   2          {
+  31   3            ((void(*)())(uart1_func))();      //uart1的接收处理回调函数
+  32   3          }
+  33   2          S1CON &= ~(0x1<<0);             //清除接收完成标志位
+  34   2        } 
+  35   1        
+  36   1      #ifdef UART1_TX_INT_MODE            //中断方式
+                else if((S1CON&0x2) == 0x2)           // Tx int
+                {
+                  tx_flag = 1;
+                  S1CON &= ~(0x1<<1);             //清除发送完成标志位
+                } 
+              #endif    
+  43   1      }
+  44          
+  45          /************************************************************************
+  46           * Function     : uart1_set_baud_rate
+  47           * Description  : uart1 set baud rate
+  48           * Input    : uint32_t clk_hz: cpu frequency
+  49           *              uint32_t baud_rate: Series rate   Baud Rate = SYSCK/(16*(1024-S1REL))   SYSCK:RC16M           
+             -    
+  50           * Output   : none  
+  51           * Return   : none
+  52           ************************************************************************/
+C51 COMPILER V9.60.0.0   UART1                                                             07/12/2022 18:20:16 PAGE 2   
+
+  53          static void uart1_set_baud_rate(uint32_t clk_hz, uint32_t baud_rate)  
+  54          { 
+  55   1        uint32_t temp;
+  56   1        uint8_t MSbyte, LSbyte;
+  57   1          
+  58   1          temp = baud_rate * 16;
+  59   1          temp = (clk_hz + (temp / 2))/ temp;
+  60   1        temp = 1024 - temp ;
+  61   1      
+  62   1        MSbyte = temp>>8;
+  63   1        LSbyte = temp;
+  64   1        
+  65   1        S1RELH = MSbyte & 0x3;
+  66   1        S1RELL = LSbyte;      
+  67   1      }
+  68          
+  69          /************************************************************************
+  70           * Function     : uart1_init
+  71           * Description  : uart1 initial for  baud_rate
+  72           * Input    : uint32_t baud_rate: Series rate 
+  73           * Output   : none
+  74           * Return   : none
+  75           ************************************************************************/
+  76          void uart1_init(uint32_t baud_rate)
+  77          {
+  78   1      
+  79   1        PCLK0 |= (1<<1);                      //开UART1时钟使能 
+  80   1        PRESET0 |= (1<<1);                    //UART1正常工作
+  81   1        EUARTEN |= (1<<1);                    //打开EUART1功能，P1.5作UART1_TX，P1.4作UART1_RX
+  82   1      
+  83   1        tx_flag = 0;
+  84   1          
+  85   1        S1CON |= (0x1<<7);                    //选择mode B 8位通信
+  86   1                    
+  87   1        S1CON &= ~(0x1<<1);                 //发送完成中断状态清除
+  88   1        S1CON &= ~(0x1<<0);                 //接收完成中断状态清除
+  89   1        
+  90   1        uart1_set_baud_rate(system_core_clock, baud_rate);    //设置波特率
+  91   1        S1CON |= (0x1<<4);                    //使能接收
+  92   1        
+  93   1        P1PU &= ~(3<<4);                      //使能P1.5,P1.4内部上拉 
+  94   1      }
+  95          
+  96          /************************************************************************
+  97           * Function     : uart1_irq_init
+  98           * Description  : uart1 interrupt enable
+  99           * Input    : uint8_t irqstate: 0 中断失能，1 中断使能
+ 100           *            *pfunc_recv)(): 接收处理回调函数
+ 101           * Output   : none
+ 102           * Return   : none
+ 103           ************************************************************************/
+ 104          void uart1_irq_init(uint8_t irqstate,void (*pfunc_recv)())
+ 105          {
+ 106   1          if(irqstate == UART1_IRQ_ENABLE)
+ 107   1          {
+ 108   2              EA = 1;                     //EA总中断开启
+ 109   2              ES1 = 1;                    //UART1中断使能   
+ 110   2              
+ 111   2              uart1_func = pfunc_recv;       
+ 112   2          } 
+ 113   1          else
+ 114   1          {
+C51 COMPILER V9.60.0.0   UART1                                                             07/12/2022 18:20:16 PAGE 3   
+
+ 115   2            //  EA = 0;                     //EA总中断关闭
+ 116   2              ES1 = 0;                    //UART1中断关闭   
+ 117   2          } 
+ 118   1      }
+ 119          
+ 120          /************************************************************************
+ 121           * Function     : uart1_send_byte
+ 122           * Description  : uart1 发送一个字节数据
+ 123           * Input    : char c: out byte
+ 124           * Output   : none  
+ 125           * Return   : none
+ 126           ************************************************************************/
+ 127          void uart1_send_byte(char c)
+ 128          {
+ 129   1        //输出一个字符
+ 130   1        uint16_t timeout;
+ 131   1        timeout = 65535;
+ 132   1          
+ 133   1        S1BUF = c;
+ 134   1      
+ 135   1      #ifdef UART1_TX_INT_MODE                //中断方式
+                while(!tx_flag);
+                tx_flag = 0;  
+              #else 
+ 139   1        //查询方式
+ 140   1          while(((S1CON&0x2)!=0x2))               //等待数据发送完成
+ 141   1          {
+ 142   2              if((timeout--)==0)                  //超时等待退出
+ 143   2              {
+ 144   3            break;
+ 145   3              }
+ 146   2          }
+ 147   1          S1CON &= ~(0x1<<1);                     //清除发送完成标志位
+ 148   1      
+ 149   1      #endif
+ 150   1      }
+ 151          
+ 152          /************************************************************************
+ 153           * Function     : uart1_send_bytes
+ 154           * Description  : uart1 send bytes  发送多个字节
+ 155           * Input    : uint8_t* buff: out buffer
+ 156           *            uint32_t length: buffer length
+ 157           * Output   : none  
+ 158           * Return   : none
+ 159           ************************************************************************/
+ 160          void uart1_send_bytes(uint8_t *buff, uint32_t length)
+ 161          {
+ 162   1        while(length--)
+ 163   1        {
+ 164   2          uart1_send_byte(*buff++);
+ 165   2        } 
+ 166   1      }
+ 167          
+ 168          /************************************************************************
+ 169           * Function     : uart1_recv_byte
+ 170           * Description  : uart1 接收一个字节数据
+ 171           * Input    : none 
+ 172           * Output   : none  
+ 173          * Return    : S1BUF：返回一个byte 
+ 174           ************************************************************************/
+ 175          uint8_t uart1_recv_byte(void)
+ 176          {  
+C51 COMPILER V9.60.0.0   UART1                                                             07/12/2022 18:20:16 PAGE 4   
+
+ 177   1        return S1BUF;
+ 178   1      }
+ 179          /************************************************************************
+ 180           * Function     : putchar
+ 181           * Description  : 打印函数重映射
+ 182           * Input    : char c: 一个字符
+ 183           * Output   : none  
+ 184           * Return   : none
+ 185           ************************************************************************/
+ 186          
+ 187          char putchar(char c)
+ 188          {
+ 189   1        uart1_send_byte(c); 
+ 190   1        return c;
+ 191   1      }
+ 192          
+ 193          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    359    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      4      23
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

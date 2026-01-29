@@ -1,0 +1,150 @@
+C51 COMPILER V9.60.0.0   APP                                                               08/03/2022 09:31:47 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\..
+                    -\Driver\inc;..\..\..\..\..\Driver\src;..\..\..\..\..\MCU\Common;..\..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.l
+                    -st) TABS(2) OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "config.h"
+  13          #include "common.h"
+  14          #include "uart0.h"
+  15          #include "i2c_master.h"
+  16          
+  17          volatile uint8_t rx_flag ;
+  18          volatile uint8_t uart0_rx_buf[32];
+  19          volatile uint8_t uart0_tx_buf[32];
+  20          volatile uint16_t rx_count = 0;
+  21          volatile uint16_t tx_count = 0;
+  22          volatile uint8_t master_irq_flag = 0;
+  23          
+  24          /************************************************************************
+  25           * Function     : uart0_rec_pro
+  26           * Description  : uart0_rec_pro 串口接收处理回调函数
+  27           * Input    : none
+  28           * Output   : none
+  29           * Return   : none
+  30           ************************************************************************/
+  31          void uart0_rec_pro(void)
+  32          {
+  33   1        uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  34   1        rx_flag = 1;  
+  35   1      }
+  36          
+  37          /************************************************************************
+  38           * Function     : uart_init
+  39           * Description  : uart_init 串口初始化
+  40           * Input    : none
+  41           * Output   : none
+  42           * Return   : none
+  43           ************************************************************************/
+  44          void uart_init(void)
+  45          {
+  46   1        rx_flag = 0;
+  47   1        uart0_init(UART0_BAUD_RATE);
+  48   1        uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+  49   1      }
+  50          
+  51          /************************************************************************
+  52           * Function     : i2c_irq_pro
+  53           * Description  : i2c_irq_pro I2C中断回调函数
+C51 COMPILER V9.60.0.0   APP                                                               08/03/2022 09:31:47 PAGE 2   
+
+  54           * Input      : none
+  55           * Output     : none
+  56           * Return     : none
+  57           ************************************************************************/
+  58          void i2c_irq_pro(void)
+  59          {
+  60   1        master_irq_flag = 1;
+  61   1      }
+  62          
+  63          
+  64          void i2c_master_send_test(void)
+  65          {
+  66   1        uint8_t xdata status;
+  67   1        uint8_t xdata i;
+  68   1        uint8_t xdata i2c_send_data[10];
+  69   1        for(i=0 ; i<8; i++)
+  70   1        {
+  71   2          i2c_send_data[i] = i+0x10;
+  72   2        
+  73   2        }
+  74   1        printfS("i2c master send start\r\n");
+  75   1        i2c_master_init(MASTER_I2C_SPEED_400K); 
+  76   1        
+  77   1        while(1)
+  78   1        {
+  79   2          status = i2c_master_write_data(I2C_SLAVE_ADDR1,i2c_send_data,8);
+  80   2        
+  81   2          printfS("status = 0x%bx\r\n",status);
+  82   2          printfS("i2c master send end\r\n");
+  83   2          delay1ms(1000);
+  84   2        }
+  85   1      }
+  86          
+  87          
+  88          void i2c_master_recv_test(void)
+  89          {
+  90   1        uint8_t xdata status;
+  91   1        uint8_t xdata i2c_recv_data[10];
+  92   1        printfS("i2c master recv start\r\n");
+  93   1        i2c_master_init(MASTER_I2C_SPEED_100K); 
+  94   1        
+  95   1        while(1)
+  96   1        {
+  97   2          status = i2c_master_read_data(I2C_SLAVE_ADDR1,i2c_recv_data,8);
+  98   2            
+  99   2          printfS("status = 0x%bx\r\n",status);
+ 100   2          printfS("i2c master recv end\r\n");
+ 101   2          printfB8(i2c_recv_data,8);
+ 102   2          delay1ms(1000);
+ 103   2        }
+ 104   1      
+ 105   1      }
+ 106          
+ 107          
+ 108          void soc_test(void)
+ 109          {
+ 110   1        printfS("System run at %ldHz\n\r", system_core_clock);
+ 111   1        printfS("start test i2c! \n");
+ 112   1      
+ 113   1        i2c_master_send_test();
+ 114   1      //  i2c_master_recv_test();
+ 115   1      }
+C51 COMPILER V9.60.0.0   APP                                                               08/03/2022 09:31:47 PAGE 3   
+
+ 116          
+ 117          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    307    ----
+   CONSTANT SIZE    =    149    ----
+   XDATA SIZE       =     70      22
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

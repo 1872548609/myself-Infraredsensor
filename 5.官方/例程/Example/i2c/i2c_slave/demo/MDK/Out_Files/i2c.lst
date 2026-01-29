@@ -1,0 +1,492 @@
+C51 COMPILER V9.60.0.0   I2C                                                               04/24/2022 14:30:19 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE I2C
+OBJECT MODULE PLACED IN .\Out_Files\i2c.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE UM800Y\driver\i2c.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(.\APP;.\Co
+                    -mmon;.\UM800Y\driver;.\UM800Y\system) DEBUG PRINT(.\Out_Files\i2c.lst) TABS(2) OBJECT(.\Out_Files\i2c.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2020, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : i2c.c
+   5           * Description : i2c driver source file
+   6           * Author(s)   : shengyu
+   7           * version     : V1.0
+   8           * Modify date : 2021-12-31
+   9           ***********************************************************************/
+  10          #include "i2c.h"
+  11          
+  12          void (*i2c_irq[6])(void) = { 0 };
+  13          
+  14          void I2C_IRQHandler(void) interrupt 13
+  15          {
+  16   1        if((REG_I2C_SR0 & MTF))
+  17   1        {
+  18   2          if(i2c_irq[0] != NULL)
+  19   2          {
+  20   3            i2c_irq[0]();
+  21   3            REG_I2C_SR0 = MTF;      //清MTF状态位
+  22   3          }
+  23   2        }
+  24   1        else if((REG_I2C_SR0 & MAAS1))
+  25   1        {
+  26   2          if(i2c_irq[1] != NULL)
+  27   2          {
+  28   3            i2c_irq[1]();
+  29   3            REG_I2C_SR0 = MAAS1;      //清MAAS1状态位
+  30   3          }
+  31   2        }
+  32   1        else if((REG_I2C_SR0 & MAAS2))
+  33   1        {
+  34   2          if(i2c_irq[2] != NULL)
+  35   2          {
+  36   3            i2c_irq[2]();
+  37   3            REG_I2C_SR0 = MAAS2;      //清MAAS2状态位
+  38   3          }
+  39   2        }
+  40   1        else if((REG_I2C_SR1 & RXNE))
+  41   1        {
+  42   2          if(i2c_irq[3] != NULL)
+  43   2          {
+  44   3            i2c_irq[3]();
+  45   3            REG_I2C_SR1 = RXNE;     //清RXNE状态位
+  46   3          }
+  47   2        }
+  48   1        else if((REG_I2C_SR1 & TXE))
+  49   1        {
+  50   2          if(i2c_irq[4] != NULL)
+  51   2          {
+  52   3            i2c_irq[4]();
+  53   3            REG_I2C_SR1 = TXE;      //清TXE状态位
+  54   3          }
+C51 COMPILER V9.60.0.0   I2C                                                               04/24/2022 14:30:19 PAGE 2   
+
+  55   2        }
+  56   1        else if((REG_I2C_SR1 & WBT))
+  57   1        {
+  58   2          if(i2c_irq[5] != NULL)
+  59   2          {
+  60   3            i2c_irq[5]();
+  61   3            REG_I2C_SR1 = WBT;      //清WBT状态位
+  62   3          }
+  63   2        } 
+  64   1        else
+  65   1        {
+  66   2          REG_I2C_SR0 |= (0x7<<4);  //清MAAS1、MAAS2和MTF状态位
+  67   2          REG_I2C_SR1 = 0x7;        //清WBT、RXNE和TXE状态位
+  68   2        }
+  69   1      
+  70   1      }
+  71          
+  72          
+  73          /************************************************************************
+  74           * Function     : i2c_ack
+  75           * Description  : i2c_ack
+  76           * Input        : none
+  77           * Output       : none  
+  78           * Return       : none
+  79           ************************************************************************/
+  80          void i2c_ack(void)
+  81          {
+  82   1        REG_I2C_CR0 &= ~(1<<4);   //应答ACK
+  83   1      }
+  84          
+  85          /************************************************************************
+  86           * Function     : i2c_no_ack
+  87           * Description  : i2c_no_ack
+  88           * Input        : none
+  89           * Output       : none  
+  90           * Return       : none
+  91           ************************************************************************/
+  92          void i2c_no_ack(void)
+  93          {
+  94   1        REG_I2C_CR0 |= (1<<4);      //不应答ACK
+  95   1      }
+  96          
+  97          /************************************************************************
+  98           * Function     : i2c_wait_ack
+  99           * Description  : i2c_wait_ack  等待应答
+ 100           * Input        : none
+ 101           * Output       : none  
+ 102           * Return       : 1:NACK  0:ACK
+ 103           ************************************************************************/
+ 104          uint8_t i2c_wait_ack(void)
+ 105          {
+ 106   1        uint16_t data timeout = 65535;
+ 107   1        
+ 108   1        while((REG_I2C_SR0 & RACK) == RACK)
+ 109   1        {
+ 110   2          if(timeout-- == 0)
+ 111   2          {
+ 112   3            return 1;
+ 113   3          }
+ 114   2        }
+ 115   1        return 0;
+ 116   1      }
+C51 COMPILER V9.60.0.0   I2C                                                               04/24/2022 14:30:19 PAGE 3   
+
+ 117          
+ 118          /************************************************************************
+ 119           * Function     : i2c_write_addr
+ 120           * Description  : i2c_write_addr  发送I2C地址+R/W标志
+ 121           * Input        : uint8_t addr
+ 122           * Output       : none  
+ 123           * Return       : none
+ 124           ************************************************************************/
+ 125          void i2c_write_addr(uint8_t addr)
+ 126          {
+ 127   1        REG_I2C_DR = addr;            //发送I2C地址+R/W标志       
+ 128   1      }
+ 129          
+ 130          
+ 131          /************************************************************************
+ 132           * Function     : i2c_write_byte
+ 133           * Description  : i2c_write_byte  写一个byte
+ 134           * Input        : uint8_t byte
+ 135           * Output       : none  
+ 136           * Return       : none
+ 137           ************************************************************************/
+ 138          void i2c_write_byte(uint8_t byte)
+ 139          { 
+ 140   1        while(!(REG_I2C_SR1 & TXE));        //等待TXE为空
+ 141   1        
+ 142   1        REG_I2C_DR = byte;            //发送数据
+ 143   1        
+ 144   1        while(!(REG_I2C_SR0 & MTF));        //等待字节传输完成
+ 145   1        REG_I2C_SR0 = MTF;  
+ 146   1        
+ 147   1      }
+ 148          
+ 149          /************************************************************************
+ 150           * Function     : i2c_read_byte
+ 151           * Description  : i2c_read_byte 读一个byte
+ 152           * Input        : none
+ 153           * Output       : none  
+ 154           * Return       : uint8_t byte
+ 155           ************************************************************************/
+ 156          uint8_t i2c_read_byte(void)
+ 157          {
+ 158   1        uint8_t byte;
+ 159   1        
+ 160   1        REG_I2C_CR0 &= ~MTX;                //作为接收器
+ 161   1        
+ 162   1        while(!(REG_I2C_SR1 & RXNE));       //等待接收数据寄存器非空
+ 163   1        
+ 164   1        while(!(REG_I2C_SR0 & MTF));        //等待字节传输完成
+ 165   1        REG_I2C_SR0 = MTF;
+ 166   1        
+ 167   1        byte = REG_I2C_DR;
+ 168   1            
+ 169   1        return byte;
+ 170   1      }
+ 171          
+ 172          /***********************************************************************
+ 173           * Function     : i2c_irq_enable
+ 174           * Description  : 使能I2C中断
+ 175           * Input        : uint8_t irq_type：i2c中断源
+ 176           *              ：void (*pfunc)()：产生中断之后执行的回调函数
+ 177           * Output       : none
+ 178           * Return       : none
+C51 COMPILER V9.60.0.0   I2C                                                               04/24/2022 14:30:19 PAGE 4   
+
+ 179           ***********************************************************************/
+ 180          void i2c_irq_enable(uint8_t irq_type,void (*pfunc)())
+ 181          {
+ 182   1        EA = 1;                               //打开总中断开关
+ 183   1        IEN1 |= (1<<5);                       //打开i2c中断开关
+ 184   1        switch(irq_type)
+ 185   1        {
+ 186   2          case I2C_IRQ_MTF:
+ 187   2          {
+ 188   3            REG_I2C_CR0 |= MIEN;
+ 189   3            i2c_irq[0] = pfunc;
+ 190   3            break;
+ 191   3          }
+ 192   2          case I2C_IRQ_MAAS1:
+ 193   2          {
+ 194   3            REG_I2C_CR0 |= MAAS1_INT_EN;
+ 195   3            i2c_irq[1] = pfunc;
+ 196   3            break;
+ 197   3          }
+ 198   2          case I2C_IRQ_MAAS2:
+ 199   2          {
+ 200   3            REG_I2C_CR1 |= MAAS2_INT_EN;
+ 201   3            i2c_irq[2] = pfunc;
+ 202   3            break;
+ 203   3          }
+ 204   2          case I2C_IRQ_RXNE:
+ 205   2          {
+ 206   3            REG_I2C_CR1 |= RXNE_INT_EN;
+ 207   3            i2c_irq[3] = pfunc;
+ 208   3            break;
+ 209   3          }
+ 210   2          case I2C_IRQ_TXE:
+ 211   2          {
+ 212   3            REG_I2C_CR1 |= TXE_INT_EN;
+ 213   3            i2c_irq[4] = pfunc;
+ 214   3            break;
+ 215   3          }
+ 216   2          case I2C_IRQ_WBT:
+ 217   2          {
+ 218   3            REG_I2C_CR1 |= WBT_INT_EN;
+ 219   3            i2c_irq[5] = pfunc;
+ 220   3            break;
+ 221   3          }
+ 222   2        }
+ 223   1      }
+ 224          
+ 225          /***********************************************************************
+ 226           * Function     : i2c_irq_disable
+ 227           * Description  : 关闭中断
+ 228           * Input        : uint8_t irq_type：i2c中断源
+ 229           * Output       : none
+ 230           * Return       : none
+ 231           ***********************************************************************/
+ 232          void i2c_irq_disable(uint8_t irq_type)
+ 233          {
+ 234   1        switch(irq_type)
+ 235   1        {
+ 236   2          case I2C_IRQ_MTF:
+ 237   2          {
+ 238   3            REG_I2C_CR0 &= ~MIEN;
+ 239   3            i2c_irq[0] = NULL;
+ 240   3            break;
+C51 COMPILER V9.60.0.0   I2C                                                               04/24/2022 14:30:19 PAGE 5   
+
+ 241   3          }
+ 242   2          case I2C_IRQ_MAAS1:
+ 243   2          {
+ 244   3            REG_I2C_CR0 &= ~MAAS1_INT_EN;
+ 245   3            i2c_irq[1] = NULL;
+ 246   3            break;
+ 247   3          }
+ 248   2          case I2C_IRQ_MAAS2:
+ 249   2          {
+ 250   3            REG_I2C_CR1 &= ~MAAS2_INT_EN;
+ 251   3            i2c_irq[2] = NULL;
+ 252   3            break;
+ 253   3          }
+ 254   2          case I2C_IRQ_RXNE:
+ 255   2          {
+ 256   3            REG_I2C_CR1 &= ~RXNE_INT_EN;
+ 257   3            i2c_irq[3] = NULL;
+ 258   3            break;
+ 259   3          }
+ 260   2          case I2C_IRQ_TXE:
+ 261   2          {
+ 262   3            REG_I2C_CR1 &= ~TXE_INT_EN;
+ 263   3            i2c_irq[4] = NULL;
+ 264   3            break;
+ 265   3          }
+ 266   2          case I2C_IRQ_WBT:
+ 267   2          {
+ 268   3            REG_I2C_CR1 &= ~WBT_INT_EN;
+ 269   3            i2c_irq[5] = NULL;
+ 270   3            break;
+ 271   3          }
+ 272   2        }
+ 273   1      }
+ 274          
+ 275          
+ 276          /************************************************************************
+ 277           * Function     : i2c_slave_init
+ 278           * Description  : i2c_slave_init  I2C从机初始化
+ 279           * Input        : none
+ 280           * Output       : none  
+ 281           * Return       : none
+ 282           ************************************************************************/
+ 283          void i2c_slave_init(void)
+ 284          {
+ 285   1        PCLK0 |= (1<<7);              //打开I2C模块时钟
+ 286   1        PRESET0 |= (1<<7);            //释放I2C复位
+ 287   1              
+ 288   1        P0PU &= ~(1<<4);              //P04上拉
+ 289   1        P1PU &= ~(1<<0);              //P10上拉
+ 290   1        
+ 291   1        REG_P04_CFG = 0x03;           //I2C_SDA     
+ 292   1        REG_P10_CFG = 0x04;           //I2C_SCL 
+ 293   1        
+ 294   1        REG_I2C_CR1 |= (1<<5);        //使能开漏模式    
+ 295   1        REG_I2C_SR0 |= MTF;           //清除传输完成状态位
+ 296   1        REG_I2C_CR1 |= MTX_ANTO_EN;   //SLAVE模式下自动切换SDA传输方向
+ 297   1        REG_I2C_CR0 |= (1<<1);        //hold_en使能
+ 298   1        REG_I2C_CR0 |= MEN;           //I2C使能
+ 299   1        
+ 300   1      }
+ 301          
+ 302          /************************************************************************
+C51 COMPILER V9.60.0.0   I2C                                                               04/24/2022 14:30:19 PAGE 6   
+
+ 303           * Function     : i2c_set_slave_addr1
+ 304           * Description  : i2c_set_slave_addr1 设置从机匹配地址
+ 305           * Input        : uint8_t slave_addr  从机地址
+ 306           * Output       : none  
+ 307           * Return       : none
+ 308           ************************************************************************/
+ 309          void i2c_set_slave_addr1(uint8_t slave_addr)
+ 310          {
+ 311   1        REG_I2C_SLAVE_ADDR1 = slave_addr;
+ 312   1      
+ 313   1      }
+ 314          
+ 315          /************************************************************************
+ 316           * Function     : i2c_set_slave_addr2
+ 317           * Description  : i2c_set_slave_addr2 设置从机匹配地址
+ 318           * Input        : uint8_t slave_addr  从机地址
+ 319           * Output       : none  
+ 320           * Return       : none
+ 321           ************************************************************************/
+ 322          void i2c_set_slave_addr2(uint8_t slave_addr)
+ 323          {
+ 324   1        REG_I2C_SLAVE_ADDR2 = slave_addr | 0x01;
+ 325   1      
+ 326   1      }
+ 327          
+ 328          /************************************************************************
+ 329          * Function    : i2c_slave_read
+ 330          * Description : i2c_slave_read
+ 331          * Input       : uint8_t *rxdata: 要接收的数据
+ 332          * Output      : none  
+ 333          * Return      : datalen 数据传输长度
+ 334          ************************************************************************/
+ 335          uint8_t i2c_slave_read(uint8_t *rxdata)
+ 336          {
+ 337   1        uint8_t datalen;
+ 338   1        
+ 339   1        datalen = 0;
+ 340   1        
+ 341   1        while((REG_I2C_SR0 & MBB)) //MBB
+ 342   1        {
+ 343   2          if((REG_I2C_SR1 & RXNE) == RXNE) //接收时数据寄存器非空
+ 344   2          { 
+ 345   3            rxdata[datalen] = i2c_read_byte();
+ 346   3            datalen++;
+ 347   3          }
+ 348   2        }
+ 349   1        REG_I2C_SR0 = MTF;
+ 350   1      
+ 351   1        return datalen;
+ 352   1      } 
+ 353          
+ 354          
+ 355          /************************************************************************
+ 356          * Function    : i2c_slave_write
+ 357          * Description : i2c_slave_write
+ 358          * Input       : uint8_t* txdata: 要发送的数据 
+ 359          * Output      : none  
+ 360          * Return      : datalen 数据传输长度
+ 361          ************************************************************************/
+ 362          uint8_t i2c_slave_write(uint8_t *txdata)
+ 363          {
+ 364   1        uint8_t datalen;
+C51 COMPILER V9.60.0.0   I2C                                                               04/24/2022 14:30:19 PAGE 7   
+
+ 365   1        
+ 366   1        datalen = 0;
+ 367   1        
+ 368   1        while(!(REG_I2C_SR0 & MTF)); 
+ 369   1        REG_I2C_SR0 = MTF;
+ 370   1        REG_I2C_DR = txdata[0];   //发送第一个数据
+ 371   1        
+ 372   1        datalen++;              //此时为设备地址单元
+ 373   1      
+ 374   1        while(REG_I2C_SR0 & MBB)     //MBB add TimeOut
+ 375   1        {
+ 376   2          if((REG_I2C_SR1 & TXE))     //等到发送时数据寄存器为空
+ 377   2          {           
+ 378   3              REG_I2C_DR = txdata[datalen++];
+ 379   3          }
+ 380   2        }
+ 381   1        REG_I2C_SR0 = MTF;
+ 382   1        
+ 383   1        return datalen; 
+ 384   1      }
+ 385          
+ 386          /***********************************************************************
+ 387           * Function     : i2c_slave_is_match_addr1
+ 388           * Description  : 用于判断是否匹配地址1
+ 389           * Input        : none
+ 390           * Output       : none
+ 391           * Return       : 0-否/1-是
+ 392           ***********************************************************************/
+ 393          uint8_t i2c_slave_is_match_addr1(void)
+ 394          {
+ 395   1        if((REG_I2C_SR0 & MAAS1) == MAAS1)      //maas1匹配
+ 396   1        {         
+ 397   2          REG_I2C_SR0 = MAAS1;                  //清空地址匹配状态
+ 398   2          if(!(REG_I2C_SR0 & SRW))              //作为从接收器
+ 399   2          { 
+ 400   3            return i2c_rx;                    
+ 401   3          }
+ 402   2          if((REG_I2C_SR0 & SRW))               //作为从发送器
+ 403   2          { 
+ 404   3            return i2c_tx;
+ 405   3          }
+ 406   2        }
+ 407   1        return 0;
+ 408   1      }
+ 409          
+ 410          /***********************************************************************
+ 411           * Function     : i2c_slave_is_match_addr2
+ 412           * Description  : 用于判断是否匹配地址2
+ 413           * Input        : none
+ 414           * Output       : none
+ 415           * Return       : 0-否/1-是
+ 416           ***********************************************************************/
+ 417          uint8_t i2c_slave_is_match_addr2(void)
+ 418          {
+ 419   1        if((REG_I2C_SR0 & MAAS2) == MAAS2)    //maas2匹配
+ 420   1        {       
+ 421   2          REG_I2C_SR0 = MAAS2;                //清空地址匹配状态
+ 422   2          if(!(REG_I2C_SR0 & SRW))              //作为从接收器
+ 423   2          { 
+ 424   3            return i2c_rx;
+ 425   3          }
+ 426   2          if((REG_I2C_SR0 & SRW))               //作为从发送器
+C51 COMPILER V9.60.0.0   I2C                                                               04/24/2022 14:30:19 PAGE 8   
+
+ 427   2          { 
+ 428   3            return i2c_tx;
+ 429   3          }
+ 430   2        }
+ 431   1        return 0;
+ 432   1      }
+ 433          
+ 434          
+ 435          /************************************************************************
+ 436          * Function    : i2c_deinit
+ 437          * Description : i2c_deinit  关闭I2C模块
+ 438          * Input       : none 
+ 439          * Output      : none  
+ 440          * Return      : none
+ 441          ************************************************************************/
+ 442          void i2c_deinit(void)
+ 443          {
+ 444   1        PCLK0 &= ~(1<<7);         //关闭I2C模块时钟
+ 445   1        PRESET0 &= ~(1<<7);         //复位I2C模块
+ 446   1      }
+ 447            
+ 448          
+ 449          
+ 450          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    880    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     18       9
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

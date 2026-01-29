@@ -1,0 +1,235 @@
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:14:40 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\..\Dr
+                    -iver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.lst) TABS(2) 
+                    -OBJECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "common.h"
+  13          #include "uart0.h"
+  14          #include "eflash.h"
+  15          #include "config.h"
+  16          
+  17          volatile uint8_t rx_flag ;
+  18          volatile uint8_t uart0_rx_buf[32];
+  19          volatile uint8_t uart0_tx_buf[32];
+  20          volatile uint16_t rx_count = 0;
+  21          volatile uint16_t tx_count = 0;
+  22          
+  23          volatile uint8_t  write_data[20]={0};
+  24          volatile uint8_t  read_data[20]={0};
+  25          
+  26          extern uint32_t system_core_clock; 
+  27          /************************************************************************
+  28           * Function     : uart0_rec_pro
+  29           * Description  : uart0_rec_pro 串口接收处理回调函数
+  30           * Input    : none
+  31           * Output     : none
+  32           * Return   : none
+  33           ************************************************************************/
+  34          void uart0_rec_pro(void)
+  35          {
+  36   1        uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  37   1        rx_flag = 1;  
+  38   1      }
+  39          
+  40          /************************************************************************
+  41           * Function     : uart_init
+  42           * Description  : uart_init 串口初始化
+  43           * Input    : none
+  44           * Output     : none
+  45           * Return   : none
+  46           ************************************************************************/
+  47          void uart_init(void)
+  48          {
+  49   1        rx_flag = 0;
+  50   1        uart0_init(UART0_BAUD_RATE);
+  51   1        uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+  52   1      }
+  53          
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:14:40 PAGE 2   
+
+  54          void eflash_page_check_8bits(uint16_t base_addr,uint8_t w_val, uint8_t page)
+  55          {
+  56   1          uint16_t i;
+  57   1          
+  58   1          for(i = 0; i < PAGE_SIZE; i++)
+  59   1          {
+  60   2              eflash_write_byte(base_addr+page*PAGE_SIZE+i,w_val);
+  61   2          }
+  62   1          
+  63   1          for(i = 0; i < PAGE_SIZE; i++)
+  64   1          {
+  65   2            if(eflash_read_byte(base_addr+page*PAGE_SIZE+i) != w_val)
+  66   2            {
+  67   3              printf("Error: 8bit Read not equal write![0x%x]\n",(base_addr+page*PAGE_SIZE+i));
+  68   3              break;
+  69   3            }
+  70   2            
+  71   2            printf("read_data:[0x%bx]\n",eflash_read_byte(base_addr+page*PAGE_SIZE+i));
+  72   2          }
+  73   1      
+  74   1      }
+  75          
+  76          
+  77          
+  78          void eflash_page_check_byte(uint16_t base_addr, uint8_t start_page, uint8_t num_page)
+  79          {
+  80   1          uint16_t i;
+  81   1          uint8_t page;
+  82   1      
+  83   1          //单字节读写测试
+  84   1      
+  85   1          for(page = start_page; page < num_page; page++)
+  86   1          {
+  87   2              eflash_erase_page(base_addr + page * PAGE_SIZE);                //页擦除
+  88   2              for(i = 0; i < PAGE_SIZE; i++)
+  89   2              {
+  90   3                  if(eflash_read_byte(base_addr+page*PAGE_SIZE+i) != 0xff)
+  91   3                  {
+  92   4                    printf("Error: erase fail![0x%lx]\n",(base_addr+page*PAGE_SIZE+i));
+  93   4                    break;
+  94   4                  }
+  95   3              } 
+  96   2      //        eflash_page_check_8bits(base_addr,0x55,page);                    //单字节读写
+  97   2          }
+  98   1      
+  99   1      
+ 100   1      } 
+ 101          
+ 102          void eflash_page_check_bytes(uint16_t base_addr,uint8_t w_val, uint32_t length)
+ 103          {
+ 104   1          uint32_t i;
+ 105   1       
+ 106   1          //多字节读写测试
+ 107   1          eflash_erase_page(base_addr);               //页擦除
+ 108   1         
+ 109   1          for(i = 0; i < length; i++)
+ 110   1          {
+ 111   2            if(eflash_read_byte(base_addr+i) != 0xff)
+ 112   2            {
+ 113   3              printf("Error: erase fail![0x%lx]\n",(base_addr+i));
+ 114   3              break;
+ 115   3            }
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:14:40 PAGE 3   
+
+ 116   2          } 
+ 117   1         
+ 118   1          for(i=0;i<length;i++)
+ 119   1          {
+ 120   2           write_data[i] = w_val;                          
+ 121   2          }
+ 122   1          
+ 123   1          eflash_write_bytes(base_addr, write_data, length);                       //多字节写数据
+ 124   1              
+ 125   1         if(length == eflash_read_bytes(base_addr, read_data, length))             //多字节读    
+ 126   1         {
+ 127   2            for(i=0;i<length;i++)
+ 128   2            {
+ 129   3                if(read_data[i] != w_val)
+ 130   3                {
+ 131   4                    printf("Error: multibyte Read not equal Write![0x%x]\n",(base_addr+i));
+ 132   4                    break;
+ 133   4                } 
+ 134   3               printf("read_data:[0x%bx]\n",read_data[i]);
+ 135   3            }  
+ 136   2         }
+ 137   1      }
+ 138          
+ 139          
+ 140          
+ 141          void eflash_sn_test(void)
+ 142          {
+ 143   1        uint8_t chip_sn[16];
+ 144   1        uint8_t chip_UID[8];
+ 145   1        uint8_t chip_Vcap[4];
+ 146   1          
+ 147   1        printfS("--------read chip sn for 16 bytes-------\n");
+ 148   1          read_sequence(chip_sn);   
+ 149   1        printfS("SN(16bytes): \n");
+ 150   1        printfB8(chip_sn,16);
+ 151   1        printfS("--------end-------\n\n");
+ 152   1      
+ 153   1        
+ 154   1        printfS("--------read chip UID for 8 bytes-------\n");
+ 155   1          read_UID(chip_UID);
+ 156   1        printfS("UID(8bytes): \n");
+ 157   1        printfB8(chip_UID,8);
+ 158   1        printfS("--------end-------\n\n");
+ 159   1          
+ 160   1        printfS("--------read chip Vcap for 4 bytes-------\n");
+ 161   1        read_Vcap(chip_Vcap);
+ 162   1        printfS("Vcap(4bytes): \n");
+ 163   1        printfB8(chip_Vcap,4);
+ 164   1        printfS("--------end-------\n\n");
+ 165   1      
+ 166   1      }
+ 167          
+ 168          
+ 169          void eflash_test(void)
+ 170          {
+ 171   1        
+ 172   1        
+ 173   1        printfS("System run at %ldHz\n\r", system_core_clock);
+ 174   1        eflash_init(system_core_clock);
+ 175   1        
+ 176   1        /********MAIN区擦读写测试*********/
+ 177   1          //单字节读写测试
+C51 COMPILER V9.60.0.0   APP                                                               07/29/2022 10:14:40 PAGE 4   
+
+ 178   1        printfS("0x2000- 0x2200 write and read by byte test start\r\n");
+ 179   1        eflash_page_check_byte(0x2000,0,1);
+ 180   1        printfS("0x2000- 0x2200 write and read by byte test end\r\n"); 
+ 181   1          
+ 182   1        delay1ms(10);
+ 183   1          //多字节读写测试
+ 184   1        printfS("0x2000 write and read by multi bytes test start\r\n");
+ 185   1        eflash_page_check_bytes(0x2000,0x5a,20);                 //多字节读写
+ 186   1        
+ 187   1        printfS("0x2000 write and read by multi bytes test end\r\n");
+ 188   1        
+ 189   1      
+ 190   1          //SN(16 Bytes or 8 Bytes)
+ 191   1        eflash_sn_test();
+ 192   1          
+ 193   1         
+ 194   1      }
+ 195          
+ 196          
+ 197          
+ 198          
+ 199          
+ 200          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1177    ----
+   CONSTANT SIZE    =    547    ----
+   XDATA SIZE       =    109      51
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

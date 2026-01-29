@@ -1,0 +1,416 @@
+C51 COMPILER V9.60.0.0   CAN                                                               04/24/2022 14:06:18 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE CAN
+OBJECT MODULE PLACED IN .\Out_Files\can.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE UM800Y\driver\can.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(.\APP;.\Co
+                    -mmon;.\UM800Y\driver;.\UM800Y\system) DEBUG PRINT(.\Out_Files\can.lst) TABS(2) OBJECT(.\Out_Files\can.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : can.c
+   5           * Description : can driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-06-24
+   9           ***********************************************************************/
+  10          #include "can.h"
+  11          
+  12          void (*can_callback)(void) = { 0 };
+  13          
+  14          /************************************************************************
+  15           * function   : CAN_IRQHandler
+  16           * Description: CAN IRQ Handler
+  17           * input : none
+  18           * return: none
+  19           ************************************************************************/
+  20          void CAN_IRQHandler(void) interrupt 8
+  21          {
+  22   1        uint8_t irq_status;
+  23   1        
+  24   1        irq_status = REG_CAN_ISR;
+  25   1        
+  26   1        if(irq_status & CAN_IMR_TIM) 
+  27   1        {
+  28   2          if(can_callback != NULL)
+  29   2          {
+  30   3            ((void(*)())(can_callback))();  //can的回调函数
+  31   3          }
+  32   2          REG_CAN_ISR = CAN_IMR_TIM;      //清除中断状态
+  33   2        }
+  34   1        else 
+  35   1        {
+  36   2          REG_CAN_ISR = 0x7f;
+  37   2        }
+  38   1        
+  39   1      }
+  40          /************************************************************************
+  41          * function   : can_init
+  42          * Description: can_init
+  43          * input    : baudrate 速率可以选择为1M/500k/250k/125k bps
+  44            
+  45            Fpclk=16Mhz,
+  46            CAN波特率 BitRate = Fpclk/2*((BRP+1)*(TS1+TS2+3)), 有个约定:TS1>=TS2
+  47          
+  48            设波特率为1M的参数：
+  49              设置BRP=0(2分频), BitRate = 1M = 16M/2((0+1)*(TS1+TS2+3)),所以可以设置TS1=3,TS2=2
+  50          
+  51            设波特率为500K的参数：
+  52              设置BRP=1(4分频), BitRate = 0.5M = 16M/2((1+1)*(TS1+TS2+3)),所以可以设置TS1=3,TS2=2
+  53          
+  54            设波特率为250K的参数：
+C51 COMPILER V9.60.0.0   CAN                                                               04/24/2022 14:06:18 PAGE 2   
+
+  55              设置BRP=3(8分频), BitRate = 0.25M = 16M/2((3+1)*(TS1+TS2+3)),所以可以设置TS1=3,TS2=2
+  56            
+  57            设波特率为125K的参数：
+  58              设置BRP=7(16分频), BitRate = 0.125M = 16M/2((7+1)*(TS1+TS2+3)),所以可以设置TS1=3,TS2=2
+  59          
+  60          
+  61           * return: none
+  62          
+  63           ************************************************************************/
+  64          void can_init(uint8_t baudrate)
+  65          {
+  66   1        BEEPCTR |= (1<<5);        //CAN时钟打开
+  67   1        BEEPCTR |= (1<<3);        //CAN复位释放
+  68   1        
+  69   1        REG_P12_CFG = 0x7;        //P12复用为CAN_TX
+  70   1      
+  71   1        REG_P23_CFG = 0x7;        //P23复用为CAN_RX
+  72   1      
+  73   1        REG_CAN_MR |= (1<<2);       //CAN工作复位模式
+  74   1      
+  75   1        switch(baudrate)
+  76   1          {
+  77   2               case 0:                                          //1M bps
+  78   2              REG_CAN_BTR0 = (REG_CAN_BTR0&(~(0x03<<6)))|(1<<6);  //SJW同步跳跃宽度 2个时间单元
+  79   2              REG_CAN_BTR0 = (REG_CAN_BTR0&(~(0x3f<<0)))|(0<<0);  //BRP 2分频
+  80   2              REG_CAN_BTR1 = (REG_CAN_BTR1&(~(0x0f<<0)))|(8<<0);  //TS1 5个时间单元
+  81   2              REG_CAN_BTR1 = (REG_CAN_BTR1&(~(0x07<<4)))|(1<<4);  //TS2 6个时间单元间单元
+  82   2           
+  83   2              break;
+  84   2           
+  85   2           case 1:                                          //500k bps
+  86   2              REG_CAN_BTR0 = (REG_CAN_BTR0&(~(0x03<<6)))|(1<<6);  //SJW同步跳跃宽度 2个时间单元
+  87   2              REG_CAN_BTR0 = (REG_CAN_BTR0&(~(0x3f<<0)))|(1<<0);  //BRP 4分频
+  88   2              REG_CAN_BTR1 = (REG_CAN_BTR1&(~(0x0f<<0)))|(3<<0);  //TS1 4个时间单元
+  89   2              REG_CAN_BTR1 = (REG_CAN_BTR1&(~(0x07<<4)))|(2<<4);  //TS2 3个时间单元
+  90   2              break;
+  91   2           
+  92   2           case 2:                                          //250k bps     
+  93   2              REG_CAN_BTR0 = (REG_CAN_BTR0&(~(0x03<<6)))|(1<<6);  //SJW同步跳跃宽度 2个时间单元
+  94   2              REG_CAN_BTR0 = (REG_CAN_BTR0&(~(0x3f<<0)))|(3<<0);  //BRP 8分频
+  95   2              REG_CAN_BTR1 = (REG_CAN_BTR1&(~(0x0f<<0)))|(3<<0);  //TS1 4个时间单元
+  96   2              REG_CAN_BTR1 = (REG_CAN_BTR1&(~(0x07<<4)))|(2<<4);  //TS2 3个时间单元
+  97   2              break;
+  98   2           
+  99   2           case 3:                                          //125k bps 
+ 100   2              REG_CAN_BTR0 = (REG_CAN_BTR0&(~(0x03<<6)))|(1<<6);  //SJW同步跳跃宽度 2个时间单元
+ 101   2              REG_CAN_BTR0 = (REG_CAN_BTR0&(~(0x3f<<0)))|(7<<0);  //BRP 16分频
+ 102   2              REG_CAN_BTR1 = (REG_CAN_BTR1&(~(0x0f<<0)))|(3<<0);  //TS1 4个时间单元
+ 103   2              REG_CAN_BTR1 = (REG_CAN_BTR1&(~(0x07<<4)))|(2<<4);  //TS2 3个时间单元
+ 104   2              break;
+ 105   2           
+ 106   2           default:
+ 107   2             
+ 108   2              break;
+ 109   2        }
+ 110   1        
+ 111   1        
+ 112   1        REG_CAN_ISR = 0x7F;       //清除中断标志
+ 113   1        
+ 114   1        REG_CAN_AMR0 = 0xFF;
+ 115   1        REG_CAN_AMR1 = 0xFF;
+ 116   1        REG_CAN_AMR2 = 0xFF;
+C51 COMPILER V9.60.0.0   CAN                                                               04/24/2022 14:06:18 PAGE 3   
+
+ 117   1        REG_CAN_AMR3 = 0xFF;
+ 118   1        
+ 119   1        REG_CAN_MR &= ~(1<<1);      //CAN进入正常模式
+ 120   1        REG_CAN_MR &= ~(1<<2);      //CAN退出复位模式
+ 121   1      }
+ 122          
+ 123          void can_irq_init(uint8_t irq_able, void (*pfunc)())
+ 124          {
+ 125   1        if(irq_able)
+ 126   1        {
+ 127   2          EA = 1;
+ 128   2          IEN2 |= (1<<1); 
+ 129   2          can_callback = pfunc;
+ 130   2          REG_CAN_IMR |= CAN_IMR_TIM;
+ 131   2          
+ 132   2        }
+ 133   1        else
+ 134   1        {
+ 135   2          EA = 0;
+ 136   2          IEN2 &= ~(1<<1);
+ 137   2          REG_CAN_IMR &= ~CAN_IMR_TIM;  
+ 138   2          can_callback = NULL;    
+ 139   2        }
+ 140   1      }
+ 141          
+ 142          void can_filter_config(S_Can_Filter_Msg *can_filter_msg,uint8_t filter_mode)
+ 143          {
+ 144   1        REG_CAN_MR |= (1<<2);                           //CAN工作复位模式
+ 145   1        
+ 146   1        REG_CAN_ACR0 = 0;
+ 147   1        REG_CAN_ACR1 = 0;
+ 148   1        REG_CAN_ACR2 = 0;
+ 149   1        REG_CAN_ACR3 = 0;
+ 150   1        REG_CAN_AMR0 = 0;
+ 151   1        REG_CAN_AMR1 = 0;
+ 152   1        REG_CAN_AMR2 = 0;
+ 153   1        REG_CAN_AMR3 = 0;
+ 154   1        
+ 155   1        if(filter_mode)
+ 156   1        {
+ 157   2          REG_CAN_MR |= (1<<0);                       //使用单过滤器
+ 158   2          if(can_filter_msg->ide == 0)                    //标准格式
+ 159   2          {
+ 160   3            
+ 161   3            REG_CAN_ACR1 |= ((can_filter_msg->rtr &0x01) << 4);       //设置RTR
+ 162   3            REG_CAN_ACR1 |= ((can_filter_msg->std_id1 & 0x7)<<5);     //设置标准ID低三位
+ 163   3            REG_CAN_ACR0 |= ((can_filter_msg->std_id1 & 0x7f8)>>3);     //设置标准ID高八位
+ 164   3            
+ 165   3            REG_CAN_AMR3 = 0xFF;                      //不对比ACR3(即不对比第2个数据)
+ 166   3            REG_CAN_AMR2 = 0xFF;                      //不对比ACR2(即不对比第1个数据)
+ 167   3            REG_CAN_AMR1 = 0;                       //对比ACR1(即对比ID低三位和RTR)
+ 168   3            REG_CAN_AMR0 = 0;                       //对比ACR0(即对比ID高八位)
+ 169   3          }
+ 170   2          else                                //扩展格式
+ 171   2          {
+ 172   3            REG_CAN_ACR0 |= ((can_filter_msg->ext_id1 & 0x1FE00000) >> 21); //设置扩展ID的[28:21]
+ 173   3            REG_CAN_ACR1 |= ((can_filter_msg->ext_id1 & 0x1FE000) >> 13); //设置扩展ID的[20:13] 
+ 174   3            REG_CAN_ACR2 |= ((can_filter_msg->ext_id1 & 0x1FE0) >> 5);    //设置扩展ID的[12:5]
+ 175   3            REG_CAN_ACR3 |= ((can_filter_msg->ext_id1 & 0x1F)<<3);      //设置扩展ID的[4:0]
+ 176   3            REG_CAN_ACR3 |= ((can_filter_msg->rtr &0x01) << 2);       //设置RTR
+ 177   3            
+ 178   3            REG_CAN_AMR0 = 0;                       //对比ACR0(即对比扩展ID的[28:21])
+C51 COMPILER V9.60.0.0   CAN                                                               04/24/2022 14:06:18 PAGE 4   
+
+ 179   3            REG_CAN_AMR1 = 0;                             //对比ACR1(即对比扩展ID的[20:13])
+ 180   3            REG_CAN_AMR2 = 0;                             //对比ACR2(即对比扩展ID的[12:5])
+ 181   3            REG_CAN_AMR3 = 0;                             //对比ACR3(即对比扩展ID的[4:0]和RTR位)
+ 182   3          }
+ 183   2        }
+ 184   1        else
+ 185   1        {
+ 186   2          REG_CAN_MR &= ~(1<<0);                        //使用双过滤器
+ 187   2          if(can_filter_msg->ide == 0)                    //标准格式
+ 188   2          {
+ 189   3        
+ 190   3            REG_CAN_ACR0 |= ((can_filter_msg->std_id1 & 0x7F8) >> 3);   //设置过滤器1的标准ID高八位
+ 191   3            REG_CAN_ACR1 |= ((can_filter_msg->std_id1 & 0x7)<<5);     //设置过滤器1的标准ID低三位
+ 192   3            REG_CAN_ACR1 |= ((can_filter_msg->rtr &0x01) << 4);       //设置过滤器1的RTR
+ 193   3            
+ 194   3            REG_CAN_AMR0 = 0;                       //对比过滤器1的标准ID高八位
+ 195   3            REG_CAN_AMR1 = 0xF;                       //对比过滤器1的标准ID低三位和RTR,不对比过滤器1的第1个数据高四位
+ 196   3            
+ 197   3            
+ 198   3            REG_CAN_ACR2 |= ((can_filter_msg->std_id2 & 0x7F8) >> 3);   //设置过滤器2的标准ID高八位
+ 199   3            REG_CAN_ACR3 |= ((can_filter_msg->std_id2 & 0x7)<<5);     //设置过滤器2的标准ID低三位
+ 200   3            REG_CAN_ACR3 |= ((can_filter_msg->rtr &0x01) << 4);       //设置过滤器2的RTR
+ 201   3            
+ 202   3            REG_CAN_AMR2 = 0;                       //对比过滤器2的标准ID高八位
+ 203   3            REG_CAN_AMR3 = 0xF;                       //对比过滤器2的标准ID低三位和RTR,不对比过滤器1的第1个数据低四位
+ 204   3                      
+ 205   3          }
+ 206   2          else                                //扩展格式
+ 207   2          { 
+ 208   3            REG_CAN_ACR0 |= ((can_filter_msg->ext_id1 & 0x1FE00000) >> 21); //设置过滤器1的扩展ID的[28:21]
+ 209   3            REG_CAN_ACR1 |= ((can_filter_msg->ext_id1 & 0x1FE000) >> 13); //设置过滤器1的扩展ID的[20:14]
+ 210   3            
+ 211   3            REG_CAN_AMR0 = 0;                       //对比过滤器1的扩展ID的[28:21]
+ 212   3            REG_CAN_AMR1 = 0;                         //对比过滤器1的扩展ID的[20:14]
+ 213   3            
+ 214   3            REG_CAN_ACR2 |= ((can_filter_msg->ext_id2 & 0x1FE00000) >> 21); //设置过滤器2的扩展ID的[28:21]
+ 215   3            REG_CAN_ACR3 |= ((can_filter_msg->ext_id2 & 0x1FE000) >> 13); //设置过滤器2的扩展ID的[20:14]
+ 216   3            
+ 217   3            REG_CAN_AMR2 = 0;                       //对比过滤器2的扩展ID的[28:21]
+ 218   3            REG_CAN_AMR3 = 0;                         //对比过滤器2的扩展ID的[20:14]
+ 219   3            
+ 220   3            
+ 221   3          }
+ 222   2        }
+ 223   1        REG_CAN_MR &= ~(1<<1);                          //CAN进入正常模式
+ 224   1        REG_CAN_MR &= ~(1<<2);                          //CAN退出复位模式
+ 225   1      
+ 226   1      }
+ 227          
+ 228          void can_send_data(S_Can_Tx_Msg *can_tx_msg, uint8_t mode, uint8_t rtr,uint8_t len)
+ 229          {
+ 230   1        can_tx_msg->len = len;
+ 231   1        can_tx_msg->rtr = rtr; 
+ 232   1        
+ 233   1        if(mode)                                      //29bit扩展格式
+ 234   1        { 
+ 235   2          can_tx_msg->ide = 1;
+ 236   2          /*1st*/
+ 237   2          REG_CAN_TXBUF0 = (can_tx_msg->len) | (can_tx_msg->rtr << 6) | (can_tx_msg->ide << 7); //写入数据长度、RT
+             -R位、IDE位
+ 238   2          REG_CAN_TXBUF1 = ((can_tx_msg->ext_id & 0x1FE00000)>> 21);                //写入扩展ID的[28:21]
+ 239   2          REG_CAN_TXBUF2 = ((can_tx_msg->ext_id & 0x1FE000)>> 13);                                //写入扩展ID的[2
+C51 COMPILER V9.60.0.0   CAN                                                               04/24/2022 14:06:18 PAGE 5   
+
+             -0:13]
+ 240   2          REG_CAN_TXBUF3 = ((can_tx_msg->ext_id & 0x1FE0) >> 5);                                  //写入扩展ID的[12
+             -:5]
+ 241   2          
+ 242   2          /*2nd*/
+ 243   2          REG_CAN_TXBUF0 = (can_tx_msg->rtr << 2) | ((can_tx_msg->ext_id & 0x1F) << 3);     //写入RTR位和扩展ID的[4:
+             -0]
+ 244   2          REG_CAN_TXBUF1 = can_tx_msg->send_data[0];                        //写入第1个数据
+ 245   2          REG_CAN_TXBUF2 = can_tx_msg->send_data[1];                                              //写入第2个数据
+ 246   2          REG_CAN_TXBUF3 = can_tx_msg->send_data[2];                                              //写入第3个数据
+ 247   2          
+ 248   2          /*3rd*/
+ 249   2          REG_CAN_TXBUF0 = can_tx_msg->send_data[3];                        //写入第4个数据
+ 250   2          REG_CAN_TXBUF1 = can_tx_msg->send_data[4];                        //写入第5个数据
+ 251   2          REG_CAN_TXBUF2 = can_tx_msg->send_data[5];                        //写入第6个数据
+ 252   2          REG_CAN_TXBUF3 = can_tx_msg->send_data[6];                        //写入第7个数据
+ 253   2          
+ 254   2          /*4th*/
+ 255   2          REG_CAN_TXBUF0 = can_tx_msg->send_data[7];                        //写入第8个数据
+ 256   2      //    REG_CAN_TXBUF1 = 0;
+ 257   2      //    REG_CAN_TXBUF2 = 0;
+ 258   2      //    REG_CAN_TXBUF3 = 0;
+ 259   2        }
+ 260   1        else                                            //11bit标准格式
+ 261   1        {
+ 262   2          /*1st*/
+ 263   2          REG_CAN_TXBUF0 = (can_tx_msg->len) | (can_tx_msg->rtr << 6) | (can_tx_msg->ide << 7); //写入数据长度、RT
+             -R位、IDE位
+ 264   2          REG_CAN_TXBUF1 = ((can_tx_msg->std_id & 0x7F8) >> 3);                 //写入标准ID高八位
+ 265   2          REG_CAN_TXBUF2 = (can_tx_msg->rtr << 4) | ((can_tx_msg->std_id & 0x7)<< 5);       //写入RTR位和标准ID低三位
+ 266   2          REG_CAN_TXBUF3 = can_tx_msg->send_data[0];                        //写入第1个数据
+ 267   2          
+ 268   2          /*2nd*/
+ 269   2          REG_CAN_TXBUF0 = can_tx_msg->send_data[1];                        //写入第2个数据     
+ 270   2          REG_CAN_TXBUF1 = can_tx_msg->send_data[2];                        //写入第3个数据 
+ 271   2          REG_CAN_TXBUF2 = can_tx_msg->send_data[3];                        //写入第4个数据 
+ 272   2          REG_CAN_TXBUF3 = can_tx_msg->send_data[4];                        //写入第5个数据 
+ 273   2          
+ 274   2          /*3rd*/
+ 275   2          REG_CAN_TXBUF0 = can_tx_msg->send_data[5];                        //写入第6个数据 
+ 276   2          REG_CAN_TXBUF1 = can_tx_msg->send_data[6];                        //写入第7个数据 
+ 277   2          REG_CAN_TXBUF2 = can_tx_msg->send_data[7];                        //写入第8个数据 
+ 278   2          REG_CAN_TXBUF3 = 0;
+ 279   2        }
+ 280   1        REG_CAN_CMR |= (1<<2);          //启动发送
+ 281   1        while(!(can_get_sr_reg()&CAN_SR_TBS));  //发送完成标志  
+ 282   1      }
+ 283          
+ 284          
+ 285          void can_recv_data(S_Can_Rx_Msg *can_rx_msg)
+ 286          {
+ 287   1        uint8_t rx_data;
+ 288   1      
+ 289   1        rx_data = REG_CAN_RXBUF0;
+ 290   1        can_rx_msg->ide = (uint8_t)((rx_data & 0x80)>>7);     //获取IDE,判断ID格式
+ 291   1        
+ 292   1        if(can_rx_msg->ide)                     //扩展格式
+ 293   1        { 
+ 294   2          /*1st*/
+ 295   2          can_rx_msg->len = (uint8_t)((rx_data & 0xF));     //获取数据len
+ 296   2          can_rx_msg->rtr = (uint8_t)((rx_data & 0x40)>>6);   //获取RTR
+ 297   2        
+C51 COMPILER V9.60.0.0   CAN                                                               04/24/2022 14:06:18 PAGE 6   
+
+ 298   2          rx_data = REG_CAN_RXBUF1;
+ 299   2          can_rx_msg->ext_id = ((uint32_t)rx_data << 21);     //获取扩展ID的[28:21]
+ 300   2          
+ 301   2          rx_data = REG_CAN_RXBUF2;
+ 302   2          can_rx_msg->ext_id |= ((uint32_t)rx_data << 13);    //获取扩展ID的[20:13]
+ 303   2          
+ 304   2          rx_data = REG_CAN_RXBUF3;
+ 305   2          can_rx_msg->ext_id |= ((uint32_t)rx_data << 5);     //获取扩展ID的[12:5]
+ 306   2          
+ 307   2          /*2nd*/
+ 308   2          rx_data = REG_CAN_RXBUF0;
+ 309   2          can_rx_msg->ext_id |= ((uint32_t)rx_data>>3);     //获取扩展ID的[4:0]
+ 310   2          
+ 311   2          can_rx_msg->recv_data[0] = REG_CAN_RXBUF1;        //获取第1个数据
+ 312   2          can_rx_msg->recv_data[1] = REG_CAN_RXBUF2;              //获取第2个数据
+ 313   2          can_rx_msg->recv_data[2] = REG_CAN_RXBUF3;              //获取第3个数据
+ 314   2          
+ 315   2          /*3rd*/
+ 316   2          can_rx_msg->recv_data[3] = REG_CAN_RXBUF0;        //获取第4个数据
+ 317   2          can_rx_msg->recv_data[4] = REG_CAN_RXBUF1;              //获取第5个数据
+ 318   2          can_rx_msg->recv_data[5] = REG_CAN_RXBUF2;              //获取第6个数据
+ 319   2          can_rx_msg->recv_data[6] = REG_CAN_RXBUF3;        //获取第7个数据
+ 320   2        
+ 321   2          /*4th*/
+ 322   2          can_rx_msg->recv_data[7] = REG_CAN_RXBUF0;        //获取第8个数据
+ 323   2          rx_data = REG_CAN_RXBUF1;
+ 324   2          rx_data = REG_CAN_RXBUF2;
+ 325   2          rx_data = REG_CAN_RXBUF3;
+ 326   2        }
+ 327   1        else                            //标准格式
+ 328   1        { 
+ 329   2          /*1st*/
+ 330   2          can_rx_msg->len = (uint8_t)((rx_data & 0xF));     //获取数据len
+ 331   2          can_rx_msg->rtr = (uint8_t)((rx_data & 0x40)>>6);   //获取RTR
+ 332   2          
+ 333   2          rx_data = REG_CAN_RXBUF1;
+ 334   2          can_rx_msg->std_id = ((uint32_t)rx_data << 3);      //获取标准ID高八位
+ 335   2          
+ 336   2          rx_data = REG_CAN_RXBUF2;
+ 337   2          can_rx_msg->std_id |= (((uint32_t)rx_data & 0xE0)>>5);  //获取标准ID低三位
+ 338   2          can_rx_msg->rtr = ((rx_data & 0x10) >> 4);        //获取RTR位
+ 339   2          
+ 340   2          can_rx_msg->recv_data[0] = REG_CAN_RXBUF3;        //获取第1个数据
+ 341   2          
+ 342   2          /*2nd*/
+ 343   2          can_rx_msg->recv_data[1] = REG_CAN_RXBUF0;        //获取第2个数据
+ 344   2          can_rx_msg->recv_data[2] = REG_CAN_RXBUF1;        //获取第3个数据
+ 345   2          can_rx_msg->recv_data[3] = REG_CAN_RXBUF2;        //获取第4个数据
+ 346   2          can_rx_msg->recv_data[4] = REG_CAN_RXBUF3;        //获取第5个数据
+ 347   2          
+ 348   2          /*3rd*/
+ 349   2          can_rx_msg->recv_data[5] = REG_CAN_RXBUF0;        //获取第6个数据
+ 350   2          can_rx_msg->recv_data[6] = REG_CAN_RXBUF1;        //获取第7个数据
+ 351   2          can_rx_msg->recv_data[7] = REG_CAN_RXBUF2;        //获取第8个数据
+ 352   2          rx_data = REG_CAN_RXBUF3;
+ 353   2        }
+ 354   1        
+ 355   1        REG_CAN_ISR = 0x08;
+ 356   1      
+ 357   1      }
+ 358          /************************************************************************
+ 359           * function   : can_get_sr_reg
+C51 COMPILER V9.60.0.0   CAN                                                               04/24/2022 14:06:18 PAGE 7   
+
+ 360           * Description: can get_sr_reg, 获取can状态寄存器值
+ 361           * input : 
+ 362           * return: none
+ 363           ************************************************************************/
+ 364          uint8_t can_get_sr_reg(void)
+ 365          {
+ 366   1        uint8_t temp;
+ 367   1        
+ 368   1        temp = REG_CAN_SR;
+ 369   1        
+ 370   1        return temp;
+ 371   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2365    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      3      10
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

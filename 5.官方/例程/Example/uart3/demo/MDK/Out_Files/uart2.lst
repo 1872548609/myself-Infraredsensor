@@ -1,0 +1,233 @@
+C51 COMPILER V9.60.0.0   UART2                                                             01/12/2022 15:19:30 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE UART2
+OBJECT MODULE PLACED IN .\Out_Files\uart2.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE UM800Y\driver\uart2.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE MOD517(NOAU) IN
+                    -CDIR(.\APP;.\Common;.\UM800Y\driver;.\UM800Y\system) DEBUG PRINT(.\Out_Files\uart2.lst) TABS(2) OBJECT(.\Out_Files\uart2
+                    -.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : uart2.c
+   5           * Description : uart2 driver source file
+   6           * Author(s)   : shengyu
+   7           * version     : V1.0
+   8           * Modify date : 2021-12-31
+   9           ***********************************************************************/
+  10          #include "uart2.h"
+  11          #include "config.h"
+  12          volatile uint8_t uart2_tx_flag = 0;
+  13          
+  14          void (*uart2_func)(void) = { 0 };
+  15          
+  16          /************************************************************************
+  17           * Function     : UART2_IRQHandler
+  18           * Description  : uart2 interrupt handling
+  19           * Input    : none
+  20           * Output   : none   
+  21           * Return   : none
+  22           ************************************************************************/
+  23          void UART2_IRQHandler(void) interrupt 16
+  24          {
+  25   1        if(REG_UART2_ISR & 0x20)                      //FIFO非空中断
+  26   1        {
+  27   2          if(uart2_func != NULL)
+  28   2          {
+  29   3            ((void(*)())(uart2_func))();            //uart2的接收处理回调函数
+  30   3            REG_UART2_ISR &= ~(1<<5);             //清除FIFO_NE非空标志位
+  31   3          }
+  32   2        } 
+  33   1      #ifdef UART2_TX_INT_MODE      
+                else if(REG_UART2_ISR & 0x02)             //发送完成中断
+                {
+                  if(!(REG_UART2_ISR & (1<<1)))
+                  {
+                    uart2_tx_flag = 1;
+                    REG_UART2_ISR &= ~(1<<1);             //清除发送完成标志位
+                  }
+                } 
+              #endif
+  43   1        else
+  44   1        {
+  45   2          REG_UART2_ISR = 0x00;                 //清除中断状态
+  46   2        }
+  47   1      
+  48   1      }
+  49          
+  50          /************************************************************************
+  51           * Function     : uart2_set_baud_rate
+  52           * Description  : uart2 set baud rate
+  53           * Input    : uint32_t clk_hz: cpu frequency
+C51 COMPILER V9.60.0.0   UART2                                                             01/12/2022 15:19:30 PAGE 2   
+
+  54           *              uint32_t baud_rate: Series rate                 
+  55           * Output   : none  
+  56           * Return   : none
+  57           ************************************************************************/
+  58          static void uart2_set_baud_rate(uint32_t clk_hz, uint32_t baud_rate)  
+  59          { 
+  60   1        uint16_t temp;
+  61   1        uint8_t MSbyte, LSbyte;
+  62   1          
+  63   1        temp = clk_hz / baud_rate;
+  64   1        
+  65   1        MSbyte = temp>>8;
+  66   1        LSbyte = temp;
+  67   1        
+  68   1        REG_UART2_BRPH = MSbyte;
+  69   1        REG_UART2_BRPL = LSbyte+1;    
+  70   1      }
+  71          
+  72          /************************************************************************
+  73           * Function     : uart2_init
+  74           * Description  : uart2 initial for  baud_rate
+  75           * Input    : uint32_t baud_rate: Series rate 
+  76           * Output   : none
+  77           * Return   : none
+  78           ************************************************************************/
+  79          void uart2_init(uint32_t baud_rate)
+  80          {
+  81   1        uint32_t uart_clk_hz;
+  82   1        uart_clk_hz = FCLK;   
+  83   1            
+  84   1        PCLK1 |= (1<<7);                  //开UART2时钟使能 
+  85   1        PRESET1 |= (1<<7);                //UART2正常工作
+  86   1        
+  87   1        REG_P00_CFG = 0x1;                //P00复用为UART2_RX
+  88   1        REG_P01_CFG = 0x1;                //P01复用为UART2_TX
+  89   1        
+  90   1        REG_UART2_CR |= (1<<3);           //无奇偶校验
+  91   1        REG_UART2_CR |= (1<<1);           //发送数据使能  
+  92   1      
+  93   1        uart2_set_baud_rate(uart_clk_hz,baud_rate);     //设置波特率
+  94   1      }
+  95          
+  96          /************************************************************************
+  97           * Function     : uart2_irq_init
+  98           * Description  : uart2 interrupt enable
+  99           * Input    : uint8_t irqstate: 0 中断失能，1 中断使能
+ 100           *            *pfunc_recv)(): 接收处理回调函数
+ 101           * Output   : none
+ 102           * Return   : none
+ 103           ************************************************************************/
+ 104          void uart2_irq_init(uint8_t irqstate,void (*pfunc_recv)())
+ 105          {
+ 106   1        if(irqstate == UART2_IRQ_ENABLE)
+ 107   1        {
+ 108   2          EA = 1;                   //打开总中断开关
+ 109   2          UART2INTEN = 1;           //使能UART2中断
+ 110   2          
+ 111   2      #ifdef UART2_TX_INT_MODE      //发送采用中断方式
+                  REG_UART2_IER = 0x22;     //接收FIFO非空中断使能，发送完成中断使能,enable Rx/Tx_INT,disable else int
+              #else                         //发送采用查询方式
+ 114   2          REG_UART2_IER = 0x20;                 //接收FIFO非空中断使能，发送完成中断不使能,enable Rx_INT,disable Tx_IN
+             -T and else int    
+C51 COMPILER V9.60.0.0   UART2                                                             01/12/2022 15:19:30 PAGE 3   
+
+ 115   2      #endif  
+ 116   2          uart2_func = pfunc_recv;  //接收中断回调函数
+ 117   2        }
+ 118   1        else
+ 119   1        {
+ 120   2          UART2INTEN = 0;           //关闭UART2中断
+ 121   2        }
+ 122   1          
+ 123   1      }
+ 124          
+ 125          /************************************************************************
+ 126           * Function     : uart2_send_byte
+ 127           * Description  : uart2 发送一个字节数据
+ 128           * Input    : char c: out byte
+ 129           * Output   : none  
+ 130           * Return   : none
+ 131           ************************************************************************/
+ 132          void uart2_send_byte(char c)
+ 133          {
+ 134   1        //输出一个字符
+ 135   1        uint16_t timeout;
+ 136   1        timeout = 65535;
+ 137   1        
+ 138   1        REG_UART2_TDR = c;
+ 139   1      
+ 140   1      #ifdef UART2_TX_INT_MODE                    //中断方式
+                while(!uart2_tx_flag);    
+                uart2_tx_flag = 0;    
+              #else                           //查询方式
+ 144   1        while((REG_UART2_ISR & 0x02) != 0x02)         //等待数据发送完成
+ 145   1        {   
+ 146   2          if((timeout--)==0)                //超时等待退出
+ 147   2          {   
+ 148   3            break;    
+ 149   3          }   
+ 150   2        }   
+ 151   1        REG_UART2_ISR &= ~(1<<1);               //清除发送完成标志位
+ 152   1      
+ 153   1      #endif
+ 154   1      }
+ 155          
+ 156          /************************************************************************
+ 157           * Function     : uart2_send_bytes
+ 158           * Description  : uart2 send bytes  发送多个字节
+ 159           * Input    : uint8_t* buff: out buffer
+ 160           *            uint32_t length: buffer length
+ 161           * Output   : none  
+ 162           * Return   : none
+ 163           ************************************************************************/
+ 164          void uart2_send_bytes(uint8_t *buff, uint32_t length)
+ 165          {
+ 166   1        while(length--)
+ 167   1        {
+ 168   2          uart2_send_byte(*buff++);
+ 169   2        } 
+ 170   1      }
+ 171          
+ 172          /************************************************************************
+ 173           * Function     : uart2_recv_byte
+ 174           * Description  : uart2 接收一个字节数据
+ 175           * Input    : none 
+ 176           * Output   : none  
+C51 COMPILER V9.60.0.0   UART2                                                             01/12/2022 15:19:30 PAGE 4   
+
+ 177          * Return    : REG_UART2_RDR：返回一个byte 
+ 178           ************************************************************************/
+ 179          uint8_t uart2_recv_byte(void)
+ 180          { 
+ 181   1        return REG_UART2_RDR;
+ 182   1      }
+ 183          
+ 184          
+ 185          /************************************************************************
+ 186           * Function     : putchar
+ 187           * Description  : 打印函数重映射
+ 188           * Input    : char c: 一个字符
+ 189           * Output   : none  
+ 190           * Return   : none
+ 191           ************************************************************************/
+ 192          char putchar(char c)
+ 193          {
+ 194   1        uart2_send_byte(c); 
+ 195   1        return c;
+ 196   1      }
+ 197          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    320    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      4      23
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

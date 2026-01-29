@@ -1,0 +1,97 @@
+C51 COMPILER V9.60.0.0   WDT                                                               05/08/2021 13:24:37 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE WDT
+OBJECT MODULE PLACED IN .\Out_Files\wdt.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE UM800Y\driver\wdt.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE MOD517(NOAU) INCD
+                    -IR(.\APP;.\Common;.\UM800Y\driver;.\UM800Y\system) DEBUG PRINT(.\Out_Files\wdt.lst) OBJECT(.\Out_Files\wdt.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2020, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : wdt.c
+   5           * Description : wdt driver source file
+   6           * Author(s)   : wanyi
+   7           * version     : V1.0
+   8           * Modify date : 2021-02-26
+   9           ***********************************************************************/
+  10          #include  "wdt.h"
+  11          
+  12          /***********************************************************************
+  13           * Function     : wdt_init
+  14           * Description  : wdt init
+  15           * Input        : none
+  16           * Output               : none
+  17           * Return               : none
+  18           ***********************************************************************/
+  19          void wdt_init(void)
+  20          {
+  21   1              PCLK0 |= (1<<2);                                                                                                        /* 开启WDT时钟 */
+  22   1              PRESET0 |= (1<<2);                                                                                              /* WDT正常工作 */
+  23   1              WDEN = 1;                                                                                                       /* WDT使能 */
+  24   1      }
+  25          
+  26          /***********************************************************************
+  27           * Function     : wdt_load
+  28           * Description  : 设置溢出周期最小值
+  29           * Input        : uint8_t arr：arr_1_ms，arr_4_ms...
+  30           * Output               : none
+  31           * Return               : none
+  32           ***********************************************************************/
+  33          void wdt_load(uint8_t arr)
+  34          {
+  35   1          RSTSTAT &= ~(7<<0);  
+  36   1              RSTSTAT |= (arr<<0);
+  37   1      }
+  38          
+  39          /***********************************************************************
+  40           * Function     : wdt_feed
+  41           * Description  : 喂狗
+  42           * Input        : uint8_t arr：arr_1_ms，arr_4_ms...
+  43           * Output               : none
+  44           * Return               : none
+  45           ***********************************************************************/
+  46          void wdt_feed(uint8_t arr)
+  47          {
+  48   1              RSTSTAT &= ~(7<<0); 
+  49   1              RSTSTAT |= (arr<<0);
+  50   1      }
+  51          
+  52          /***********************************************************************
+  53           * Function     : wdt_is_reset_flag
+  54           * Description  : 判断复位是否是由wdt引起的
+C51 COMPILER V9.60.0.0   WDT                                                               05/08/2021 13:24:37 PAGE 2   
+
+  55           * Input        : none
+  56           * Output               : none
+  57           * Return               : 0-否，1-是
+  58           ***********************************************************************/
+  59          uint8_t wdt_is_reset_flag(void)
+  60          {
+  61   1              if(WDOF == 1)                                                                                                           /* 看门狗引起的复位标志 */
+  62   1              {
+  63   2                      WDOF = 0;
+  64   2                      return 1;
+  65   2              }
+  66   1              return 0;
+  67   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     34    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,1 @@
+"..\..\..\..\Driver\src\adc.c" LARGE OMF2 OPTIMIZE (8,SIZE) BROWSE INCDIR(..\..\..\..\MCU\Device;..\..\..\..\MCU\Common;..\..\..\..\Driver\src;..\..\..\..\Driver\inc) DEBUG PRINT(.\Out_Files\adc.lst) TABS (2) OBJECT(.\Out_Files\adc.obj)

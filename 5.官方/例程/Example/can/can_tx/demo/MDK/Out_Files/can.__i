@@ -1,0 +1,1 @@
+"UM800Y\driver\can.c" LARGE OMF2 OPTIMIZE (8,SIZE) BROWSE INCDIR(.\APP;.\Common;.\UM800Y\driver;.\UM800Y\system) DEBUG PRINT(.\Out_Files\can.lst) TABS (2) OBJECT(.\Out_Files\can.obj)
