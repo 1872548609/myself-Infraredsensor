@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   PWM                                                               01/29/2026 18:24:18 PAGE 1   
+C51 COMPILER V9.57.0.0   PWM                                                               01/30/2026 10:34:43 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE PWM
@@ -62,7 +62,7 @@ line level    source
   51           * Function     : pwm0_init
   52           * Description  : 初始化PWM0   
   53           * Input        : uint16_t cycle 周期（周期时长计算 = 系统时钟/cycle）
-C51 COMPILER V9.57.0.0   PWM                                                               01/29/2026 18:24:18 PAGE 2   
+C51 COMPILER V9.57.0.0   PWM                                                               01/30/2026 10:34:43 PAGE 2   
 
   54           *                uint16_t duty  占空比
   55           *                uint8_t  level HIGH:占空比期间输出高电平；LOW:占空比期间输出低电平
@@ -126,7 +126,7 @@ line level    source
  113   1          PWM0CON |= (1<<0);                                                                                                  //PWM0输出允许
  114   1      }
  115          
-C51 COMPILER V9.57.0.0   PWM                                                               01/29/2026 18:24:18 PAGE 3   
+C51 COMPILER V9.57.0.0   PWM                                                               01/30/2026 10:34:43 PAGE 3   
 
  116          /***********************************************************************
  117           * Function     : pwm0_stop
@@ -190,7 +190,7 @@ line level    source
  175   1              {
  176   2                      EA = 0;                                                         // 关闭总中断，注意如果存在中断，关闭总中断时需要注意 
  177   2                      EPWM = 0;                                                       //关闭PWM中断 
-C51 COMPILER V9.57.0.0   PWM                                                               01/29/2026 18:24:18 PAGE 4   
+C51 COMPILER V9.57.0.0   PWM                                                               01/30/2026 10:34:43 PAGE 4   
 
  178   2                      PWM1CON &= ~(1<<2);                                     // 不允许PWM1中断
  179   2              }
@@ -254,7 +254,7 @@ line level    source
  237           * Function     : pwm2_irq_init
  238           * Description  : 初始化PWM2中断   
  239           * Input        : none
-C51 COMPILER V9.57.0.0   PWM                                                               01/29/2026 18:24:18 PAGE 5   
+C51 COMPILER V9.57.0.0   PWM                                                               01/30/2026 10:34:43 PAGE 5   
 
  240           * Output               : none
  241           * Return               : none

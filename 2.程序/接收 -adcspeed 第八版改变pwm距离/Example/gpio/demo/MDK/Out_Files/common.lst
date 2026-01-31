@@ -1,0 +1,119 @@
+C51 COMPILER V9.57.0.0   COMMON                                                            01/29/2026 16:12:40 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE COMMON
+OBJECT MODULE PLACED IN .\Out_Files\common.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\MCU\Common\common.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE 
+                    -INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Fi
+                    -les\common.lst) OBJECT(.\Out_Files\common.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : common.c
+   5           * Description : conmmon source file
+   6           * Author(s)   : Dan
+   7           * version     : V1.0
+   8           * Modify date : 2020-07-16
+   9           ***********************************************************************/
+  10          #include "common.h"
+  11          #include  "config.h"
+  12          
+  13          /************************************************************************
+  14           * Function     : delay1ms
+  15           * Description  : delay 1ms
+  16           * Input                : uint32_t n: n ms
+  17           * Output               : none
+  18           * Return               : none
+  19           ************************************************************************/
+  20          void delay1ms(uint32_t n)               //@16M Hz
+  21          {
+  22   1              uint32_t x;
+  23   1              uint8_t i;
+  24   1              uint8_t j;
+  25   1              for(x = 0; x<=n; x++)
+  26   1              {
+  27   2                      _nop_();
+  28   2                      i = 21;
+  29   2                      j = 146;
+  30   2                      do
+  31   2                      {
+  32   3                              while (--j);
+  33   3                      } while (--i);
+  34   2              }
+  35   1      }
+  36          
+  37          /************************************************************************
+  38           * Function     : delay
+  39           * Description  : delay
+  40           * Input                : uint32_t i
+  41           * Output               : none
+  42           * Return               : none
+  43           ************************************************************************/
+  44          void delay(uint32_t i)
+  45          {
+  46   1                      while(i--);
+  47   1      }
+  48          
+  49          #ifdef DEBUG
+  50          /************************************************************************
+  51           * Function     : printf_buff_byte
+  52           * Description  : printf data block by byte
+  53           * Input                : uint8_t* buff: buff
+C51 COMPILER V9.57.0.0   COMMON                                                            01/29/2026 16:12:40 PAGE 2   
+
+  54           *                        uint32_t length: byte length
+  55           * Output               : none
+  56           * Return               : none
+  57           ************************************************************************/
+  58          void printf_buff_byte(uint8_t* buff, uint32_t length)
+  59          {
+  60   1              uint32_t i;
+  61   1      
+  62   1              for(i=0; i<length; i++)
+  63   1              {
+  64   2                      printf("%.2bx ",buff[i]);       
+  65   2              }
+  66   1              printf("\n");
+  67   1      }
+  68          
+  69          /************************************************************************
+  70           * Function     : printf_buff_word
+  71           * Description  : printf data block by word
+  72           * Input                : uint8_t* buff: buff
+  73           *                        uint32_t length: word length
+  74           * Output               : none
+  75           * Return               : none
+  76           ************************************************************************/
+  77          void printf_buff_word(uint32_t* buff, uint32_t length)
+  78          {
+  79   1              uint32_t i;
+  80   1      
+  81   1              for(i=0; i<length; i++)
+  82   1              {
+  83   2                      printf("%.8lx ",buff[i]);       
+  84   2              }
+  85   1              printf("\n");
+  86   1      }
+  87          
+  88          #endif
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    319    ----
+   CONSTANT SIZE    =     16    ----
+   XDATA SIZE       =   ----      34
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

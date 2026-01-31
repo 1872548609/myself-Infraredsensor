@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   SYSTEM_UM800Y                                                     01/07/2026 15:10:16 PAGE 1   
+C51 COMPILER V9.57.0.0   SYSTEM_UM800Y                                                     01/30/2026 10:34:39 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE SYSTEM_UM800Y
@@ -62,7 +62,7 @@ line level    source
   51   1          {
   52   2              case 24000000:
   53   2                  RCHDIV = (0x1<<0);                          //RCH 2·ÖÆµ
-C51 COMPILER V9.57.0.0   SYSTEM_UM800Y                                                     01/07/2026 15:10:16 PAGE 2   
+C51 COMPILER V9.57.0.0   SYSTEM_UM800Y                                                     01/30/2026 10:34:39 PAGE 2   
 
   54   2                  system_core_clock = crystal_clk/2;
   55   2                  break;

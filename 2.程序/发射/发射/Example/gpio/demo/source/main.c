@@ -50,7 +50,7 @@ void main(void)
 	GPIO_Init();
 	uart_init();
 	
-	pwm2_init(16000,800,LOW);//1khz 12.5us dt0.0125
+	pwm2_init(16000,400,LOW);//1khz 12.5us dt0.0125
 	pwm2_start();
     
 	while(1) 
