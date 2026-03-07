@@ -1,0 +1,88 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              02/27/2026 09:53:51 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Out_Files\main.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..
+                    -\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\main.lst) O
+                    -BJECT(.\Out_Files\main.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : main.c
+   5           * Description : main source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/     
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "gtimer.h"
+  13          #include "pwm.h"
+  14          #include "common.h"
+  15          #include "config.h"
+  16          #include "gpio.h"
+  17          #include "adc.h"
+  18          
+  19          void GPIO_Init(void);
+  20          void ADC_Init(void);
+  21          void gpio_int_pro(void);
+  22          void gtimer0_UECallBack(void);
+  23          
+  24          void main(void)  
+  25          {               
+  26   1              system_init(); // 16Mhz
+  27   1              GPIO_Init();
+  28   1              uart_init();
+  29   1              
+  30   1              pwm2_init(16000,400,LOW);// 16M /sysclk * 400 = T
+  31   1              pwm2_start();
+  32   1          
+  33   1              while(1) 
+  34   1              {
+  35   2      
+  36   2              }
+  37   1      }
+  38          
+  39          
+  40          void GPIO_Init(void)
+  41          {
+  42   1              //红色指示灯
+  43   1              gpio_init(P1_3);
+  44   1              gpio_dir_set(P1_3, GPIO_DIR_OUT);
+  45   1              gpio_dr_set(P1_3, GPIO_SR_HIGH);
+  46   1              gpio_io_set(P1_3, GPIO_HIGH);
+  47   1              
+  48   1              //脉冲发射口
+  49   1              REG_P14_CFG=0x20;
+  50   1              gpio_sr_set(P1_4,GPIO_SR_HIGH);
+  51   1              
+  52   1              //脉冲接收口
+  53   1              REG_P15_CFG=0x00;
+C51 COMPILER V9.57.0.0   MAIN                                                              02/27/2026 09:53:51 PAGE 2   
+
+  54   1              gpio_init(P1_5);                          //时钟初始化，模块正常工作
+  55   1              gpio_dir_set(P1_5, GPIO_DIR_IN);          //配置为输入
+  56   1              gpio_in_enable(P1_5, IN_ENABLE);          //输入使能 
+  57   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     90    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

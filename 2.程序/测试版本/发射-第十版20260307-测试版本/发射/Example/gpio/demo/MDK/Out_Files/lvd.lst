@@ -1,0 +1,61 @@
+C51 COMPILER V9.57.0.0   LVD                                                               01/30/2026 10:34:42 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE LVD
+OBJECT MODULE PLACED IN .\Out_Files\lvd.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\lvd.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INC
+                    -DIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files
+                    -\lvd.lst) OBJECT(.\Out_Files\lvd.obj)
+
+line level    source
+
+   1          #include "lvd.h"
+   2          
+   3          volatile uint8_t lvd_flag=0;
+   4          
+   5          void EFC_IRQHandler(void) interrupt 11
+   6          {                       
+   7   1              if(OSTATUS & 0x08)                              //¼ì²âµ½µÍµçÑ¹×´Ì¬                                                              
+   8   1              {       
+   9   2                      lvd_flag = 1;
+  10   2                      OINTUS = 0x20;                  //ÇåLVDµÍµçÑ¹ÖÐ¶Ï×´Ì¬Î»
+  11   2              }       
+  12   1              
+  13   1              OINTUS = 0xff;                  //ÇåÖÐ¶Ï×´Ì¬Î»
+  14   1      
+  15   1      }
+  16          
+  17          
+  18          
+  19          void lvd_init(void)
+  20          {
+  21   1              LVDCON |=(0x4<<1);              //2.85V-Lvd  000:4.12V ; 001:3.69V ;010:3.38V ; 011:3.09V ;  100:2.85V£»   101:2.65V£
+             -» 110: 2.48V£»  111: 2.32V;
+  22   1              LVDCON &=~(1<<4);               //Ê¹ÄÜLVDÄ£¿é
+  23   1              OINTUS |= (1<<5);                       //ÇåLVDµÍÑ¹ÖÐ¶Ï×´Ì¬Î» 
+  24   1              OINTEN |= (1<<5);                       //LVDµÍµçÑ¹ÖÐ¶ÏÊ¹ÄÜ
+  25   1              IEN1 |= (1<<3);                         //EFCÖÐ¶ÏÊ¹ÄÜ
+  26   1              
+  27   1              EA = 1;                 
+  28   1      
+  29   1      }
+  30          
+  31          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     51    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      1    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

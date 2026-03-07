@@ -1,0 +1,423 @@
+C51 COMPILER V9.57.0.0   LPTIMER                                                           01/29/2026 15:56:04 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE LPTIMER
+OBJECT MODULE PLACED IN .\Out_Files\lptimer.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\lptimer.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE
+                    - INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_F
+                    -iles\lptimer.lst) OBJECT(.\Out_Files\lptimer.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2019, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : um_lptimer.c
+   5           * Description : lpTimer driver source file
+   6           * Author(s)   : wanyi
+   7           * version     : V1.0
+   8           * Modify date : 2020-09-04
+   9           ***********************************************************************/
+  10          #include "lptimer.h"
+  11          
+  12          void (*lptimfunc[4])(void) = { 0 };
+  13          /************************************************************************
+  14           * function   : lptimer_IRQHandler
+  15           * Description: lptimer interrupt handler
+  16           * input : none
+  17           * output: none   
+  18           * return: none
+  19           ************************************************************************/
+  20          void LPTIMER_IRQHandler(void) interrupt 12
+  21          { 
+  22   1              if(((REG_LPTIM_LPTIF & 0x01) == 0x01)&&((REG_LPTIM_LPTIE & 0x01) == 0x01))                 //Æ¥ÅäÖÐ¶Ï 
+  23   1              {
+  24   2                      REG_LPTIM_LPTIF = 0x01;                                                       //ÇåÖÐ¶Ï±êÖ¾ 
+  25   2              
+  26   2              if(lptimfunc[0]!= NULL)
+  27   2              {
+  28   3                  ((void(*)())(lptimfunc)[0])();                                           //lptimÆ¥ÅäÖÐ¶Ï»Øµ÷º¯
+             -Êý 
+  29   3              }
+  30   2              }
+  31   1        else if(((REG_LPTIM_LPTIF & 0x02) == 0x02)&&((REG_LPTIM_LPTIE & 0x02) == 0x02))          //Òç³öÖÐ¶Ï 
+  32   1              {
+  33   2                      REG_LPTIM_LPTIF = 0x02;                                                       //ÇåÖÐ¶Ï±êÖ¾  
+  34   2        
+  35   2              if(lptimfunc[1]!= NULL)
+  36   2              {
+  37   3                  ((void(*)())(lptimfunc)[1])();                                            //lptimÒç³öÖÐ¶Ï»Øµ÷º
+             -¯Êý
+  38   3              }
+  39   2              }
+  40   1          else if(((REG_LPTIM_LPTIF & 0x04) == 0x04)&&((REG_LPTIM_LPTIE & 0x04) == 0x04))       //Íâ²¿Trigger´¥·¢ÖÐ¶
+             -Ï 
+  41   1              {
+  42   2                      REG_LPTIM_LPTIF = 0x04;                                                       //ÇåÖÐ¶Ï±êÖ¾  
+  43   2              
+  44   2              if(lptimfunc[2]!= NULL)
+  45   2              {
+  46   3                  ((void(*)())(lptimfunc)[2])();                                            //lptimÍâ²¿Trigger´¥
+             -·¢ÖÐ¶Ï»Øµ÷º¯Êý 
+  47   3              }   
+  48   2              }
+  49   1              else if(((REG_LPTIM_LPTIF & 0x08) == 0x08)&&((REG_LPTIM_LPTIE & 0x08) == 0x08))    //Íâ²¿Trigger´¥·¢ÖÐ¶Ï 
+C51 COMPILER V9.57.0.0   LPTIMER                                                           01/29/2026 15:56:04 PAGE 2   
+
+  50   1              {
+  51   2                      REG_LPTIM_LPTIF = 0x08;                                                        //ÇåÖÐ¶Ï±êÖ¾  
+  52   2              
+  53   2              if(lptimfunc[3]!= NULL)
+  54   2              {
+  55   3                  ((void(*)())(lptimfunc)[3])();                                             //lptimÍâ²¿Trigger´
+             -¥·¢ÖÐ¶Ï»Øµ÷º¯Êý 
+  56   3              }   
+  57   2              }
+  58   1      }
+  59          /*******************************************************************
+  60          * Function              : lptimer_init
+  61          * Description   : lptimer ³õÊ¼»¯
+  62          * Input                 : tmode£º  0 ÆÕÍ¨¶¨Ê±Æ÷Ä£Ê½
+  63          *                          1 TriggerÂö³å´¥·¢¼ÆÊýÄ£Ê½
+  64          *                          2 Íâ²¿Òì²½Âö³å¼ÆÊýÄ£Ê½
+  65          *                          3 TimeoutÄ£Ê½                        
+  66          * Output                : none
+  67          * Return                : none
+  68          ********************************************************************/
+  69          void lptimer_init(uint8_t tmode, uint8_t clock_sel, uint8_t div)
+  70          {
+  71   1        PCLK0 |=(1<<6);                                                                           //¿ªÆôlpTimerÊ±ÖÓÊ¹ÄÜ 
+  72   1        PRESET0 |= (1<<6);                                                                        // lpTimerÕý³£¹¤×÷ 
+  73   1          
+  74   1              REG_LPTIM_LPTCFG0 = (REG_LPTIM_LPTCFG0&(~(3<<3)))|(clock_sel<<3);       // Ê±ÖÓÔ´ÉèÖÃ 0:RCLµÍËÙÊ±ÖÓ, 1:clk_1hzÊ
+             -±ÖÓ,  2:ÏµÍ³Ê±ÖÓ, 3:Íâ²¿ÊäÈëÊ±ÖÓ 
+  75   1        REG_LPTIM_LPTCFG0 = (REG_LPTIM_LPTCFG0&(~(7<<0)))|(div<<0);                           //ÉèÖÃ¼ÆÊýÊ±ÖÓ·ÖÆµ                              
+  76   1        REG_LPTIM_LPTCFG1 =  (REG_LPTIM_LPTCFG1&(~(3<<3)))|(tmode<<3);     //ÉèÖÃ¹¤×÷Ä£Ê½
+  77   1          
+  78   1              REG_LPTIM_LPTCFG1 &= ~(1<<2);                                                           
+  79   1          
+  80   1        REG_LPTIM_LPTCFG1 |= (CONTINUOUS_MODE<<2);              //Á¬Ðø¼ÆÊýÄ£Ê½ 
+  81   1              
+  82   1      }
+  83          
+  84          /*******************************************************************
+  85          * Function              : lptimer_irq_init
+  86          * Description   : lptimer ÖÐ¶Ï³õÊ¼»¯
+  87          * Input                 : irqstate£º0  ÖÐ¶ÏÊ§ÄÜ
+  88          *                           1  ÖÐ¶ÏÊ¹ÄÜ
+  89          *                 ie: 0 ±È½ÏÆ¥ÅäÖÐ¶ÏÊ¹ÄÜ 
+  90          *                     1 ¼ÆÊýÆ÷Òç³öÖÐ¶ÏÊ¹ÄÜ
+  91          *                     2 Íâ²¿´¥·¢µ½À´ÖÐ¶ÏÊ¹ÄÜ
+  92          *                 void (*pfunc)() £ºÖÐ¶Ï»Øµ÷º¯Êý  
+  93          * Output                : none
+  94          * Return                : none
+  95          ********************************************************************/
+  96          void lptimer_irq_init(uint8_t irqstate,uint8_t ie,void (*pfunc)())
+  97          {
+  98   1          if(irqstate == LPTIMER_IRQ_ENABLE)
+  99   1          {
+ 100   2              EA = 1;                                                              //EA×ÜÖÐ¶Ï¿ªÆô 
+ 101   2              IEN1 |= (1<<4);                                    //lptimerÖÐ¶Ï¿ªÆô  
+ 102   2              
+ 103   2              switch(ie)
+ 104   2              {
+ 105   3                  case 0:        
+ 106   3                          REG_LPTIM_LPTIE |= (1<<0);             //±È½ÏÆ¥ÅäÖÐ¶ÏÊ¹ÄÜ
+ 107   3                          lptimfunc[0] = pfunc;
+ 108   3                          break;
+ 109   3                  case 1:
+C51 COMPILER V9.57.0.0   LPTIMER                                                           01/29/2026 15:56:04 PAGE 3   
+
+ 110   3                          REG_LPTIM_LPTIE |= (1<<1);              //¼ÆÊýÆ÷Òç³öÖÐ¶ÏÊ¹ÄÜ
+ 111   3                          lptimfunc[1] = pfunc;
+ 112   3                          break;           
+ 113   3                  case 2:
+ 114   3                          REG_LPTIM_LPTIE |= (1<<2);           //Íâ²¿´¥·¢µ½À´ÖÐ¶ÏÊ¹ÄÜ
+ 115   3                          lptimfunc[2] = pfunc;
+ 116   3                          break;   
+ 117   3                              case 3:        
+ 118   3                          REG_LPTIM_LPTIE |= (1<<3);              //±È½ÏÆ¥ÅäÖÐ¶ÏÊ¹ÄÜ
+ 119   3                          lptimfunc[3] = pfunc;
+ 120   3                          break;
+ 121   3                              
+ 122   3                  default:
+ 123   3                          break;
+ 124   3              }
+ 125   2          }
+ 126   1          else
+ 127   1          {
+ 128   2            //  EA = 0;                                                                     //EA×ÜÖÐ¶Ï¹Ø±Õ   
+ 129   2              IEN1 &= ~(1<<4);                                      // lptimerÖÐ¶Ï¹Ø±Õ   
+ 130   2      
+ 131   2              switch(ie)
+ 132   2              {
+ 133   3                  case 0:        
+ 134   3                          REG_LPTIM_LPTIE &= ~(1<<0);                 //±È½ÏÆ¥ÅäÖÐ¶ÏÊ§ÄÜ
+ 135   3                          break;
+ 136   3                  case 1:
+ 137   3                          REG_LPTIM_LPTIE &= ~(1<<1);                   //¼ÆÊýÆ÷Òç³öÖÐ¶ÏÊ§ÄÜ
+ 138   3                          break;           
+ 139   3                  case 2:
+ 140   3                          REG_LPTIM_LPTIE &= ~(1<<2);                    //Íâ²¿´¥·¢µ½À´ÖÐ¶ÏÊ§ÄÜ
+ 141   3                          break;  
+ 142   3                              case 3:        
+ 143   3                          REG_LPTIM_LPTIE &= ~(1<<3);                    //±È½ÏÆ¥Åä2ÖÐ¶ÏÊ§ÄÜ
+ 144   3                          break;                      
+ 145   3                  default:
+ 146   3                          break;            
+ 147   3              }        
+ 148   2          }
+ 149   1      }
+ 150          /*******************************************************************
+ 151          * Function              : lptimer_pwm_init
+ 152          * Description   : lptimer PWMÊä³ö³õÊ¼»¯
+ 153          * Input                 : none
+ 154          * Output                : none
+ 155          * Return                : none
+ 156          ********************************************************************/
+ 157          void lptimer_pwm_init(uint8_t clock_sel, uint8_t div)
+ 158          {  
+ 159   1          PCLK0 |= (1<<6);                                                                        //¿ªÆôlpTimerÊ±ÖÓÊ¹ÄÜ 
+ 160   1          PRESET0 |= (1<<6);                                                                      //lpTimerÕý³£¹¤×÷ 
+ 161   1          
+ 162   1          REG_LPTIM_LPTCFG0 &= ~(3<<3);
+ 163   1              REG_LPTIM_LPTCFG0 |= (clock_sel<<3);                                    //Ê±ÖÓÔ´ÉèÖÃ 0:RCLµÍËÙÊ±ÖÓ, 1:clk_1hzÊ±ÖÓ,  2:ÏµÍ³Ê±ÖÓ, 3:Íâ²¿Êä
+             -ÈëÊ±ÖÓ 
+ 164   1       
+ 165   1              REG_LPTIM_LPTCFG0 &= ~(7<<0);                                                                   
+ 166   1          REG_LPTIM_LPTCFG0 |= (div<<0);                                                      //ÉèÖÃ¼ÆÊýÊ±ÖÓ·ÖÆµ 
+ 167   1          
+ 168   1              REG_LPTIM_LPTCFG1 &= ~(3<<3);                                                                   
+ 169   1          REG_LPTIM_LPTCFG1 |= (TIMER_TMODE<<3);                 //ÉèÖÃ¹¤×÷Ä£Ê½ 
+ 170   1          
+C51 COMPILER V9.57.0.0   LPTIMER                                                           01/29/2026 15:56:04 PAGE 4   
+
+ 171   1              REG_LPTIM_LPTCFG1 &= ~(1<<2);                                                             
+ 172   1          REG_LPTIM_LPTCFG1 |= (CONTINUOUS_MODE<<2);              //Á¬Ðø¼ÆÊýÄ£Ê½ 
+ 173   1              
+ 174   1          REG_LPTIM_LPTCFG1 &= ~(1<<1);                                                                   
+ 175   1          REG_LPTIM_LPTCFG1 |= (1<<1);                            //PWMÊä³öÄ£Ê½ 
+ 176   1              
+ 177   1      }
+ 178          /*******************************************************************
+ 179          * Function              : lptimer_pwm_set
+ 180          * Description   : lptimer_pwm_set
+ 181          * Input                 : xms:PWM²¨ÖÜÆÚÎªxms = Ê±ÖÓÆµÂÊ/target(Ê±ÖÓÔ´ÎªRCLµÍËÙÊ±ÖÓÏÂ×î´ó¼ÆÊ±Ê±³¤Îª65535ms)
+ 182          *                 duyt£ºÕ¼¿Õ±È£¨0~100£¬±êÊ¶Õ¼¿Õ±ÈÎª0%~100%£©
+ 183          * Output                : none
+ 184          * Return                : none
+ 185          ********************************************************************/
+ 186          
+ 187          void lptimer_pwm_set(uint8_t changesel, uint32_t target, uint16_t duty)
+ 188          {   
+ 189   1              
+ 190   1          REG_LPTIM_LPTTARGETL = (target)%256;                                                                                        
+ 191   1          REG_LPTIM_LPTTARGETH = (target)/256;        
+ 192   1              
+ 193   1              if (changesel == PWM_CHANGE1)
+ 194   1              {
+ 195   2                      REG_LPTIM_LPTCMPL = (((target-1)*(duty)/100))%256;
+ 196   2                      REG_LPTIM_LPTCMPH = (((target-1)*(duty)/100))/256;
+ 197   2              
+ 198   2              }
+ 199   1              if (changesel == PWM_CHANGE2)
+ 200   1              {
+ 201   2                      REG_LPTIM_LPTCMP2L = (((target-1)*(duty)/100))%256;
+ 202   2                      REG_LPTIM_LPTCMP2H = (((target-1)*(duty)/100))/256;
+ 203   2              }
+ 204   1          
+ 205   1      }
+ 206          
+ 207          void lptimer_pwm_channel_config (uint8_t channel, uint8_t polar)
+ 208          {
+ 209   1              if (channel == 1)
+ 210   1              {
+ 211   2                      REG_LPTIM_CCMCFG1 |= (0x1<<0);  
+ 212   2                      REG_LPTIM_LPTCFG1 |= (polar<<0);                                
+ 213   2              }
+ 214   1              
+ 215   1              if (channel == 2)
+ 216   1              {
+ 217   2                      REG_LPTIM_CCMCFG2 |= (0x1<<0);
+ 218   2                      REG_LPTIM_CCMCFG2 |= (polar<<2);        
+ 219   2              }
+ 220   1      }
+ 221          /*******************************************************************
+ 222          * Function              : lptimer_set_s
+ 223          * Description   : lptimer_set_s
+ 224          * Input                 : xms:¶¨Ê±xms(Ê±ÖÓÔ´ÎªRCLµÍËÙÊ±ÖÓÏÂ×î´ó¼ÆÊ±Ê±³¤Îª65535ms)
+ 225          * Output                : none
+ 226          * Return                : none
+ 227          ********************************************************************/
+ 228          void lptimer_set_time(uint16_t target)
+ 229          {   
+ 230   1          REG_LPTIM_LPTTARGETL = target%256;                                                                                  
+ 231   1          REG_LPTIM_LPTTARGETH = target/256;         //¶¨Ê±xms
+ 232   1      
+C51 COMPILER V9.57.0.0   LPTIMER                                                           01/29/2026 15:56:04 PAGE 5   
+
+ 233   1      }
+ 234          
+ 235          void lptimer_capture_init(uint8_t channel, uint8_t edge)
+ 236          {
+ 237   1              
+ 238   1              if (channel == 1)
+ 239   1              {
+ 240   2                      REG_LPTIM_CCMCFG1 = (1<<1)|(edge<<4);
+ 241   2              
+ 242   2                      REG_LPTIM_CCMCFG1 |= (1<<0);            //Ê¹ÄÜÍ¨µÀ1²¶»ñ
+ 243   2              }
+ 244   1              
+ 245   1              if (channel == 2)
+ 246   1              {
+ 247   2                      REG_LPTIM_CCMCFG2 = (1<<1)|(edge<<4);
+ 248   2                      
+ 249   2                      REG_LPTIM_CCMCFG2 |= (1<<0);            //Ê¹ÄÜÍ¨µÀ2²¶»ñ
+ 250   2              }
+ 251   1      
+ 252   1      }
+ 253          
+ 254          uint16_t lptimer_get_lptcmp(uint8_t channel)
+ 255          {
+ 256   1              if (channel == 1)
+ 257   1              {
+ 258   2                      return (REG_LPTIM_LPTCMPL+REG_LPTIM_LPTCMPH*256);
+ 259   2              }
+ 260   1              
+ 261   1              else
+ 262   1              {
+ 263   2                      return (REG_LPTIM_LPTCMP2L+REG_LPTIM_LPTCMP2H*256);
+ 264   2              }
+ 265   1              
+ 266   1              
+ 267   1      }
+ 268          
+ 269          /*******************************************************************
+ 270          * Function              : lptimer_on
+ 271          * Description   : lptimer ¼ÆÊýÆô¶¯
+ 272          * Input                 : none
+ 273          * Output                : none
+ 274          * Return                : none
+ 275          ********************************************************************/
+ 276          void lptimer_start(void)
+ 277          {
+ 278   1              REG_LPTIM_LPTCTRL |= (1<<0);                                            //´ò¿ªLPTENÊ¹ÄÜÎ»£¬Æô¶¯¼ÆÊýÆ÷  
+ 279   1      }
+ 280          /*******************************************************************
+ 281          * Function              : lptimer_off
+ 282          * Description   : lptimer ¼ÆÊýÍ£Ö¹
+ 283          * Input                 : none
+ 284          * Output                : none
+ 285          * Return                : none
+ 286          ********************************************************************/
+ 287          void lptimer_stop(void)
+ 288          {
+ 289   1              REG_LPTIM_LPTCTRL &= ~(1<<0);                                           //½ûÖ¹¼ÆÊýÆ÷¼ÆÊý  
+ 290   1      }
+ 291          
+ 292          /*******************************************************************
+ 293          * Function              : lptimer_trigger_edge_set
+ 294          * Description   : lptimer_trigger±ßÑØÑ¡Ôñ
+C51 COMPILER V9.57.0.0   LPTIMER                                                           01/29/2026 15:56:04 PAGE 6   
+
+ 295          * Input                 : edge          ÉÏÉýÑØ/ÏÂ½µÑØ
+ 296          * Output                : none
+ 297          * Return                : none
+ 298          ********************************************************************/
+ 299          
+ 300          void lptimer_trigger_edge_set(uint8_t edge)
+ 301          {
+ 302   1              if(edge)
+ 303   1              {
+ 304   2                      REG_LPTIM_LPTCFG0|= (1<<6);                   //ÉèÖÃÏÂ½µÑØtirgger¼ÆÊý 
+ 305   2              }
+ 306   1              else
+ 307   1              {
+ 308   2                      REG_LPTIM_LPTCFG0&= ~(1<<6);                    //ÉèÖÃÉÏÉýÑØtirgger¼ÆÊý
+ 309   2              }
+ 310   1      }
+ 311          /*******************************************************************
+ 312          * Function              : lptimer_lptin_edge_set
+ 313          * Description   : lptimer_lptin±ßÑØÑ¡Ôñ
+ 314          * Input                 :edge           ÉÏÉýÑØ/ÏÂ½µÑØ
+ 315          * Output                : none
+ 316          * Return                : none
+ 317          ********************************************************************/
+ 318          void lptimer_lptin_edge_set(uint8_t edge)
+ 319          {
+ 320   1              if(edge)
+ 321   1              {
+ 322   2                      REG_LPTIM_LPTCFG0|= (1<<5);                     //ÉèÖÃÏÂ½µÑØtirgger¼ÆÊý 
+ 323   2              }
+ 324   1              else
+ 325   1              {
+ 326   2                      REG_LPTIM_LPTCFG0&= ~(1<<5);                    //ÉèÖÃÉÏÉýÑØtirgger¼ÆÊý 
+ 327   2              }
+ 328   1      }
+ 329          /*******************************************************************
+ 330          * Function              : lptim_get_cnt_value
+ 331          * Description   : »ñÈ¡¼ÆÊýÖµ
+ 332          * Input                 : none
+ 333          * Output                : none
+ 334          * Return                : none
+ 335          ********************************************************************/
+ 336          uint16_t lptim_get_cnt_value(void)
+ 337          {
+ 338   1              return REG_LPTIM_LPTCNTL+(REG_LPTIM_LPTCNTH*256);
+ 339   1      }
+ 340          /*******************************************************************
+ 341          * Function              : lptimer_outio
+ 342          * Description   : lptimer Êä³ö¹Ü½ÅÅäÖÃ
+ 343          * Input                 : none
+ 344          * Output                : none
+ 345          * Return                : none
+ 346          ********************************************************************/
+ 347          
+ 348          void lptimer_io_config(uint8_t io)
+ 349          {
+ 350   1              switch(io)
+ 351   1          {
+ 352   2                      
+ 353   2              case 0:
+ 354   2                      REG_LPTIM_LPTCFG1 |= (1<<5);                   //P1_0×÷ÎªLPIN
+ 355   2                      break;           
+ 356   2              case 1:
+C51 COMPILER V9.57.0.0   LPTIMER                                                           01/29/2026 15:56:04 PAGE 7   
+
+ 357   2                      REG_LPTIM_LPTCFG1 |= (1<<7);                   //P1_1×÷ÎªEXTRIGGER_IO_IEN
+ 358   2                      break;  
+ 359   2                      case 2: 
+ 360   2                                      REG_LPTIM_LPTCFG1 |= (1<<6);                 //P0_3×÷ÎªLPOUT1
+ 361   2                                      break;
+ 362   2                      case 3: 
+ 363   2                                      REG_P04_CFG = 0x04;                           //P0_4×÷ÎªLPOUT2
+ 364   2                                      break;
+ 365   2                      case 4: 
+ 366   2                                      REG_P12_CFG = 0x04;                           //P1_2×÷ÎªLPCAP1
+ 367   2                                      break;
+ 368   2                      case 5: 
+ 369   2                                      REG_P15_CFG = 0x07;                               //P1_5×÷ÎªLPCAP2
+ 370   2                                      break;  
+ 371   2              default:
+ 372   2                       break;            
+ 373   2            }        
+ 374   1      
+ 375   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    950    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     12      10
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

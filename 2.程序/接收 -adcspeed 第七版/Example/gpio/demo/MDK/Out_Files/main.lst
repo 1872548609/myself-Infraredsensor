@@ -1,0 +1,275 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              02/27/2026 08:53:49 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Out_Files\main.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..
+                    -\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\main.lst) O
+                    -BJECT(.\Out_Files\main.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : main.c
+   5           * Description : main source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/     
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "gtimer.h"
+  13          #include "pwm.h"
+  14          #include "common.h"
+  15          #include "config.h"
+  16          #include "gpio.h"
+  17          #include "adc.h"
+  18          
+  19          volatile uint16_t adc_data = 0;
+  20          volatile uint16_t adc_data1 = 0;
+  21          volatile uint16_t adc_set = 100;
+  22          
+  23          char adstate=0;
+  24          uint16_t adcount =0;
+  25          uint16_t adc_value = 0;
+  26          
+  27          void GPIO_Init(void);
+  28          void ADC_Init(void);
+  29          void gpio_int_pro(void);
+  30          
+  31          void gtimer0_UECallBack(void);
+  32          void gtimer1_UECallBack(void);
+  33          
+  34          void main(void)  
+  35          {               
+  36   1          //==================== 默认初始化 =================================//
+  37   1              system_init();
+  38   1              GPIO_Init();
+  39   1              uart_init();
+  40   1              
+  41   1              
+  42   1              gtimer0_count_init(3000,16-1);          //gtimer0_count_init(16000,1000-1);             
+  43   1                      
+  44   1              gtimer0_irq_init(GTIMER_IRQ_ENABLE,GTIMER0_UIE_IRQ,gtimer0_UECallBack);
+  45   1      
+  46   1              gtimer0_start();        
+  47   1          
+  48   1              //===================== adc 读取 ===================================//
+  49   1              adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 4, ADC_ENABLE);     
+  50   1      
+  51   1              adc_sample_clk_config(ADC_SAMPCLK_4);                                                                           
+  52   1              
+  53   1              adc_io_config(ADC_CHANNEL_1|ADC_CHANNEL_2);                                                             
+C51 COMPILER V9.57.0.0   MAIN                                                              02/27/2026 08:53:49 PAGE 2   
+
+  54   1              
+  55   1              adc_scan_mode_config(ADC_MODE_SINGLE);                                                                  
+  56   1              
+  57   1              adc_power_config(ADC_ENABLE);   
+  58   1          
+  59   1              adc_controller_config(ADC_ENABLE);                                                                      
+  60   1                      
+  61   1              while(1) 
+  62   1              {
+  63   2                      
+  64   2      
+  65   2                      
+  66   2              }
+  67   1      }
+  68          
+  69          
+  70          
+  71          void gtimer0_UECallBack(void)
+  72          {
+  73   1              gpio_io_set(P1_2, GPIO_LOW);
+  74   1              gpio_io_set(P1_3, GPIO_LOW);
+  75   1              adstate=0;
+  76   1      }
+  77          
+  78          
+  79          void GPIO_IRQHandler(void) interrupt 0
+  80          {
+  81   1          if(gpio_irq_get(P1_4))                                                                                      
+  82   1          {
+  83   2              gpio_io_set(P1_0, GPIO_HIGH);//常闭  
+  84   2      
+  85   2              adc_convert_start(ADC_CHANNEL_1);                                                                       
+  86   2      
+  87   2              while((ADCGCR1 & 0x04) != 0);
+  88   2              
+  89   2              while(!(ADCCSTAT & 0x01))       ;
+  90   2              
+  91   2              ADCCSTAT = 0x1;                                                                                 
+  92   2              
+  93   2              adc_data=adc_get_value();       
+  94   2      
+  95   2              REG_GTIM0_CR0 &= ~(1<<0);                               
+  96   2      
+  97   2              adc_convert_start(ADC_CHANNEL_1);                                                               
+  98   2              
+  99   2              while((ADCGCR1 & 0x04) != 0);
+ 100   2              
+ 101   2              while(!(ADCCSTAT & 0x01))       ;
+ 102   2              
+ 103   2              ADCCSTAT = 0x1;                                                                         
+ 104   2              
+ 105   2              adc_data1=adc_get_value();      
+ 106   2      
+ 107   2              //printfS("adj:%d\r\n", adc_data1);     
+ 108   2      
+ 109   2              if(adc_data1 >=3500&&adc_data1<4095)                                                                                    
+ 110   2              {
+ 111   3                          
+ 112   3                          adc_set=2500;
+ 113   3              } 
+ 114   2              else if(adc_data1 >=3200&&adc_data1<3500)                                                                                       
+ 115   2              {
+C51 COMPILER V9.57.0.0   MAIN                                                              02/27/2026 08:53:49 PAGE 3   
+
+ 116   3                      
+ 117   3                          adc_set=2000;
+ 118   3              } 
+ 119   2              else if(adc_data1 >=3000&&adc_data1<3200)                                                                                       
+ 120   2              {
+ 121   3                      
+ 122   3                          adc_set=1800;
+ 123   3              } 
+ 124   2              else if(adc_data1 >=2700&&adc_data1<3000)                                                                                       
+ 125   2              {
+ 126   3                          
+ 127   3                          adc_set=1600;
+ 128   3              } 
+ 129   2              else if(adc_data1 >=2500&&adc_data1<2700)                                                                                       
+ 130   2              {
+ 131   3                      
+ 132   3                          adc_set=1400;
+ 133   3              } 
+ 134   2              else if(adc_data1 >=2200&&adc_data1<2500)                                                                                       
+ 135   2              {
+ 136   3                      
+ 137   3                          adc_set=1200;
+ 138   3              } 
+ 139   2              else if(adc_data1 >=2000&&adc_data1<2200)                                                                                       
+ 140   2              {
+ 141   3              
+ 142   3                          adc_set=1000;
+ 143   3                  
+ 144   3              }                               
+ 145   2              
+ 146   2              //printfS("adc:%d\r\n", adc_data);      
+ 147   2      
+ 148   2              if(adc_data >=adc_set&&adc_data<ADC_INVALID-1)                                                                                                  
+ 149   2              {
+ 150   3                  //printfS("on\r\n");        
+ 151   3                  
+ 152   3                  switch(adstate)
+ 153   3                  {
+ 154   4                      case 0:{
+ 155   5                              adcount++;
+ 156   5                              if(adcount==2)
+ 157   5                              {
+ 158   6                                  
+ 159   6                                  REG_GTIM0_CNT0&=0x00;
+ 160   6                                  REG_GTIM0_CNT1&=0x00;
+ 161   6                                  
+ 162   6                                  
+ 163   6                                  gpio_io_set(P1_2, GPIO_HIGH);
+ 164   6                                  //gpio_io_set(P1_0, GPIO_HIGH);
+ 165   6                                  gpio_io_set(P1_3, GPIO_HIGH);
+ 166   6                                  adstate=1;
+ 167   6                                  adcount=0;
+ 168   6                              }
+ 169   5                      }break;
+ 170   4                      case 1:{
+ 171   5                                  REG_GTIM0_CNT0&=0x00;
+ 172   5                                  REG_GTIM0_CNT1&=0x00;
+ 173   5                      }break;
+ 174   4                  }
+ 175   3                  
+ 176   3              }       
+ 177   2          }           
+C51 COMPILER V9.57.0.0   MAIN                                                              02/27/2026 08:53:49 PAGE 4   
+
+ 178   1      
+ 179   1           gpio_io_set(P1_0, GPIO_LOW);//常闭
+ 180   1      
+ 181   1          REG_GTIM0_CR0 |= (1<<0);                            
+ 182   1          gpio_irq_clr(P1_4);
+ 183   1      }
+ 184          
+ 185          void gpio_UECallBack(void)
+ 186          {
+ 187   1              //= 不用二次回调
+ 188   1      }
+ 189          
+ 190          void GPIO_Init(void)
+ 191          {
+ 192   1      
+ 193   1              REG_P10_CFG=0x00;
+ 194   1              gpio_init(P1_0);
+ 195   1              gpio_dir_set(P1_0, GPIO_DIR_OUT);
+ 196   1              gpio_dr_set(P1_0, GPIO_SR_HIGH);
+ 197   1              gpio_io_set(P1_0, GPIO_HIGH);
+ 198   1              
+ 199   1      
+ 200   1              REG_P12_CFG=0x00;
+ 201   1              gpio_init(P1_2);
+ 202   1              gpio_dir_set(P1_2, GPIO_DIR_OUT);
+ 203   1              gpio_dr_set(P1_2, GPIO_SR_HIGH);
+ 204   1              gpio_io_set(P1_2, GPIO_HIGH);
+ 205   1              
+ 206   1      
+ 207   1              //= p13做io
+ 208   1      //      REG_P13_CFG=0x00;
+ 209   1      //      gpio_init(P1_3);
+ 210   1      //      gpio_dir_set(P1_3, GPIO_DIR_OUT);
+ 211   1      //      gpio_dr_set(P1_3, GPIO_SR_HIGH);
+ 212   1      //      gpio_io_set(P1_3, GPIO_HIGH);
+ 213   1              
+ 214   1              //= p13做输入
+ 215   1              gpio_init(P1_3);
+ 216   1              gpio_dir_set(P1_3, GPIO_DIR_IN);
+ 217   1              gpio_dr_set(P1_3, GPIO_SR_HIGH);
+ 218   1              gpio_in_enable(P1_3, IN_ENABLE);         
+ 219   1      //      gpio_irq_set(P1_3,GPIO_IRQ_ENABLE,gpio_UECallBack);
+ 220   1      //      P1AL|=(0x01<<7);
+ 221   1      //      P1AL&=~(0x01<<6);
+ 222   1              
+ 223   1              
+ 224   1      
+ 225   1              gpio_init(P1_4);
+ 226   1              gpio_dir_set(P1_4, GPIO_DIR_IN);
+ 227   1              gpio_dr_set(P1_4, GPIO_SR_HIGH);
+ 228   1              gpio_in_enable(P1_4, IN_ENABLE);         
+ 229   1              gpio_irq_set(P1_4,GPIO_IRQ_ENABLE,gpio_UECallBack);
+ 230   1              P1AH&=~(0x02);
+ 231   1              P1AH|=(0x01);
+ 232   1              REG_P14_CFG=0x20;
+ 233   1      
+ 234   1              REG_P15_CFG=0x00;
+ 235   1              gpio_init(P1_5);                        
+ 236   1              gpio_dir_set(P1_5, GPIO_DIR_IN);          
+ 237   1              gpio_in_enable(P1_5, IN_ENABLE);          
+ 238   1      }
+
+C51 COMPILER V9.57.0.0   MAIN                                                              02/27/2026 08:53:49 PAGE 5   
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    808    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     11    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
