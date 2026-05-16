@@ -70,7 +70,7 @@ void gtimer0_UECallBack(void)
 {
 	gpio_io_set(P1_2, GPIO_LOW);
 	gpio_io_set(P1_3, GPIO_LOW);
-	adstate=0;
+    gpio_io_set(P1_0, GPIO_HIGH);//常闭 
 }
 
 
@@ -80,7 +80,7 @@ void GPIO_IRQHandler(void) interrupt 0
     {
         REG_GTIM0_CR0 &= ~(1<<0);	
         
-        gpio_io_set(P1_0, GPIO_HIGH);//常闭  
+        //gpio_io_set(P1_0, GPIO_HIGH);//常闭  
         
         adc_convert_start(ADC_CHANNEL_1);									
 
@@ -93,7 +93,8 @@ void GPIO_IRQHandler(void) interrupt 0
         adc_data=adc_get_value();	
         
        //printfS("adc:%d\r\n", adc_data);	
-        if(adc_data >=adc_set&&adc_data<ADC_INVALID-1)													
+       // if(adc_data >=adc_set&&adc_data<ADC_INVALID-1)
+        if(1)
         {
             //printfS("on\r\n");
                      
@@ -105,13 +106,15 @@ void GPIO_IRQHandler(void) interrupt 0
             {
                 gpio_io_set(P1_2, GPIO_HIGH);
                 gpio_io_set(P1_3, GPIO_HIGH);
+                gpio_io_set(P1_0, GPIO_LOW);
+                
                 adcount=0;
             }
             
         }
     }
            
-     gpio_io_set(P1_0, GPIO_LOW);//常闭
+     //gpio_io_set(P1_0, GPIO_LOW);//常闭
     
     REG_GTIM0_CR0 |= (1<<0);				
     gpio_irq_clr(P1_4);
