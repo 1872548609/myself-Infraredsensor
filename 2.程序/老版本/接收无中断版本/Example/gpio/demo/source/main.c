@@ -16,9 +16,6 @@
 #include "gpio.h"
 #include "adc.h"
 
-#define impulse 	P1_4
-#define impulsetGPIO_HIGH(); 	gpio_io_set(P1_4, GPIO_LOW);
-#define impulsetGPIO_LOW(); 	gpio_io_set(P1_4, GPIO_HIGH);
 
 volatile uint16_t duty2 = 8000;	
 volatile uint16_t cycle2 = 64000;	
@@ -236,28 +233,24 @@ void GPIO_IRQHandler(void) interrupt 0
 		gpio_irq_clr(P1_4);
 }
 
-void gpio_UECallBack(void)
-{
-	//= 不用二次回调
-}
 
 void GPIO_Init(void)
 {
-
+    //== 常闭
 	REG_P10_CFG=0x00;
 	gpio_init(P1_0);
 	gpio_dir_set(P1_0, GPIO_DIR_OUT);
 	gpio_dr_set(P1_0, GPIO_SR_HIGH);
 	gpio_io_set(P1_0, GPIO_HIGH);
 	
-
+    //== 常开
 	REG_P12_CFG=0x00;
 	gpio_init(P1_2);
 	gpio_dir_set(P1_2, GPIO_DIR_OUT);
 	gpio_dr_set(P1_2, GPIO_SR_HIGH);
 	gpio_io_set(P1_2, GPIO_HIGH);
 	
-
+    //== 红灯
 	REG_P13_CFG=0x00;
 	gpio_init(P1_3);
 	gpio_dir_set(P1_3, GPIO_DIR_OUT);
@@ -269,16 +262,17 @@ void GPIO_Init(void)
 //	P1AL|=(0x01<<6);
 	
 	
+    //== 外部中断
+//	gpio_init(P1_4);
+//	gpio_dir_set(P1_4, GPIO_DIR_IN);
+//	gpio_dr_set(P1_4, GPIO_SR_HIGH);
+//	gpio_in_enable(P1_4, IN_ENABLE);         
+//	gpio_irq_set(P1_4,GPIO_IRQ_ENABLE,gpio_UECallBack);
+//	P1AH&=~(0x02);
+//	P1AH|=(0x01);
+//	REG_P14_CFG=0x20;
 
-	gpio_init(P1_4);
-	gpio_dir_set(P1_4, GPIO_DIR_IN);
-	gpio_dr_set(P1_4, GPIO_SR_HIGH);
-	gpio_in_enable(P1_4, IN_ENABLE);         
-	gpio_irq_set(P1_4,GPIO_IRQ_ENABLE,gpio_UECallBack);
-	P1AH&=~(0x02);
-	P1AH|=(0x01);
-	REG_P14_CFG=0x20;
-
+    //== adc引脚
 	REG_P15_CFG=0x00;
 	gpio_init(P1_5);                        
 	gpio_dir_set(P1_5, GPIO_DIR_IN);          

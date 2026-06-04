@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:55:57 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -27,42 +27,42 @@ line level    source
   16          #include "gpio.h"
   17          #include "adc.h"
   18          
-  19          #define impulse         P1_4
-  20          #define impulsetGPIO_HIGH();    gpio_io_set(P1_4, GPIO_LOW);
-  21          #define impulsetGPIO_LOW();     gpio_io_set(P1_4, GPIO_HIGH);
-  22          
-  23          volatile uint16_t duty2 = 8000; 
-  24          volatile uint16_t cycle2 = 64000;       
-  25          uint16_t ADC_Flag = 0;
-  26          volatile uint16_t adc_data = 0;
-  27          volatile uint16_t adc_data1 = 0;
-  28          volatile uint16_t adc_set = 100;
-  29          
-  30          uint32_t adc_sum = 0;
+  19          
+  20          volatile uint16_t duty2 = 8000; 
+  21          volatile uint16_t cycle2 = 64000;       
+  22          uint16_t ADC_Flag = 0;
+  23          volatile uint16_t adc_data = 0;
+  24          volatile uint16_t adc_data1 = 0;
+  25          volatile uint16_t adc_set = 100;
+  26          
+  27          uint32_t adc_sum = 0;
+  28          
+  29          uint16_t adc_datap= 0;
+  30          uint16_t adc_datan = 0;
   31          
-  32          uint16_t adc_datap= 0;
-  33          uint16_t adc_datan = 0;
-  34          
-  35          float vol_value = 0.0;
-  36          
-  37          uint16_t status = 0;
-  38          uint16_t adcount =0;
-  39          uint16_t adcount1 =0;
+  32          float vol_value = 0.0;
+  33          
+  34          uint16_t status = 0;
+  35          uint16_t adcount =0;
+  36          uint16_t adcount1 =0;
+  37          
+  38          bit adget = 0;
+  39          bit state = 0;
   40          
-  41          bit adget = 0;
-  42          bit state = 0;
+  41          uint16_t adc_value = 0;
+  42          uint8_t exitintcount = 0;
   43          
-  44          uint16_t adc_value = 0;
-  45          uint8_t exitintcount = 0;
-  46          
-  47          uint8_t adflag=0;
+  44          uint8_t adflag=0;
+  45          
+  46          volatile int get_Delay = 0;
+  47          char adstate=0;
   48          
-  49          volatile int get_Delay = 0;
-  50          char adstate=0;
+  49          
+  50          
   51          
   52          void gtimer0_UECallBack(void);
   53          void gtimer1_UECallBack(void);
-C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:55:57 PAGE 2   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 2   
 
   54          
   55          void GPIO_Init(void);
@@ -114,199 +114,195 @@ line level    source
  101   1              adstate=0;
  102   1      }
  103          
- 104          static uint8_t turn = 0;
- 105          
- 106          void GPIO_IRQHandler(void) interrupt 0
- 107          {
- 108   1                      if(gpio_irq_get(P1_4))                                                                                  
- 109   1                      {
- 110   2                  gpio_io_set(P1_0, GPIO_HIGH);//常闭  
- 111   2                  
- 112   2                      adc_convert_start(ADC_CHANNEL_1);                                                                       
- 113   2      
- 114   2                                      while((ADCGCR1 & 0x04) != 0);
- 115   2                                      
-C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:55:57 PAGE 3   
+ 104          
+ 105          void GPIO_IRQHandler(void) interrupt 0
+ 106          {
+ 107   1                      if(gpio_irq_get(P1_4))                                                                                  
+ 108   1                      {
+ 109   2                  gpio_io_set(P1_0, GPIO_HIGH);//常闭  
+ 110   2                  
+ 111   2                      adc_convert_start(ADC_CHANNEL_1);                                                                       
+ 112   2      
+ 113   2                                      while((ADCGCR1 & 0x04) != 0);
+ 114   2                                      
+ 115   2                                      while(!(ADCCSTAT & 0x01))       ;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 3   
 
- 116   2                                      while(!(ADCCSTAT & 0x01))       ;
- 117   2                                      
- 118   2                                      ADCCSTAT = 0x1;                                                                                 
- 119   2                                      
- 120   2                                      adc_data=adc_get_value();       
+ 116   2                                      
+ 117   2                                      ADCCSTAT = 0x1;                                                                                 
+ 118   2                                      
+ 119   2                                      adc_data=adc_get_value();       
+ 120   2                  
  121   2                  
  122   2                  
  123   2                  
- 124   2                  
- 125   2                                      REG_GTIM0_CR0 &= ~(1<<0);                               
- 126   2                              
- 127   2                                      adc_convert_start(ADC_CHANNEL_2);                                                               
- 128   2                                      
- 129   2                                      while((ADCGCR1 & 0x04) != 0);
- 130   2                                      
- 131   2                                      while(!(ADCCSTAT & 0x01))       ;
- 132   2                                      
- 133   2                                      ADCCSTAT = 0x1;                                                                         
- 134   2                                      
- 135   2                                      adc_data1=adc_get_value();      
- 136   2                              
- 137   2                                      //printfS("adj:%d\r\n", adc_data1);     
- 138   2                              
- 139   2                                      if(adc_data1 >=3500&&adc_data1<4095)                                                                                    
- 140   2                                      {
- 141   3                                                              
- 142   3                                                              adc_set=2500;
- 143   3                                      } 
- 144   2                                      else if(adc_data1 >=3200&&adc_data1<3500)                                                                                       
- 145   2                                      {
- 146   3                                                      
- 147   3                                                              adc_set=2000;
- 148   3                                      } 
- 149   2                                      else if(adc_data1 >=3000&&adc_data1<3200)                                                                                       
- 150   2                                      {
- 151   3                                                      
- 152   3                                                              adc_set=1800;
- 153   3                                      } 
- 154   2                                      else if(adc_data1 >=2700&&adc_data1<3000)                                                                                       
- 155   2                                      {
- 156   3                                                              
- 157   3                                                              adc_set=1600;
- 158   3                                      } 
- 159   2                                      else if(adc_data1 >=2500&&adc_data1<2700)                                                                                       
- 160   2                                      {
- 161   3                                                      
- 162   3                                                              adc_set=1400;
- 163   3                                      } 
- 164   2                                      else if(adc_data1 >=2200&&adc_data1<2500)                                                                                       
- 165   2                                      {
- 166   3                                                      
- 167   3                                                              adc_set=1200;
- 168   3                                      } 
- 169   2                                      else if(adc_data1 >=2000&&adc_data1<2200)                                                                                       
- 170   2                                      {
- 171   3                                      
- 172   3                                                              adc_set=1000;
- 173   3                                              
- 174   3                                      } 
- 175   2      
- 176   2      //                              adc_convert_start(ADC_CHANNEL_1);                                                                       
- 177   2      
-C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:55:57 PAGE 4   
+ 124   2                                      REG_GTIM0_CR0 &= ~(1<<0);                               
+ 125   2                              
+ 126   2                                      adc_convert_start(ADC_CHANNEL_2);                                                               
+ 127   2                                      
+ 128   2                                      while((ADCGCR1 & 0x04) != 0);
+ 129   2                                      
+ 130   2                                      while(!(ADCCSTAT & 0x01))       ;
+ 131   2                                      
+ 132   2                                      ADCCSTAT = 0x1;                                                                         
+ 133   2                                      
+ 134   2                                      adc_data1=adc_get_value();      
+ 135   2                              
+ 136   2                                      //printfS("adj:%d\r\n", adc_data1);     
+ 137   2                              
+ 138   2                                      if(adc_data1 >=3500&&adc_data1<4095)                                                                                    
+ 139   2                                      {
+ 140   3                                                              
+ 141   3                                                              adc_set=2500;
+ 142   3                                      } 
+ 143   2                                      else if(adc_data1 >=3200&&adc_data1<3500)                                                                                       
+ 144   2                                      {
+ 145   3                                                      
+ 146   3                                                              adc_set=2000;
+ 147   3                                      } 
+ 148   2                                      else if(adc_data1 >=3000&&adc_data1<3200)                                                                                       
+ 149   2                                      {
+ 150   3                                                      
+ 151   3                                                              adc_set=1800;
+ 152   3                                      } 
+ 153   2                                      else if(adc_data1 >=2700&&adc_data1<3000)                                                                                       
+ 154   2                                      {
+ 155   3                                                              
+ 156   3                                                              adc_set=1600;
+ 157   3                                      } 
+ 158   2                                      else if(adc_data1 >=2500&&adc_data1<2700)                                                                                       
+ 159   2                                      {
+ 160   3                                                      
+ 161   3                                                              adc_set=1400;
+ 162   3                                      } 
+ 163   2                                      else if(adc_data1 >=2200&&adc_data1<2500)                                                                                       
+ 164   2                                      {
+ 165   3                                                      
+ 166   3                                                              adc_set=1200;
+ 167   3                                      } 
+ 168   2                                      else if(adc_data1 >=2000&&adc_data1<2200)                                                                                       
+ 169   2                                      {
+ 170   3                                      
+ 171   3                                                              adc_set=1000;
+ 172   3                                              
+ 173   3                                      } 
+ 174   2      
+ 175   2      //                              adc_convert_start(ADC_CHANNEL_1);                                                                       
+ 176   2      
+ 177   2      //                              while((ADCGCR1 & 0x04) != 0);
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 4   
 
- 178   2      //                              while((ADCGCR1 & 0x04) != 0);
- 179   2      //                              
- 180   2      //                              while(!(ADCCSTAT & 0x01))       ;
- 181   2      //                              
- 182   2      //                              ADCCSTAT = 0x1;                                                                         
- 183   2      //                              
- 184   2      //                              adc_data=adc_get_value();
- 185   2                              
- 186   2      //                              adc_convert_start(ADC_CHANNEL_1);                                                                       
- 187   2      
- 188   2      //                              while((ADCGCR1 & 0x04) != 0);
- 189   2      //                              
- 190   2      //                              while(!(ADCCSTAT & 0x01))       ;
- 191   2      //                              
- 192   2      //                              ADCCSTAT = 0x1;                                                                         
- 193   2      //                              
- 194   2      //                              adc_data=adc_get_value();
- 195   2                              
+ 178   2      //                              
+ 179   2      //                              while(!(ADCCSTAT & 0x01))       ;
+ 180   2      //                              
+ 181   2      //                              ADCCSTAT = 0x1;                                                                         
+ 182   2      //                              
+ 183   2      //                              adc_data=adc_get_value();
+ 184   2                              
+ 185   2      //                              adc_convert_start(ADC_CHANNEL_1);                                                                       
+ 186   2      
+ 187   2      //                              while((ADCGCR1 & 0x04) != 0);
+ 188   2      //                              
+ 189   2      //                              while(!(ADCCSTAT & 0x01))       ;
+ 190   2      //                              
+ 191   2      //                              ADCCSTAT = 0x1;                                                                         
+ 192   2      //                              
+ 193   2      //                              adc_data=adc_get_value();
+ 194   2                              
+ 195   2                                      
  196   2                                      
- 197   2                                      
- 198   2                                      //printfS("adc:%d\r\n", adc_data);      
- 199   2      
- 200   2                              if(adc_data >=adc_set&&adc_data<ADC_INVALID-1)                                                                                                  
- 201   2                              {
- 202   3                                      //printfS("on\r\n");    
- 203   3                                      
- 204   3                                      switch(adstate)
- 205   3                                      {
- 206   4                                              case 0:{
- 207   5                                                              adcount++;
- 208   5                                                              if(adcount==2)
- 209   5                                                              {
- 210   6                                                                      
- 211   6                                                                      REG_GTIM0_CNT0&=0x00;
- 212   6                                                                      REG_GTIM0_CNT1&=0x00;
+ 197   2                                      //printfS("adc:%d\r\n", adc_data);      
+ 198   2      
+ 199   2                              if(adc_data >=adc_set&&adc_data<ADC_INVALID-1)                                                                                                  
+ 200   2                              {
+ 201   3                                      //printfS("on\r\n");    
+ 202   3                                      
+ 203   3                                      switch(adstate)
+ 204   3                                      {
+ 205   4                                              case 0:{
+ 206   5                                                              adcount++;
+ 207   5                                                              if(adcount==2)
+ 208   5                                                              {
+ 209   6                                                                      
+ 210   6                                                                      REG_GTIM0_CNT0&=0x00;
+ 211   6                                                                      REG_GTIM0_CNT1&=0x00;
+ 212   6                                                                      
  213   6                                                                      
- 214   6                                                                      
- 215   6                                                                      gpio_io_set(P1_2, GPIO_HIGH);
- 216   6                                                                      //gpio_io_set(P1_0, GPIO_HIGH);
- 217   6                                                                      gpio_io_set(P1_3, GPIO_HIGH);
- 218   6                                                                      adstate=1;
- 219   6                                                                      adcount=0;
- 220   6                                                              }
- 221   5                                              }break;
- 222   4                                              case 1:{
- 223   5                                                                      REG_GTIM0_CNT0&=0x00;
- 224   5                                                                      REG_GTIM0_CNT1&=0x00;
- 225   5                                              }break;
- 226   4                                      }
- 227   3                                      
- 228   3                              }       
- 229   2                      }               
- 230   1              
- 231   1               gpio_io_set(P1_0, GPIO_LOW);//常闭
- 232   1              
- 233   1                      REG_GTIM0_CR0 |= (1<<0);                                
- 234   1                      gpio_irq_clr(P1_4);
- 235   1      }
+ 214   6                                                                      gpio_io_set(P1_2, GPIO_HIGH);
+ 215   6                                                                      //gpio_io_set(P1_0, GPIO_HIGH);
+ 216   6                                                                      gpio_io_set(P1_3, GPIO_HIGH);
+ 217   6                                                                      adstate=1;
+ 218   6                                                                      adcount=0;
+ 219   6                                                              }
+ 220   5                                              }break;
+ 221   4                                              case 1:{
+ 222   5                                                                      REG_GTIM0_CNT0&=0x00;
+ 223   5                                                                      REG_GTIM0_CNT1&=0x00;
+ 224   5                                              }break;
+ 225   4                                      }
+ 226   3                                      
+ 227   3                              }       
+ 228   2                      }               
+ 229   1              
+ 230   1               gpio_io_set(P1_0, GPIO_LOW);//常闭
+ 231   1              
+ 232   1                      REG_GTIM0_CR0 |= (1<<0);                                
+ 233   1                      gpio_irq_clr(P1_4);
+ 234   1      }
+ 235          
  236          
- 237          void gpio_UECallBack(void)
+ 237          void GPIO_Init(void)
  238          {
- 239   1              //= 不用二次回调
-C51 COMPILER V9.57.0.0   MAIN                                                              01/29/2026 17:55:57 PAGE 5   
+ 239   1          //== 常闭
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 5   
 
- 240   1      }
- 241          
- 242          void GPIO_Init(void)
- 243          {
- 244   1      
- 245   1              REG_P10_CFG=0x00;
- 246   1              gpio_init(P1_0);
- 247   1              gpio_dir_set(P1_0, GPIO_DIR_OUT);
- 248   1              gpio_dr_set(P1_0, GPIO_SR_HIGH);
- 249   1              gpio_io_set(P1_0, GPIO_HIGH);
- 250   1              
- 251   1      
- 252   1              REG_P12_CFG=0x00;
- 253   1              gpio_init(P1_2);
- 254   1              gpio_dir_set(P1_2, GPIO_DIR_OUT);
- 255   1              gpio_dr_set(P1_2, GPIO_SR_HIGH);
- 256   1              gpio_io_set(P1_2, GPIO_HIGH);
- 257   1              
- 258   1      
- 259   1              REG_P13_CFG=0x00;
- 260   1              gpio_init(P1_3);
- 261   1              gpio_dir_set(P1_3, GPIO_DIR_OUT);
- 262   1              gpio_dr_set(P1_3, GPIO_SR_HIGH);
- 263   1              gpio_io_set(P1_3, GPIO_LOW);
- 264   1      //      gpio_in_enable(P1_3, IN_ENABLE);         
- 265   1      //      gpio_irq_set(P1_3,GPIO_IRQ_ENABLE,gpio_UECallBack);
- 266   1      //      P1AL&=~(0x80);
- 267   1      //      P1AL|=(0x01<<6);
- 268   1              
- 269   1              
- 270   1      
- 271   1              gpio_init(P1_4);
- 272   1              gpio_dir_set(P1_4, GPIO_DIR_IN);
- 273   1              gpio_dr_set(P1_4, GPIO_SR_HIGH);
- 274   1              gpio_in_enable(P1_4, IN_ENABLE);         
- 275   1              gpio_irq_set(P1_4,GPIO_IRQ_ENABLE,gpio_UECallBack);
- 276   1              P1AH&=~(0x02);
- 277   1              P1AH|=(0x01);
- 278   1              REG_P14_CFG=0x20;
- 279   1      
- 280   1              REG_P15_CFG=0x00;
- 281   1              gpio_init(P1_5);                        
- 282   1              gpio_dir_set(P1_5, GPIO_DIR_IN);          
- 283   1              gpio_in_enable(P1_5, IN_ENABLE);          
- 284   1      }
+ 240   1              REG_P10_CFG=0x00;
+ 241   1              gpio_init(P1_0);
+ 242   1              gpio_dir_set(P1_0, GPIO_DIR_OUT);
+ 243   1              gpio_dr_set(P1_0, GPIO_SR_HIGH);
+ 244   1              gpio_io_set(P1_0, GPIO_HIGH);
+ 245   1              
+ 246   1          //== 常开
+ 247   1              REG_P12_CFG=0x00;
+ 248   1              gpio_init(P1_2);
+ 249   1              gpio_dir_set(P1_2, GPIO_DIR_OUT);
+ 250   1              gpio_dr_set(P1_2, GPIO_SR_HIGH);
+ 251   1              gpio_io_set(P1_2, GPIO_HIGH);
+ 252   1              
+ 253   1          //== 红灯
+ 254   1              REG_P13_CFG=0x00;
+ 255   1              gpio_init(P1_3);
+ 256   1              gpio_dir_set(P1_3, GPIO_DIR_OUT);
+ 257   1              gpio_dr_set(P1_3, GPIO_SR_HIGH);
+ 258   1              gpio_io_set(P1_3, GPIO_LOW);
+ 259   1      //      gpio_in_enable(P1_3, IN_ENABLE);         
+ 260   1      //      gpio_irq_set(P1_3,GPIO_IRQ_ENABLE,gpio_UECallBack);
+ 261   1      //      P1AL&=~(0x80);
+ 262   1      //      P1AL|=(0x01<<6);
+ 263   1              
+ 264   1              
+ 265   1          //== 外部中断
+ 266   1      //      gpio_init(P1_4);
+ 267   1      //      gpio_dir_set(P1_4, GPIO_DIR_IN);
+ 268   1      //      gpio_dr_set(P1_4, GPIO_SR_HIGH);
+ 269   1      //      gpio_in_enable(P1_4, IN_ENABLE);         
+ 270   1      //      gpio_irq_set(P1_4,GPIO_IRQ_ENABLE,gpio_UECallBack);
+ 271   1      //      P1AH&=~(0x02);
+ 272   1      //      P1AH|=(0x01);
+ 273   1      //      REG_P14_CFG=0x20;
+ 274   1      
+ 275   1          //== adc引脚
+ 276   1              REG_P15_CFG=0x00;
+ 277   1              gpio_init(P1_5);                        
+ 278   1              gpio_dir_set(P1_5, GPIO_DIR_IN);          
+ 279   1              gpio_in_enable(P1_5, IN_ENABLE);          
+ 280   1      }
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =    813    ----
+   CODE SIZE        =    763    ----
    CONSTANT SIZE    =   ----    ----
-   XDATA SIZE       =     38    ----
+   XDATA SIZE       =     37    ----
    PDATA SIZE       =   ----    ----
    DATA SIZE        =   ----    ----
    IDATA SIZE       =   ----    ----

@@ -1,1 +1,0 @@
-"..\..\..\..\Driver\src\gtimer2.c" LARGE OMF2 OPTIMIZE (8,SIZE) BROWSE INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\gtimer2.lst) OBJECT(.\Out_Files\gtimer2.obj)
