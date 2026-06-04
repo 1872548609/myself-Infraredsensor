@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:08:30 PAGE 1   
+C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:26:32 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE GTIMER1
@@ -62,7 +62,7 @@ line level    source
   51   1      }  
   52          
   53          
-C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:08:30 PAGE 2   
+C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:26:32 PAGE 2   
 
   54          /************************************************************************
   55           * Function     : gtimer1_count_init
@@ -126,7 +126,7 @@ line level    source
  113   1              REG_GTIM1_ARRN0 = (arr-1)&0xFF;                                 //低8位 自动装载值 
  114   1                                              
  115   1              REG_GTIM1_CCR1 = (ccr>>8)&0xFF;                 //高8位 比较寄存器 
-C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:08:30 PAGE 3   
+C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:26:32 PAGE 3   
 
  116   1              REG_GTIM1_CCR0 = ccr&0xFF;                                      //低8位 比较寄存器
  117   1                                              
@@ -190,7 +190,7 @@ line level    source
  175           * Return               : none
  176           ***********************************************************************/
  177          void gtimer1_bke_init(void)
-C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:08:30 PAGE 4   
+C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:26:32 PAGE 4   
 
  178          {
  179   1              PCLK1 |= (1<<5);                                                                                //开Gtim1时钟使能       
@@ -254,7 +254,7 @@ line level    source
  237   3                              case GTIMER1_UIE_IRQ:
  238   3                                              gtimer1_callback[0] = pfunc;
  239   3                                              REG_GTIM1_IER |= ~GTIMER1_UIE;                  //禁止UPDATE中断
-C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:08:30 PAGE 5   
+C51 COMPILER V9.57.0.0   GTIMER1                                                           06/04/2026 15:26:32 PAGE 5   
 
  240   3                                              break;
  241   3                              case GTIMER1_CCIE_IRQ:

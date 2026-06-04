@@ -75,12 +75,4 @@ void GPIO_Init(void)
      */
     REG_P14_CFG = 0x20;
     gpio_sr_set(IR_TX_PWM_PIN, GPIO_SR_HIGH);
-
-    /*
-     * P1.5 ±£¡Ù ‰»Î°£
-     */
-    REG_P15_CFG = 0x00;
-    gpio_init(P1_5);
-    gpio_dir_set(P1_5, GPIO_DIR_IN);
-    gpio_in_enable(P1_5, IN_ENABLE);
 }

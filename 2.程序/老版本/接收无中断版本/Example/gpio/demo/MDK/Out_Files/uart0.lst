@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   UART0                                                             06/04/2026 14:43:14 PAGE 1   
+C51 COMPILER V9.57.0.0   UART0                                                             06/04/2026 16:03:51 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE UART0
@@ -62,7 +62,7 @@ line level    source
   51           *                        uint32_t baud_rate: Series rate         Baud Rate = SYSCK/(16*(1024-S0REL))   SYSCK:RC16M                             
              -                
   52           * Output               : none  
-C51 COMPILER V9.57.0.0   UART0                                                             06/04/2026 14:43:14 PAGE 2   
+C51 COMPILER V9.57.0.0   UART0                                                             06/04/2026 16:03:51 PAGE 2   
 
   53           * Return               : none
   54           ************************************************************************/
@@ -126,7 +126,7 @@ line level    source
  112   2              ES0 = 1;                                        //UART0中断使能   
  113   2              
  114   2              uart0_func = pfunc_recv;       
-C51 COMPILER V9.57.0.0   UART0                                                             06/04/2026 14:43:14 PAGE 3   
+C51 COMPILER V9.57.0.0   UART0                                                             06/04/2026 16:03:51 PAGE 3   
 
  115   2          } 
  116   1          else
@@ -190,7 +190,7 @@ line level    source
  174           * Output               : none  
  175          * Return                : S0BUF：返回一个byte   
  176           ************************************************************************/
-C51 COMPILER V9.57.0.0   UART0                                                             06/04/2026 14:43:14 PAGE 4   
+C51 COMPILER V9.57.0.0   UART0                                                             06/04/2026 16:03:51 PAGE 4   
 
  177          uint8_t uart0_recv_byte(void)
  178          { 

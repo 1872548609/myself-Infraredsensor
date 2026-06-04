@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:08:30 PAGE 1   
+C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:26:32 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE GTIMER0
@@ -62,7 +62,7 @@ line level    source
   51   2                      REG_GTIM0_SR = 0x7;                                                                     //清除所有中断标志
   52   2              }
   53   1      }  
-C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:08:30 PAGE 2   
+C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:26:32 PAGE 2   
 
   54          
   55          
@@ -126,7 +126,7 @@ line level    source
  113   1              REG_GTIM0_ARRN1 = ((arr-1)>>8)&0xFF;            //高8位 自动装载值 
  114   1              REG_GTIM0_ARRN0 = (arr-1)&0xFF;                                 //低8位 自动装载值 
  115   1                                      
-C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:08:30 PAGE 3   
+C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:26:32 PAGE 3   
 
  116   1              REG_GTIM0_CCR1 = ((ccr)>>8)&0xFF;               //高8位 比较寄存器 
  117   1              REG_GTIM0_CCR0 = (ccr)&0xFF;                                    //低8位 比较寄存器 
@@ -190,7 +190,7 @@ line level    source
  175   1      //      REG_P25_CFG = 0x05;                                                     //P25 GTIMER0_BKE 
  176   1              
  177   1              REG_GTIM0_CR1 &= ~(3<<6);                               //PWM刹车触发后，PWM正向电平状态设置位:低电平 
-C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:08:30 PAGE 4   
+C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:26:32 PAGE 4   
 
  178   1              REG_GTIM0_CR2 &= ~(3<<0);                               // PWM刹车触发后，PWM互补电平状态设置位:低电平 
  179   1      
@@ -254,7 +254,7 @@ line level    source
  237   3                                              break;          
  238   3                              default:
  239   3                                              break;                          
-C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:08:30 PAGE 5   
+C51 COMPILER V9.57.0.0   GTIMER0                                                           06/04/2026 15:26:32 PAGE 5   
 
  240   3                      }       
  241   2              }
