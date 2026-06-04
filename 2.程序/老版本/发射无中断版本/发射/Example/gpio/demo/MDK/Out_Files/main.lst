@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              01/30/2026 11:45:50 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:17:37 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -10,97 +10,103 @@ COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2
 line level    source
 
    1          /***********************************************************************
-   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
-   3           * All rights reserved.
-   4           * Filename    : main.c
-   5           * Description : main source file
-   6           * Author(s)   : Will
-   7           * version     : V1.0
-   8           * Modify date : 2021-04-27
-   9           ***********************************************************************/     
-  10          #include "system_um800y.h"
-  11          #include "app.h"
-  12          #include "gtimer.h"
-  13          #include "pwm.h"
-  14          #include "common.h"
-  15          #include "config.h"
-  16          #include "gpio.h"
-  17          #include "adc.h"
-  18          
-  19          #define impulse         P1_4
-  20          #define impulsetGPIO_HIGH();    gpio_io_set(P1_4, GPIO_LOW);
-  21          #define impulsetGPIO_LOW();     gpio_io_set(P1_4, GPIO_HIGH);
-  22          
-  23          volatile uint16_t duty2 = 8000; //占空比 = duty/cycle
-  24          volatile uint16_t cycle2 = 64000;       //pwm频率=时钟频率/cycle
-  25          uint16_t ADC_Flag = 0;
-  26          uint16_t adc_data = 0;
-  27          uint16_t adc_datap= 0;
-  28          uint16_t adc_datan = 0;
-  29          float vol_value = 0.0;
-  30          
-  31          uint16_t status = 0;
-  32          uint16_t adcount =0;
-  33          uint16_t adcount1 =0;
-  34          
-  35          bit adget = 0;
-  36          bit state = 0;
-  37          
-  38          uint16_t adc_value = 0;
-  39          uint8_t exitintcount = 0;
-  40          
-  41          void gtimer0_UECallBack(void);
-  42          
-  43          void GPIO_Init(void);
-  44          void ADC_Init(void);
-  45          void gpio_int_pro(void);
-  46          
-  47          void main(void)  
-  48          {               
-  49   1              system_init();
-  50   1              GPIO_Init();
-  51   1              uart_init();
-  52   1              
-  53   1              pwm2_init(16000,400,LOW);//1khz 12.5us dt0.0125
-C51 COMPILER V9.57.0.0   MAIN                                                              01/30/2026 11:45:50 PAGE 2   
+   2           * Industrial Infrared Through-beam Transmitter
+   3           * Platform : UM800Y / 24MHz
+   4           * Mode     : Hardware PWM, no interrupt
+   5           ***********************************************************************/
+   6          #include "system_um800y.h"
+   7          #include "app.h"
+   8          #include "gtimer.h"
+   9          #include "pwm.h"
+  10          #include "common.h"
+  11          #include "config.h"
+  12          #include "gpio.h"
+  13          #include "adc.h"
+  14          
+  15          /*
+  16           * 发射脚：旧代码使用 P1.4 PWM 输出。
+  17           * 原理图里发射管驱动接在 MCU 控制脚后级三极管/MOS 驱动上。
+  18           */
+  19          #define IR_TX_PWM_PIN               P1_4
+  20          #define IR_TX_LED_PIN               P1_3
+  21          
+  22          /*
+  23           * 沿用旧工程实测参数。
+  24           * 如果示波器测得发射频率不合适，优先只改这两个参数。
+  25           */
+  26          #define IR_PWM_PERIOD_COUNT         16000U
+  27          #define IR_PWM_DUTY_COUNT           400U
+  28          
+  29          #define LED_ACTIVE_LEVEL            GPIO_HIGH
+  30          #define LED_INACTIVE_LEVEL          GPIO_LOW
+  31          
+  32          void GPIO_Init(void);
+  33          
+  34          void main(void)
+  35          {
+  36   1          system_init();
+  37   1      
+  38   1          GPIO_Init();
+  39   1          uart_init();
+  40   1      
+  41   1          /*
+  42   1           * 真正无中断发射端。
+  43   1           * PWM 由硬件输出，不依赖中断。
+  44   1           */
+  45   1          EA = 0;
+  46   1      
+  47   1          pwm2_init(IR_PWM_PERIOD_COUNT, IR_PWM_DUTY_COUNT, LOW);
+  48   1          pwm2_start();
+  49   1      
+  50   1          gpio_io_set(IR_TX_LED_PIN, LED_ACTIVE_LEVEL);
+  51   1      
+  52   1          while(1)
+  53   1          {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:17:37 PAGE 2   
 
-  54   1              pwm2_start();
-  55   1          
-  56   1              while(1) 
-  57   1              {
-  58   2      
-  59   2              }
-  60   1      }
-  61          
-  62          
-  63          void GPIO_Init(void)
-  64          {
-  65   1              //红色指示灯
-  66   1              gpio_init(P1_3);
-  67   1              gpio_dir_set(P1_3, GPIO_DIR_OUT);
-  68   1              gpio_dr_set(P1_3, GPIO_SR_HIGH);
-  69   1              gpio_io_set(P1_3, GPIO_HIGH);
-  70   1              
-  71   1              //脉冲发射口
-  72   1              REG_P14_CFG=0x20;
-  73   1              gpio_sr_set(P1_4,GPIO_SR_HIGH);
-  74   1              
-  75   1              //脉冲接收口
-  76   1              REG_P15_CFG=0x00;
-  77   1              gpio_init(P1_5);                          //时钟初始化，模块正常工作
-  78   1              gpio_dir_set(P1_5, GPIO_DIR_IN);          //配置为输入
-  79   1              gpio_in_enable(P1_5, IN_ENABLE);          //输入使能 
-  80   1      }
+  54   2              /*
+  55   2               * 发射端无需 CPU 参与。
+  56   2               * 如后续要做低功耗或故障检测，可以在这里加轮询逻辑。
+  57   2               */
+  58   2          }
+  59   1      }
+  60          
+  61          void GPIO_Init(void)
+  62          {
+  63   1          /*
+  64   1           * 发射指示灯。
+  65   1           */
+  66   1          REG_P13_CFG = 0x00;
+  67   1          gpio_init(IR_TX_LED_PIN);
+  68   1          gpio_dir_set(IR_TX_LED_PIN, GPIO_DIR_OUT);
+  69   1          gpio_dr_set(IR_TX_LED_PIN, GPIO_SR_HIGH);
+  70   1          gpio_io_set(IR_TX_LED_PIN, LED_INACTIVE_LEVEL);
+  71   1      
+  72   1          /*
+  73   1           * P1.4 配置为 PWM2 输出。
+  74   1           * 旧工程就是 REG_P14_CFG = 0x20。
+  75   1           */
+  76   1          REG_P14_CFG = 0x20;
+  77   1          gpio_sr_set(IR_TX_PWM_PIN, GPIO_SR_HIGH);
+  78   1      
+  79   1          /*
+  80   1           * P1.5 保留输入。
+  81   1           */
+  82   1          REG_P15_CFG = 0x00;
+  83   1          gpio_init(P1_5);
+  84   1          gpio_dir_set(P1_5, GPIO_DIR_IN);
+  85   1          gpio_in_enable(P1_5, IN_ENABLE);
+  86   1      }
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =     90    ----
+   CODE SIZE        =    104    ----
    CONSTANT SIZE    =   ----    ----
-   XDATA SIZE       =     25    ----
+   XDATA SIZE       =   ----    ----
    PDATA SIZE       =   ----    ----
    DATA SIZE        =   ----    ----
    IDATA SIZE       =   ----    ----
-   BIT SIZE         =      2    ----
+   BIT SIZE         =   ----    ----
    EDATA SIZE       =   ----    ----
    HDATA SIZE       =   ----    ----
    XDATA CONST SIZE =   ----    ----

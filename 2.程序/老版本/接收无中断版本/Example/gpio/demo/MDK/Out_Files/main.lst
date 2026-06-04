@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -10,303 +10,540 @@ COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2
 line level    source
 
    1          /***********************************************************************
-   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
-   3           * All rights reserved.
-   4           * Filename    : main.c
-   5           * Description : main source file
-   6           * Author(s)   : Will
-   7           * version     : V1.0
-   8           * Modify date : 2021-04-27
-   9           ***********************************************************************/     
-  10          #include "system_um800y.h"
-  11          #include "app.h"
-  12          #include "gtimer.h"
-  13          #include "pwm.h"
-  14          #include "common.h"
-  15          #include "config.h"
-  16          #include "gpio.h"
-  17          #include "adc.h"
-  18          
-  19          
-  20          volatile uint16_t duty2 = 8000; 
-  21          volatile uint16_t cycle2 = 64000;       
-  22          uint16_t ADC_Flag = 0;
-  23          volatile uint16_t adc_data = 0;
-  24          volatile uint16_t adc_data1 = 0;
-  25          volatile uint16_t adc_set = 100;
-  26          
-  27          uint32_t adc_sum = 0;
-  28          
-  29          uint16_t adc_datap= 0;
-  30          uint16_t adc_datan = 0;
-  31          
-  32          float vol_value = 0.0;
-  33          
-  34          uint16_t status = 0;
-  35          uint16_t adcount =0;
-  36          uint16_t adcount1 =0;
-  37          
-  38          bit adget = 0;
-  39          bit state = 0;
+   2           * Industrial Infrared Through-beam Receiver
+   3           * Platform : UM800Y / 24MHz
+   4           * Mode     : No interrupt, polling only
+   5           ***********************************************************************/
+   6          #include "system_um800y.h"
+   7          #include "app.h"
+   8          #include "gtimer.h"
+   9          #include "pwm.h"
+  10          #include "common.h"
+  11          #include "config.h"
+  12          #include "gpio.h"
+  13          #include "adc.h"
+  14          
+  15          /* ======================= 用户可调参数 ======================= */
+  16          
+  17          /*
+  18           * 硬件映射：
+  19           * ADC_CHANNEL_1：接收光强
+  20           * ADC_CHANNEL_2：电位器阈值 ADJ，原理图说明 ADJ/P2.0 用于调接收距离
+  21           */
+  22          #define IR_RX_ADC_CHANNEL           ADC_CHANNEL_1
+  23          #define IR_ADJ_ADC_CHANNEL          ADC_CHANNEL_2
+  24          
+  25          /*
+  26           * P1.4：原旧代码用作接收脉冲外部中断输入。
+  27           * 现在改为普通 GPIO 轮询上升沿。
+  28           */
+  29          #define IR_CP_PIN                   P1_4
+  30          
+  31          /*
+  32           * 输出：
+  33           * P1.2：NO 常开
+  34           * P1.3：NC 常闭
+  35           * P1.0：指示灯，若实物 LED 极性相反，改 LED_ACTIVE_LEVEL 即可。
+  36           */
+  37          #define IR_OUT_NO_PIN               P1_2
+  38          #define IR_OUT_NC_PIN               P1_3
+  39          #define IR_LED_PIN                  P1_0
   40          
-  41          uint16_t adc_value = 0;
-  42          uint8_t exitintcount = 0;
+  41          #define OUT_ACTIVE_LEVEL            GPIO_HIGH
+  42          #define OUT_INACTIVE_LEVEL          GPIO_LOW
   43          
-  44          uint8_t adflag=0;
-  45          
-  46          volatile int get_Delay = 0;
-  47          char adstate=0;
-  48          
-  49          
-  50          
-  51          
-  52          void gtimer0_UECallBack(void);
-  53          void gtimer1_UECallBack(void);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 2   
+  44          #define LED_ACTIVE_LEVEL            GPIO_HIGH
+  45          #define LED_INACTIVE_LEVEL          GPIO_LOW
+  46          
+  47          /*
+  48           * 0：亮通输出，收到光时 NO 动作。
+  49           * 1：暗通输出，遮光/丢光时 NO 动作。
+  50           *
+  51           * 原旧版逻辑是 adc_data >= adc_set 后输出动作，所以默认用亮通输出。
+  52           */
+  53          #define SENSOR_DARK_ON              0
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 2   
 
   54          
-  55          void GPIO_Init(void);
-  56          void ADC_Init(void);
-  57          void gpio_int_pro(void);
-  58          
-  59          void main(void)  
-  60          {               
-  61   1              system_init();
-  62   1              GPIO_Init();
-  63   1              uart_init();
-  64   1              
-  65   1              
-  66   1              gtimer0_count_init(3000,16-1);          //gtimer0_count_init(16000,1000-1);             
-  67   1                      
-  68   1              gtimer0_irq_init(GTIMER_IRQ_ENABLE,GTIMER0_UIE_IRQ,gtimer0_UECallBack);
-  69   1      
-  70   1              gtimer0_start();        
-  71   1              
-  72   1              adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 4, ADC_ENABLE);     
-  73   1      
-  74   1              adc_sample_clk_config(ADC_SAMPCLK_4);                                                                           
-  75   1              
-  76   1              adc_io_config(ADC_CHANNEL_1|ADC_CHANNEL_2);                                                             
-  77   1              
-  78   1              adc_scan_mode_config(ADC_MODE_SINGLE);                                                                  
-  79   1              
-  80   1              adc_power_config(ADC_ENABLE);                                                                                           
-  81   1              adc_controller_config(ADC_ENABLE);
-  82   1              
-  83   1              
-  84   1                                                                                      
-  85   1                      
-  86   1              while(1) 
-  87   1              {
-  88   2                      
-  89   2      
-  90   2                      
-  91   2              }
-  92   1      }
+  55          /*
+  56           * 24MHz / 16 = 1.5MHz
+  57           * 1500 个计数约 1ms。
+  58           */
+  59          #define TIMER0_1MS_RELOAD           1500U
+  60          #define TIMER0_PRESCALER            (16U - 1U)
+  61          
+  62          #ifndef GTIMER0_UIF
+              #define GTIMER0_UIF                 0x01
+              #endif
+  65          
+  66          /*
+  67           * 阈值映射范围：
+  68           * 电位器 ADC 0~4095 映射到 700~2800。
+  69           * 如果现场太灵敏，增大 THRESHOLD_MIN_ADC。
+  70           * 如果最远距离不够，减小 THRESHOLD_MIN_ADC 或增大红外发射电流。
+  71           */
+  72          #define THRESHOLD_MIN_ADC           700U
+  73          #define THRESHOLD_MAX_ADC           2800U
+  74          #define THRESHOLD_DEFAULT_ADC       1400U
+  75          
+  76          /*
+  77           * 滞回窗口：
+  78           * ADC 高于 threshold + ON_MARGIN 判定为有效光。
+  79           * ADC 低于 threshold - OFF_MARGIN 判定为丢光。
+  80           */
+  81          #define RX_ON_MARGIN_ADC            80U
+  82          #define RX_OFF_MARGIN_ADC           80U
+  83          
+  84          /*
+  85           * 工业去抖：
+  86           * 连续 2 次有效脉冲才认为收到光。
+  87           * 连续 3 次无效脉冲才认为丢光。
+  88           * 超过 8ms 没有收到 P1.4 脉冲，强制丢光。
+  89           */
+  90          #define RX_ON_CONFIRM_COUNT         2U
+  91          #define RX_OFF_CONFIRM_COUNT        3U
+  92          #define RX_LOST_TIMEOUT_MS          8U
   93          
-  94          
-  95          
-  96          void gtimer0_UECallBack(void)
-  97          {
-  98   1              gpio_io_set(P1_2, GPIO_LOW);
-  99   1              //gpio_io_set(P1_0, GPIO_LOW);
- 100   1              gpio_io_set(P1_3, GPIO_LOW);
- 101   1              adstate=0;
- 102   1      }
- 103          
+  94          /*
+  95           * 电位器阈值每 20ms 更新一次，并做 IIR 平滑。
+  96           */
+  97          #define ADJ_UPDATE_PERIOD_MS        20U
+  98          #define ADJ_FILTER_SHIFT            3U
+  99          
+ 100          /*
+ 101           * ADC 合法范围。
+ 102           */
+ 103          #define ADC_VALID_MAX               4090U
  104          
- 105          void GPIO_IRQHandler(void) interrupt 0
- 106          {
- 107   1                      if(gpio_irq_get(P1_4))                                                                                  
- 108   1                      {
- 109   2                  gpio_io_set(P1_0, GPIO_HIGH);//常闭  
- 110   2                  
- 111   2                      adc_convert_start(ADC_CHANNEL_1);                                                                       
- 112   2      
- 113   2                                      while((ADCGCR1 & 0x04) != 0);
- 114   2                                      
- 115   2                                      while(!(ADCCSTAT & 0x01))       ;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 3   
+ 105          /* ======================= 全局状态 ======================= */
+ 106          
+ 107          static volatile uint16_t g_adc_signal = 0;
+ 108          static volatile uint16_t g_adc_adj = 0;
+ 109          static volatile uint16_t g_threshold = THRESHOLD_DEFAULT_ADC;
+ 110          
+ 111          static uint32_t g_threshold_filter = ((uint32_t)THRESHOLD_DEFAULT_ADC << ADJ_FILTER_SHIFT);
+ 112          
+ 113          static uint8_t g_light_ok = 0;
+ 114          static uint8_t g_on_count = 0;
+ 115          static uint8_t g_off_count = 0;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 3   
 
- 116   2                                      
- 117   2                                      ADCCSTAT = 0x1;                                                                                 
- 118   2                                      
- 119   2                                      adc_data=adc_get_value();       
- 120   2                  
- 121   2                  
- 122   2                  
- 123   2                  
- 124   2                                      REG_GTIM0_CR0 &= ~(1<<0);                               
- 125   2                              
- 126   2                                      adc_convert_start(ADC_CHANNEL_2);                                                               
- 127   2                                      
- 128   2                                      while((ADCGCR1 & 0x04) != 0);
- 129   2                                      
- 130   2                                      while(!(ADCCSTAT & 0x01))       ;
- 131   2                                      
- 132   2                                      ADCCSTAT = 0x1;                                                                         
- 133   2                                      
- 134   2                                      adc_data1=adc_get_value();      
- 135   2                              
- 136   2                                      //printfS("adj:%d\r\n", adc_data1);     
- 137   2                              
- 138   2                                      if(adc_data1 >=3500&&adc_data1<4095)                                                                                    
- 139   2                                      {
- 140   3                                                              
- 141   3                                                              adc_set=2500;
- 142   3                                      } 
- 143   2                                      else if(adc_data1 >=3200&&adc_data1<3500)                                                                                       
- 144   2                                      {
- 145   3                                                      
- 146   3                                                              adc_set=2000;
- 147   3                                      } 
- 148   2                                      else if(adc_data1 >=3000&&adc_data1<3200)                                                                                       
- 149   2                                      {
- 150   3                                                      
- 151   3                                                              adc_set=1800;
- 152   3                                      } 
- 153   2                                      else if(adc_data1 >=2700&&adc_data1<3000)                                                                                       
- 154   2                                      {
- 155   3                                                              
- 156   3                                                              adc_set=1600;
- 157   3                                      } 
- 158   2                                      else if(adc_data1 >=2500&&adc_data1<2700)                                                                                       
- 159   2                                      {
- 160   3                                                      
- 161   3                                                              adc_set=1400;
- 162   3                                      } 
- 163   2                                      else if(adc_data1 >=2200&&adc_data1<2500)                                                                                       
- 164   2                                      {
- 165   3                                                      
- 166   3                                                              adc_set=1200;
- 167   3                                      } 
- 168   2                                      else if(adc_data1 >=2000&&adc_data1<2200)                                                                                       
- 169   2                                      {
- 170   3                                      
- 171   3                                                              adc_set=1000;
- 172   3                                              
- 173   3                                      } 
- 174   2      
- 175   2      //                              adc_convert_start(ADC_CHANNEL_1);                                                                       
- 176   2      
- 177   2      //                              while((ADCGCR1 & 0x04) != 0);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 4   
+ 116          
+ 117          static uint8_t g_last_cp_level = 0;
+ 118          static uint8_t g_cp_init = 0;
+ 119          
+ 120          static uint8_t g_adj_update_count = 0;
+ 121          static uint16_t g_lost_ms = RX_LOST_TIMEOUT_MS;
+ 122          
+ 123          /* ======================= 函数声明 ======================= */
+ 124          
+ 125          void GPIO_Init(void);
+ 126          void ADC_Init(void);
+ 127          
+ 128          static void timer0_init_poll_1ms(void);
+ 129          static void timer0_poll_process(void);
+ 130          
+ 131          static uint16_t adc_read_once(uint8_t ch);
+ 132          static uint16_t adc_read_average(uint8_t ch, uint8_t times);
+ 133          
+ 134          static void threshold_update_process(void);
+ 135          static void cp_poll_process(void);
+ 136          static void rx_sample_process(uint16_t adc_value);
+ 137          static void output_apply(uint8_t light_ok);
+ 138          static void sensor_force_lost(void);
+ 139          
+ 140          /* ======================= 主函数 ======================= */
+ 141          
+ 142          void main(void)
+ 143          {
+ 144   1          system_init();
+ 145   1      
+ 146   1          GPIO_Init();
+ 147   1          ADC_Init();
+ 148   1          timer0_init_poll_1ms();
+ 149   1      
+ 150   1          /*
+ 151   1           * 上电先读取一次阈值，避免默认阈值和电位器位置差太多。
+ 152   1           */
+ 153   1          threshold_update_process();
+ 154   1      
+ 155   1          /*
+ 156   1           * 真正无中断版本：
+ 157   1           * 不使用 Timer 中断，不使用 GPIO 中断，不使用 UART 接收中断。
+ 158   1           * 若 app.c 里还没改 uart0_irq_init，这里 EA=0 也会兜底关闭。
+ 159   1           */
+ 160   1          EA = 0;
+ 161   1      
+ 162   1          output_apply(0);
+ 163   1      
+ 164   1          while(1)
+ 165   1          {
+ 166   2              timer0_poll_process();
+ 167   2              cp_poll_process();
+ 168   2          }
+ 169   1      }
+ 170          
+ 171          /* ======================= 初始化 ======================= */
+ 172          
+ 173          void GPIO_Init(void)
+ 174          {
+ 175   1          /*
+ 176   1           * 指示灯 P1.0
+ 177   1           */
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 4   
 
- 178   2      //                              
- 179   2      //                              while(!(ADCCSTAT & 0x01))       ;
- 180   2      //                              
- 181   2      //                              ADCCSTAT = 0x1;                                                                         
- 182   2      //                              
- 183   2      //                              adc_data=adc_get_value();
- 184   2                              
- 185   2      //                              adc_convert_start(ADC_CHANNEL_1);                                                                       
- 186   2      
- 187   2      //                              while((ADCGCR1 & 0x04) != 0);
- 188   2      //                              
- 189   2      //                              while(!(ADCCSTAT & 0x01))       ;
- 190   2      //                              
- 191   2      //                              ADCCSTAT = 0x1;                                                                         
- 192   2      //                              
- 193   2      //                              adc_data=adc_get_value();
- 194   2                              
- 195   2                                      
- 196   2                                      
- 197   2                                      //printfS("adc:%d\r\n", adc_data);      
- 198   2      
- 199   2                              if(adc_data >=adc_set&&adc_data<ADC_INVALID-1)                                                                                                  
- 200   2                              {
- 201   3                                      //printfS("on\r\n");    
- 202   3                                      
- 203   3                                      switch(adstate)
- 204   3                                      {
- 205   4                                              case 0:{
- 206   5                                                              adcount++;
- 207   5                                                              if(adcount==2)
- 208   5                                                              {
- 209   6                                                                      
- 210   6                                                                      REG_GTIM0_CNT0&=0x00;
- 211   6                                                                      REG_GTIM0_CNT1&=0x00;
- 212   6                                                                      
- 213   6                                                                      
- 214   6                                                                      gpio_io_set(P1_2, GPIO_HIGH);
- 215   6                                                                      //gpio_io_set(P1_0, GPIO_HIGH);
- 216   6                                                                      gpio_io_set(P1_3, GPIO_HIGH);
- 217   6                                                                      adstate=1;
- 218   6                                                                      adcount=0;
- 219   6                                                              }
- 220   5                                              }break;
- 221   4                                              case 1:{
- 222   5                                                                      REG_GTIM0_CNT0&=0x00;
- 223   5                                                                      REG_GTIM0_CNT1&=0x00;
- 224   5                                              }break;
- 225   4                                      }
- 226   3                                      
- 227   3                              }       
- 228   2                      }               
- 229   1              
- 230   1               gpio_io_set(P1_0, GPIO_LOW);//常闭
- 231   1              
- 232   1                      REG_GTIM0_CR0 |= (1<<0);                                
- 233   1                      gpio_irq_clr(P1_4);
- 234   1      }
- 235          
- 236          
- 237          void GPIO_Init(void)
- 238          {
- 239   1          //== 常闭
-C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 14:52:31 PAGE 5   
+ 178   1          REG_P10_CFG = 0x00;
+ 179   1          gpio_init(IR_LED_PIN);
+ 180   1          gpio_dir_set(IR_LED_PIN, GPIO_DIR_OUT);
+ 181   1          gpio_dr_set(IR_LED_PIN, GPIO_SR_HIGH);
+ 182   1          gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
+ 183   1      
+ 184   1          /*
+ 185   1           * NO 输出 P1.2
+ 186   1           */
+ 187   1          REG_P12_CFG = 0x00;
+ 188   1          gpio_init(IR_OUT_NO_PIN);
+ 189   1          gpio_dir_set(IR_OUT_NO_PIN, GPIO_DIR_OUT);
+ 190   1          gpio_dr_set(IR_OUT_NO_PIN, GPIO_SR_HIGH);
+ 191   1          gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
+ 192   1      
+ 193   1          /*
+ 194   1           * NC 输出 P1.3
+ 195   1           */
+ 196   1          REG_P13_CFG = 0x00;
+ 197   1          gpio_init(IR_OUT_NC_PIN);
+ 198   1          gpio_dir_set(IR_OUT_NC_PIN, GPIO_DIR_OUT);
+ 199   1          gpio_dr_set(IR_OUT_NC_PIN, GPIO_SR_HIGH);
+ 200   1          gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
+ 201   1      
+ 202   1          /*
+ 203   1           * P1.5 保留为输入，兼容旧板预留脚。
+ 204   1           */
+ 205   1          REG_P15_CFG = 0x00;
+ 206   1          gpio_init(P1_5);
+ 207   1          gpio_dir_set(P1_5, GPIO_DIR_IN);
+ 208   1          gpio_in_enable(P1_5, IN_ENABLE);
+ 209   1      }
+ 210          
+ 211          void ADC_Init(void)
+ 212          {
+ 213   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 4, ADC_ENABLE);
+ 214   1          adc_sample_clk_config(ADC_SAMPCLK_4);
+ 215   1      
+ 216   1          adc_io_config(IR_RX_ADC_CHANNEL | IR_ADJ_ADC_CHANNEL);
+ 217   1      
+ 218   1          adc_scan_mode_config(ADC_MODE_SINGLE);
+ 219   1          adc_power_config(ADC_ENABLE);
+ 220   1          adc_controller_config(ADC_ENABLE);
+ 221   1      }
+ 222          
+ 223          static void timer0_init_poll_1ms(void)
+ 224          {
+ 225   1          gtimer0_count_init(TIMER0_1MS_RELOAD, TIMER0_PRESCALER);
+ 226   1      
+ 227   1          /*
+ 228   1           * 不调用 gtimer0_irq_init()。
+ 229   1           * 只启动计数器，然后主循环轮询 UIF。
+ 230   1           */
+ 231   1          REG_GTIM0_SR = GTIMER0_UIF;
+ 232   1          REG_GTIM0_CNT0 = 0x00;
+ 233   1          REG_GTIM0_CNT1 = 0x00;
+ 234   1      
+ 235   1          gtimer0_start();
+ 236   1      }
+ 237          
+ 238          /* ======================= 基础驱动 ======================= */
+ 239          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 5   
 
- 240   1              REG_P10_CFG=0x00;
- 241   1              gpio_init(P1_0);
- 242   1              gpio_dir_set(P1_0, GPIO_DIR_OUT);
- 243   1              gpio_dr_set(P1_0, GPIO_SR_HIGH);
- 244   1              gpio_io_set(P1_0, GPIO_HIGH);
- 245   1              
- 246   1          //== 常开
- 247   1              REG_P12_CFG=0x00;
- 248   1              gpio_init(P1_2);
- 249   1              gpio_dir_set(P1_2, GPIO_DIR_OUT);
- 250   1              gpio_dr_set(P1_2, GPIO_SR_HIGH);
- 251   1              gpio_io_set(P1_2, GPIO_HIGH);
- 252   1              
- 253   1          //== 红灯
- 254   1              REG_P13_CFG=0x00;
- 255   1              gpio_init(P1_3);
- 256   1              gpio_dir_set(P1_3, GPIO_DIR_OUT);
- 257   1              gpio_dr_set(P1_3, GPIO_SR_HIGH);
- 258   1              gpio_io_set(P1_3, GPIO_LOW);
- 259   1      //      gpio_in_enable(P1_3, IN_ENABLE);         
- 260   1      //      gpio_irq_set(P1_3,GPIO_IRQ_ENABLE,gpio_UECallBack);
- 261   1      //      P1AL&=~(0x80);
- 262   1      //      P1AL|=(0x01<<6);
- 263   1              
- 264   1              
- 265   1          //== 外部中断
- 266   1      //      gpio_init(P1_4);
- 267   1      //      gpio_dir_set(P1_4, GPIO_DIR_IN);
- 268   1      //      gpio_dr_set(P1_4, GPIO_SR_HIGH);
- 269   1      //      gpio_in_enable(P1_4, IN_ENABLE);         
- 270   1      //      gpio_irq_set(P1_4,GPIO_IRQ_ENABLE,gpio_UECallBack);
- 271   1      //      P1AH&=~(0x02);
- 272   1      //      P1AH|=(0x01);
- 273   1      //      REG_P14_CFG=0x20;
- 274   1      
- 275   1          //== adc引脚
- 276   1              REG_P15_CFG=0x00;
- 277   1              gpio_init(P1_5);                        
- 278   1              gpio_dir_set(P1_5, GPIO_DIR_IN);          
- 279   1              gpio_in_enable(P1_5, IN_ENABLE);          
- 280   1      }
+ 240          static uint16_t adc_read_once(uint8_t ch)
+ 241          {
+ 242   1          uint16_t value;
+ 243   1      
+ 244   1          adc_convert_start(ch);
+ 245   1      
+ 246   1          while((ADCGCR1 & 0x04) != 0);
+ 247   1          while(!(ADCCSTAT & 0x01));
+ 248   1      
+ 249   1          ADCCSTAT = 0x01;
+ 250   1          value = adc_get_value();
+ 251   1      
+ 252   1          return value;
+ 253   1      }
+ 254          
+ 255          static uint16_t adc_read_average(uint8_t ch, uint8_t times)
+ 256          {
+ 257   1          uint8_t i;
+ 258   1          uint16_t value;
+ 259   1          uint16_t min_value = 0xFFFF;
+ 260   1          uint16_t max_value = 0;
+ 261   1          uint32_t sum = 0;
+ 262   1      
+ 263   1          if(times == 0)
+ 264   1          {
+ 265   2              return adc_read_once(ch);
+ 266   2          }
+ 267   1      
+ 268   1          for(i = 0; i < times; i++)
+ 269   1          {
+ 270   2              value = adc_read_once(ch);
+ 271   2              sum += value;
+ 272   2      
+ 273   2              if(value < min_value)
+ 274   2              {
+ 275   3                  min_value = value;
+ 276   3              }
+ 277   2      
+ 278   2              if(value > max_value)
+ 279   2              {
+ 280   3                  max_value = value;
+ 281   3              }
+ 282   2          }
+ 283   1      
+ 284   1          /*
+ 285   1           * 4 点采样，去掉最大最小，提高电位器阈值抗抖。
+ 286   1           */
+ 287   1          if(times >= 4)
+ 288   1          {
+ 289   2              sum -= min_value;
+ 290   2              sum -= max_value;
+ 291   2              return (uint16_t)(sum / (times - 2));
+ 292   2          }
+ 293   1      
+ 294   1          return (uint16_t)(sum / times);
+ 295   1      }
+ 296          
+ 297          /* ======================= 周期轮询 ======================= */
+ 298          
+ 299          static void timer0_poll_process(void)
+ 300          {
+ 301   1          if(REG_GTIM0_SR & GTIMER0_UIF)
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 6   
+
+ 302   1          {
+ 303   2              REG_GTIM0_SR = GTIMER0_UIF;
+ 304   2      
+ 305   2              /*
+ 306   2               * 丢脉冲超时。
+ 307   2               * P1.4 长时间没有有效边沿，强制丢光。
+ 308   2               */
+ 309   2              if(g_lost_ms < 60000U)
+ 310   2              {
+ 311   3                  g_lost_ms++;
+ 312   3              }
+ 313   2      
+ 314   2              if(g_lost_ms >= RX_LOST_TIMEOUT_MS)
+ 315   2              {
+ 316   3                  sensor_force_lost();
+ 317   3              }
+ 318   2      
+ 319   2              /*
+ 320   2               * 慢速更新电位器阈值。
+ 321   2               */
+ 322   2              g_adj_update_count++;
+ 323   2              if(g_adj_update_count >= ADJ_UPDATE_PERIOD_MS)
+ 324   2              {
+ 325   3                  g_adj_update_count = 0;
+ 326   3                  threshold_update_process();
+ 327   3              }
+ 328   2          }
+ 329   1      }
+ 330          
+ 331          static void cp_poll_process(void)
+ 332          {
+ 333   1          uint8_t now_level;
+ 334   1      
+ 335   1          now_level = gpio_io_get(IR_CP_PIN);
+ 336   1      
+ 337   1          if(g_cp_init == 0)
+ 338   1          {
+ 339   2              g_cp_init = 1;
+ 340   2              g_last_cp_level = now_level;
+ 341   2              return;
+ 342   2          }
+ 343   1      
+ 344   1          /*
+ 345   1           * 默认使用上升沿。
+ 346   1           * 如果实测 P1.4 是下降沿有效，把判断改成：
+ 347   1           * if((g_last_cp_level != 0) && (now_level == 0))
+ 348   1           */
+ 349   1          if((g_last_cp_level == 0) && (now_level != 0))
+ 350   1          {
+ 351   2              g_lost_ms = 0;
+ 352   2      
+ 353   2              g_adc_signal = adc_read_once(IR_RX_ADC_CHANNEL);
+ 354   2      
+ 355   2              if(g_adc_signal < ADC_VALID_MAX)
+ 356   2              {
+ 357   3                  rx_sample_process(g_adc_signal);
+ 358   3              }
+ 359   2              else
+ 360   2              {
+ 361   3                  sensor_force_lost();
+ 362   3              }
+ 363   2          }
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 7   
+
+ 364   1      
+ 365   1          g_last_cp_level = now_level;
+ 366   1      }
+ 367          
+ 368          /* ======================= 阈值与判定 ======================= */
+ 369          
+ 370          static void threshold_update_process(void)
+ 371          {
+ 372   1          uint16_t adj;
+ 373   1          uint16_t new_threshold;
+ 374   1          uint32_t span;
+ 375   1      
+ 376   1          adj = adc_read_average(IR_ADJ_ADC_CHANNEL, 4);
+ 377   1          g_adc_adj = adj;
+ 378   1      
+ 379   1          if(adj > 4095U)
+ 380   1          {
+ 381   2              adj = 4095U;
+ 382   2          }
+ 383   1      
+ 384   1          span = (uint32_t)(THRESHOLD_MAX_ADC - THRESHOLD_MIN_ADC);
+ 385   1          new_threshold = (uint16_t)(THRESHOLD_MIN_ADC + ((uint32_t)adj * span) / 4095U);
+ 386   1      
+ 387   1          /*
+ 388   1           * IIR 平滑：
+ 389   1           * threshold_filter = 7/8 old + 1/8 new
+ 390   1           */
+ 391   1          g_threshold_filter -= (g_threshold_filter >> ADJ_FILTER_SHIFT);
+ 392   1          g_threshold_filter += new_threshold;
+ 393   1      
+ 394   1          g_threshold = (uint16_t)(g_threshold_filter >> ADJ_FILTER_SHIFT);
+ 395   1      
+ 396   1          if(g_threshold < THRESHOLD_MIN_ADC)
+ 397   1          {
+ 398   2              g_threshold = THRESHOLD_MIN_ADC;
+ 399   2          }
+ 400   1          else if(g_threshold > THRESHOLD_MAX_ADC)
+ 401   1          {
+ 402   2              g_threshold = THRESHOLD_MAX_ADC;
+ 403   2          }
+ 404   1      }
+ 405          
+ 406          static void rx_sample_process(uint16_t adc_value)
+ 407          {
+ 408   1          uint16_t on_threshold;
+ 409   1          uint16_t off_threshold;
+ 410   1      
+ 411   1          on_threshold = g_threshold + RX_ON_MARGIN_ADC;
+ 412   1      
+ 413   1          if(g_threshold > RX_OFF_MARGIN_ADC)
+ 414   1          {
+ 415   2              off_threshold = g_threshold - RX_OFF_MARGIN_ADC;
+ 416   2          }
+ 417   1          else
+ 418   1          {
+ 419   2              off_threshold = 0;
+ 420   2          }
+ 421   1      
+ 422   1          if(adc_value >= on_threshold)
+ 423   1          {
+ 424   2              if(g_on_count < 255U)
+ 425   2              {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 8   
+
+ 426   3                  g_on_count++;
+ 427   3              }
+ 428   2      
+ 429   2              g_off_count = 0;
+ 430   2          }
+ 431   1          else if(adc_value <= off_threshold)
+ 432   1          {
+ 433   2              if(g_off_count < 255U)
+ 434   2              {
+ 435   3                  g_off_count++;
+ 436   3              }
+ 437   2      
+ 438   2              g_on_count = 0;
+ 439   2          }
+ 440   1          else
+ 441   1          {
+ 442   2              /*
+ 443   2               * 滞回区内不改变状态。
+ 444   2               * 这样可以防止阈值附近频繁抖动。
+ 445   2               */
+ 446   2          }
+ 447   1      
+ 448   1          if((g_light_ok == 0) && (g_on_count >= RX_ON_CONFIRM_COUNT))
+ 449   1          {
+ 450   2              g_light_ok = 1;
+ 451   2          }
+ 452   1      
+ 453   1          if((g_light_ok != 0) && (g_off_count >= RX_OFF_CONFIRM_COUNT))
+ 454   1          {
+ 455   2              g_light_ok = 0;
+ 456   2          }
+ 457   1      
+ 458   1          output_apply(g_light_ok);
+ 459   1      }
+ 460          
+ 461          static void sensor_force_lost(void)
+ 462          {
+ 463   1          g_light_ok = 0;
+ 464   1          g_on_count = 0;
+ 465   1      
+ 466   1          if(g_off_count < RX_OFF_CONFIRM_COUNT)
+ 467   1          {
+ 468   2              g_off_count = RX_OFF_CONFIRM_COUNT;
+ 469   2          }
+ 470   1      
+ 471   1          output_apply(0);
+ 472   1      }
+ 473          
+ 474          /* ======================= 输出 ======================= */
+ 475          
+ 476          static void output_apply(uint8_t light_ok)
+ 477          {
+ 478   1          uint8_t output_active;
+ 479   1      
+ 480   1      #if SENSOR_DARK_ON
+                  output_active = light_ok ? 0 : 1;
+              #else
+ 483   1          output_active = light_ok ? 1 : 0;
+ 484   1      #endif
+ 485   1      
+ 486   1          /*
+ 487   1           * NO / NC 互补输出。
+C51 COMPILER V9.57.0.0   MAIN                                                              06/04/2026 15:21:16 PAGE 9   
+
+ 488   1           * 若实物三极管驱动极性相反，只需要交换 OUT_ACTIVE_LEVEL / OUT_INACTIVE_LEVEL。
+ 489   1           */
+ 490   1          if(output_active)
+ 491   1          {
+ 492   2              gpio_io_set(IR_OUT_NO_PIN, OUT_ACTIVE_LEVEL);
+ 493   2              gpio_io_set(IR_OUT_NC_PIN, OUT_INACTIVE_LEVEL);
+ 494   2          }
+ 495   1          else
+ 496   1          {
+ 497   2              gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
+ 498   2              gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
+ 499   2          }
+ 500   1      
+ 501   1          if(light_ok)
+ 502   1          {
+ 503   2              gpio_io_set(IR_LED_PIN, LED_ACTIVE_LEVEL);
+ 504   2          }
+ 505   1          else
+ 506   1          {
+ 507   2              gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
+ 508   2          }
+ 509   1      }
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =    763    ----
+   CODE SIZE        =   1147    ----
    CONSTANT SIZE    =   ----    ----
-   XDATA SIZE       =     37    ----
+   XDATA SIZE       =     18      23
    PDATA SIZE       =   ----    ----
    DATA SIZE        =   ----    ----
    IDATA SIZE       =   ----    ----
-   BIT SIZE         =      2    ----
+   BIT SIZE         =   ----    ----
    EDATA SIZE       =   ----    ----
    HDATA SIZE       =   ----    ----
    XDATA CONST SIZE =   ----    ----

@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 14:43:15 PAGE 1   
+C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 15:20:34 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE ADC
@@ -62,7 +62,7 @@ line level    source
   51   2                      
   52   2                      ADCCDR0 = 0;                                                                            //清零CLKDIV
   53   2                      ADCCDR1 = 0;
-C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 14:43:15 PAGE 2   
+C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 15:20:34 PAGE 2   
 
   54   2                      ADCCDR0 = (0x00ff & clksource_div);                                     //ADC内部时钟分频倍数
   55   2                      ADCCDR1 = (0xff00 & clksource_div)>>8;          
@@ -126,7 +126,7 @@ line level    source
  113           * Description  : adc_power_config 
  114           * input                :       
  115           *                              uint8_t newstate                ：ADC ENABLE/DISABLE
-C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 14:43:15 PAGE 3   
+C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 15:20:34 PAGE 3   
 
  116           * return               : none
  117           ************************************************************************/
@@ -190,7 +190,7 @@ line level    source
  175   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x04);                       
  176   2                              break;
  177   2                      case ADC_CHANNEL_4:
-C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 14:43:15 PAGE 4   
+C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 15:20:34 PAGE 4   
 
  178   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x05);                       
  179   2                              break;
@@ -254,7 +254,7 @@ line level    source
  237           *                              uint8_t newstate                ：ADC ENABLE/DISABLE
  238           * return               : none
  239           ************************************************************************/
-C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 14:43:15 PAGE 5   
+C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 15:20:34 PAGE 5   
 
  240          void adc_irq_config(void (*adc_irq_pro)(), uint8_t newstate)
  241          {
@@ -318,7 +318,7 @@ line level    source
  299           *                              uint16_t timeout ：ADC TIME OUT
  300           * return               : 
  301           *                              1：FAIL
-C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 14:43:15 PAGE 6   
+C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 15:20:34 PAGE 6   
 
  302           *                              0：SUCCESS      
  303           ************************************************************************/
@@ -382,7 +382,7 @@ line level    source
  361   1              uint16_t temp = 0;
  362   1              
  363   1              temp = ADCDR & 0x0FFF;
-C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 14:43:15 PAGE 7   
+C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 15:20:34 PAGE 7   
 
  364   1              
  365   1              if(temp > 1)
@@ -446,7 +446,7 @@ line level    source
  423          
  424          
 
-C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 14:43:15 PAGE 8   
+C51 COMPILER V9.57.0.0   ADC                                                               06/04/2026 15:20:34 PAGE 8   
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE

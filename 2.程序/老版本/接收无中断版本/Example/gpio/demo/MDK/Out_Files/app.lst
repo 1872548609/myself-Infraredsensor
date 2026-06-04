@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   APP                                                               06/04/2026 14:43:17 PAGE 1   
+C51 COMPILER V9.57.0.0   APP                                                               06/04/2026 15:20:35 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE APP
@@ -62,107 +62,112 @@ line level    source
   51           * Function     : uart_init
   52           * Description  : uart_init 串口初始化
   53           * Input                : none
-C51 COMPILER V9.57.0.0   APP                                                               06/04/2026 14:43:17 PAGE 2   
+C51 COMPILER V9.57.0.0   APP                                                               06/04/2026 15:20:35 PAGE 2   
 
   54           * Output               : none
   55           * Return               : none
   56           ************************************************************************/
   57          void uart_init(void)
   58          {
-  59   1              rx_flag = 0;
-  60   1              uart0_init(UART0_BAUD_RATE);
-  61   1        uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
-  62   1      }
-  63          
-  64           /************************************************************************
-  65           * function     : adc_continuous_pro
-  66           * Description  : adc call back function of continuous mode
-  67           * input                : none
-  68           * return               : none
-  69           ************************************************************************/
-  70          void adc_continuous_pro(void)
-  71          {
-  72   1      //       temp = adc_get_value()>1000? adc_count++:1;
-  73   1      //      if(adc_count==adtime)
-  74   1      //      {
-  75   1      //              adc_count=0;
-  76   1      //              gpio_io_set(P1_3, GPIO_LOW);
-  77   1      //              cleanadctime=1;
-  78   1      //      }
-  79   1              
-  80   1                      REG_GTIM1_CR0 &= ~(1<<0);                                       //不使能计数器
-  81   1                      temp=0;
-  82   1                      temp = REG_GTIM1_CNT0;
-  83   1                      temp |= REG_GTIM1_CNT1<<8;
-  84   1                      REG_GTIM1_CNT0=0;
-  85   1                      REG_GTIM1_CNT1=0;
-  86   1                      printfS("%u\r\n", temp);
-  87   1                      REG_GTIM1_CR0 |= (1<<0);                                                //使能计数器    
-  88   1      
-  89   1      //      temp = adc_get_value();                 //获取ad值
-  90   1      //      adc_datav += temp;                                      //累加
-  91   1      //      adc_count++;                                                            //计数
-  92   1      //      if(adc_count==adtime)                           //十次ad获取
-  93   1      //      {
-  94   1      //              adcget=1;                                                                       //主循环处理
-  95   1      //              adc_controller_config(ADC_DISABLE);                                                                             //ADC控制器关闭
-  96   1      //      }
-  97   1      //      
-  98   1      //temp = adc_get_value();
-  99   1      //      if(temp >1000)
- 100   1      //      {
- 101   1      //              gpio_io_set(P1_3, GPIO_LOW);
- 102   1      //              printfS("%d\r\n", temp);        
- 103   1      //              cleanadctime=1;
- 104   1      //      }
- 105   1      //      
- 106   1              
- 107   1      }
- 108          
- 109           /************************************************************************
- 110           * function     : adc_continuous_mode_test
- 111           * Description  : adc_continuous_mode_test 
- 112           * input                : none
- 113           * return               : none
- 114           ************************************************************************/
- 115          void adc_continuous_mode_test(void)
-C51 COMPILER V9.57.0.0   APP                                                               06/04/2026 14:43:17 PAGE 3   
+  59   1          rx_flag = 0;
+  60   1          uart0_init(UART0_BAUD_RATE);
+  61   1      
+  62   1          /*
+  63   1           * 工业轮询版不启用 UART 接收中断。
+  64   1           * printfS 调试发送仍然可以用。
+  65   1           */
+  66   1          /* uart0_irq_init(UART0_IRQ_ENABLE, uart0_rec_pro); */
+  67   1      }
+  68          
+  69           /************************************************************************
+  70           * function     : adc_continuous_pro
+  71           * Description  : adc call back function of continuous mode
+  72           * input                : none
+  73           * return               : none
+  74           ************************************************************************/
+  75          void adc_continuous_pro(void)
+  76          {
+  77   1      //       temp = adc_get_value()>1000? adc_count++:1;
+  78   1      //      if(adc_count==adtime)
+  79   1      //      {
+  80   1      //              adc_count=0;
+  81   1      //              gpio_io_set(P1_3, GPIO_LOW);
+  82   1      //              cleanadctime=1;
+  83   1      //      }
+  84   1              
+  85   1                      REG_GTIM1_CR0 &= ~(1<<0);                                       //不使能计数器
+  86   1                      temp=0;
+  87   1                      temp = REG_GTIM1_CNT0;
+  88   1                      temp |= REG_GTIM1_CNT1<<8;
+  89   1                      REG_GTIM1_CNT0=0;
+  90   1                      REG_GTIM1_CNT1=0;
+  91   1                      printfS("%u\r\n", temp);
+  92   1                      REG_GTIM1_CR0 |= (1<<0);                                                //使能计数器    
+  93   1      
+  94   1      //      temp = adc_get_value();                 //获取ad值
+  95   1      //      adc_datav += temp;                                      //累加
+  96   1      //      adc_count++;                                                            //计数
+  97   1      //      if(adc_count==adtime)                           //十次ad获取
+  98   1      //      {
+  99   1      //              adcget=1;                                                                       //主循环处理
+ 100   1      //              adc_controller_config(ADC_DISABLE);                                                                             //ADC控制器关闭
+ 101   1      //      }
+ 102   1      //      
+ 103   1      //temp = adc_get_value();
+ 104   1      //      if(temp >1000)
+ 105   1      //      {
+ 106   1      //              gpio_io_set(P1_3, GPIO_LOW);
+ 107   1      //              printfS("%d\r\n", temp);        
+ 108   1      //              cleanadctime=1;
+ 109   1      //      }
+ 110   1      //      
+ 111   1              
+ 112   1      }
+ 113          
+ 114           /************************************************************************
+ 115           * function     : adc_continuous_mode_test
+C51 COMPILER V9.57.0.0   APP                                                               06/04/2026 15:20:35 PAGE 3   
 
- 116          {
- 117   1              if(adcget)
- 118   1              {
- 119   2                      adcget=0;
- 120   2                      adc_datav/=adtime;              //求平均
- 121   2                      if(adc_datav >500)              //大于阈值
- 122   2                      {
- 123   3                              gpio_io_set(P1_3, GPIO_LOW);            //拉低信号
- 124   3                              cleanadctime=1;                                                                 //延时拉高
- 125   3                      }
- 126   2                      adc_datav=0;                                    //清除十次计数
- 127   2                      adc_count=0;                                    //清除ad值
- 128   2                              adc_controller_config(ADC_ENABLE);                                                                      //ADC控制器启动 
- 129   2                              adc_convert_start(ADC_CHANNEL_1);                                                                       //启动转换      
- 130   2              }
- 131   1                      
- 132   1      }
- 133          
- 134          /************************************************************************
- 135           * Function     : soc_test
- 136           * Description  : soc_test
- 137           * Input                : none
- 138           * Output               : none
- 139           * Return               : none
- 140           ************************************************************************/
- 141          void soc_test(void)
- 142          {
- 143   1              
- 144   1      }
- 145          
- 146          
+ 116           * Description  : adc_continuous_mode_test 
+ 117           * input                : none
+ 118           * return               : none
+ 119           ************************************************************************/
+ 120          void adc_continuous_mode_test(void)
+ 121          {
+ 122   1              if(adcget)
+ 123   1              {
+ 124   2                      adcget=0;
+ 125   2                      adc_datav/=adtime;              //求平均
+ 126   2                      if(adc_datav >500)              //大于阈值
+ 127   2                      {
+ 128   3                              gpio_io_set(P1_3, GPIO_LOW);            //拉低信号
+ 129   3                              cleanadctime=1;                                                                 //延时拉高
+ 130   3                      }
+ 131   2                      adc_datav=0;                                    //清除十次计数
+ 132   2                      adc_count=0;                                    //清除ad值
+ 133   2                              adc_controller_config(ADC_ENABLE);                                                                      //ADC控制器启动 
+ 134   2                              adc_convert_start(ADC_CHANNEL_1);                                                                       //启动转换      
+ 135   2              }
+ 136   1                      
+ 137   1      }
+ 138          
+ 139          /************************************************************************
+ 140           * Function     : soc_test
+ 141           * Description  : soc_test
+ 142           * Input                : none
+ 143           * Output               : none
+ 144           * Return               : none
+ 145           ************************************************************************/
+ 146          void soc_test(void)
+ 147          {
+ 148   1              
+ 149   1      }
+ 150          
+ 151          
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =    220    ----
+   CODE SIZE        =    209    ----
    CONSTANT SIZE    =      5    ----
    XDATA SIZE       =     99    ----
    PDATA SIZE       =   ----    ----

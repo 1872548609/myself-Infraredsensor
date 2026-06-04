@@ -35,35 +35,35 @@
 #define PORT1  1
 #define PORT2  2
 
-#define GPIO_DIR_IN         1		/* 1：gpio方向为输入 */
-#define GPIO_DIR_OUT  	    0		/* 1：gpio方向为输出 */
+#define GPIO_DIR_IN             1		/* 1：gpio方向为输入 */
+#define GPIO_DIR_OUT  	        0		/* 1：gpio方向为输出 */
 
 #define IN_ENABLE	        	1		/* 1：输入使能 */  
 #define IN_DISABLE		    	0
 
-#define GPIO_PU_ENABLE 	    0
+#define GPIO_PU_ENABLE 	        0
 #define GPIO_PU_DISABLE  		1       /* 1：关闭内部上拉电阻*/
 
-#define GPIO_PD_ENABLE 	    1		/* 1：下拉使能 */  
+#define GPIO_PD_ENABLE 	        1		/* 1：下拉使能 */  
 #define GPIO_PD_DISABLE  		0
 
-#define GPIO_OD_ENABLE 	    1		/* 1：开漏输出使能 */  
+#define GPIO_OD_ENABLE 	        1		/* 1：开漏输出使能 */  
 #define GPIO_OD_DISABLE  		0
 
-#define GPIO_HIGH 	        1		/* 1：gpio输出高电平 */  
-#define GPIO_LOW  	        0
+#define GPIO_HIGH 	            1		/* 1：gpio输出高电平 */  
+#define GPIO_LOW  	            0
 
 #define GPIO_IRQ_ENABLE 		1		/* 1：中断使能 */              
-#define GPIO_IRQ_DISABLE  	0
+#define GPIO_IRQ_DISABLE  	    0
 
 
 #define GPIO_IEV_FALLEDG	  		0			//允许下降沿触发中断
 #define GPIO_IEV_RISEEDG   			1			//允许上升沿触发中断
-#define GPIO_IEV_RISE_FALL_EDG  2			//允许上升沿、下降沿触发中断
+#define GPIO_IEV_RISE_FALL_EDG      2			//允许上升沿、下降沿触发中断
 
 
 #define	GPIO_CS_CMOS				1	
-#define GPIO_CS_SCHMITT			0		/* 0：Schmitt input buffer */
+#define GPIO_CS_SCHMITT			    0		/* 0：Schmitt input buffer */
 
 #define	GPIO_DR_HIGH				0		/* 0：高驱动能力 */
 #define	GPIO_DR_LOW					1				

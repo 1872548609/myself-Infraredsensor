@@ -56,9 +56,14 @@ void uart0_rec_pro(void)
  ************************************************************************/
 void uart_init(void)
 {
-	rx_flag = 0;
-	uart0_init(UART0_BAUD_RATE);
-  uart0_irq_init(UART0_IRQ_ENABLE,uart0_rec_pro);
+    rx_flag = 0;
+    uart0_init(UART0_BAUD_RATE);
+
+    /*
+     * 工业轮询版不启用 UART 接收中断。
+     * printfS 调试发送仍然可以用。
+     */
+    /* uart0_irq_init(UART0_IRQ_ENABLE, uart0_rec_pro); */
 }
 
  /************************************************************************
