@@ -1,23 +1,23 @@
 /***********************************************************************
- * ÎÄ¼þÃû³Æ£ºmain.c£¨È«ÎÄ×¢ÊÍ°æ£©
- * ¹¤³ÌÓÃÍ¾£ººìÍâ¶ÔÉä´«¸ÐÆ÷½ÓÊÕ¶Ë
- * Ð¾Æ¬Æ½Ì¨£ºUM800Y / UM8004
- * Ö÷ÆµÅäÖÃ£º24MHz
+ * æ–‡ä»¶åç§°ï¼šmain.c
+ * å·¥ç¨‹ç”¨é€”ï¼šçº¢å¤–å¯¹å°„ä¼ æ„Ÿå™¨æŽ¥æ”¶ç«¯
+ * èŠ¯ç‰‡å¹³å°ï¼šUM800Y / UM8004
+ * ä¸»é¢‘é…ç½®ï¼š24MHz
  *
- * ÐÅºÅÌõ¼þ£º
- * 1. ·¢Éä¶ËºìÍâÐÅºÅÖÜÆÚÔ¼ 1ms¡£
- * 2. ÓÐÐ§Âö³å¿í¶ÈÔ¼ 25us£¬Õ¼¿Õ±ÈÔ¼ 2.5%¡£
+ * ä¿¡å·æ¡ä»¶ï¼š
+ * 1. å‘å°„ç«¯çº¢å¤–ä¿¡å·å‘¨æœŸçº¦ 1msã€‚
+ * 2. æœ‰æ•ˆè„‰å†²å®½åº¦çº¦ 25usï¼Œå ç©ºæ¯”çº¦ 2.5%ã€‚
  *
- * ½ÓÊÕ²ßÂÔ£º
- * 1. ÉÏµçÏÈ¸ßËÙËÑË÷ÓÐÐ§Âö³å¡£
- * 2. ÕÒµ½¶à¸öÁ¬Ðø¼ä¸ôÔ¼ 1ms µÄºÏ¸ñÂö³åºó£¬½øÈëÍ¬²½¸ú×Ù¡£
- * 3. Í¬²½ºóÃ¿ 1ms ÔÚÔ¤¼ÆÂö³å¸½½ü´ò¿ªÒ»¸öÔ¼ 200us µÄ²ÉÑù´°¿Ú¡£
- * 4. ´°¿ÚÄÚ¸ßËÙ¶ÁÈ¡ ADC£¬È¡·åÖµ¡£
- * 5. ÓÃ ·åÖµ - »ùÏß µÃµ½ÕæÊµÂö³å·ù¶È£¬±ÜÃâ»·¾³¹â/Æ«ÖÃÓ°Ïì¡£
- * 6. Á¬Ðø¶à¸öÓÐÐ§Âö³åÈ·ÈÏÓÐ¹â£¬²¢¶ÔËÑË÷½×¶ÎÂö³å¿í¶È/ÖÜÆÚ×öÐ£Ñé£¬¼õÉÙÎó´¥·¢¡£
+ * æŽ¥æ”¶ç­–ç•¥ï¼š
+ * 1. ä¸Šç”µå…ˆé«˜é€Ÿæœç´¢æœ‰æ•ˆè„‰å†²ã€‚
+ * 2. æ‰¾åˆ°ä¸¤ä¸ªé—´éš”çº¦ 1ms çš„è„‰å†²åŽï¼Œè¿›å…¥åŒæ­¥è·Ÿè¸ªã€‚
+ * 3. åŒæ­¥åŽæ¯ 1ms æ‰“å¼€ä¸€ä¸ªçº¦ 100us çš„é‡‡æ ·çª—å£ã€‚
+ * 4. çª—å£å†…é«˜é€Ÿè¯»å– ADCï¼Œå–å³°å€¼ã€‚
+ * 5. ç”¨ å³°å€¼ - åŸºçº¿ å¾—åˆ°çœŸå®žè„‰å†²å¹…åº¦ï¼Œé¿å…çŽ¯å¢ƒå…‰/åç½®å½±å“ã€‚
+ * 6. è¿žç»­ 2 ä¸ªæœ‰æ•ˆè„‰å†²ç¡®è®¤æœ‰å…‰ï¼Œè¿žç»­ 3 ä¸ªæ— æ•ˆçª—å£ç¡®è®¤é®å…‰ã€‚
  *
- * Ö±½ÓÊ¹ÓÃ·½·¨£º
- * °Ñ±¾ÎÄ¼þÕûÌåÌæ»»¾É¹¤³Ì Example/gpio/demo/source/main.c¡£
+ * ç›´æŽ¥ä½¿ç”¨æ–¹æ³•ï¼š
+ * æŠŠæœ¬æ–‡ä»¶æ•´ä½“æ›¿æ¢æ—§å·¥ç¨‹ Example/gpio/demo/source/main.cã€‚
  ***********************************************************************/
 
 #include "system_um800y.h"
@@ -30,33 +30,33 @@
 #include "adc.h"
 
 /*======================================================================
- * Ò»¡¢ADC Í¨µÀÓ³Éä
+ * ä¸€ã€ADC é€šé“æ˜ å°„
  *====================================================================*/
 
 /*
- * ½ÓÊÕÐÅºÅ ADC Í¨µÀ¡£
- * ¾É°æ½ÓÊÕ°å£ºP1.5 / U3-1 Îª LM358 Êä³ö£¬¾É¹¤³ÌÖÐ°´ ADC_CHANNEL_1 Ê¹ÓÃ¡£
- * Èç¹ûÉÕÂ¼ºó·¢ÏÖ½ÓÊÕ ADC ²»±ä£¬¶øµçÎ»Æ÷»áÓ°Ïì½ÓÊÕÖµ£¬ÇëºÍ IR_ADJ_ADC_CHANNEL ¶Ôµ÷¡£
+ * æŽ¥æ”¶ä¿¡å· ADC é€šé“ã€‚
+ * æ—§ç‰ˆæŽ¥æ”¶æ¿ï¼šP1.5 / U3-1 ä¸º LM358 è¾“å‡ºï¼Œæ—§å·¥ç¨‹ä¸­æŒ‰ ADC_CHANNEL_1 ä½¿ç”¨ã€‚
+ * å¦‚æžœçƒ§å½•åŽå‘çŽ°æŽ¥æ”¶ ADC ä¸å˜ï¼Œè€Œç”µä½å™¨ä¼šå½±å“æŽ¥æ”¶å€¼ï¼Œè¯·å’Œ IR_ADJ_ADC_CHANNEL å¯¹è°ƒã€‚
  */
 #define IR_SIGNAL_ADC_CHANNEL       ADC_CHANNEL_1
 
 /*
- * µçÎ»Æ÷ ADJ ADC Í¨µÀ¡£
- * Ô­ÀíÍ¼ÖÐ ADJ ÒÑÒÆ¶¯µ½ P2.0£»UM800Y ÖÐ P2.0 ¸´ÓÃ AIN2¡£
+ * ç”µä½å™¨ ADJ ADC é€šé“ã€‚
+ * åŽŸç†å›¾ä¸­ ADJ å·²ç§»åŠ¨åˆ° P2.0ï¼›UM800Y ä¸­ P2.0 å¤ç”¨ AIN2ã€‚
  */
 #define IR_ADJ_ADC_CHANNEL          ADC_CHANNEL_2
 
 /*======================================================================
- * ¶þ¡¢GPIO Òý½ÅÓ³Éä
+ * äºŒã€GPIO å¼•è„šæ˜ å°„
  *====================================================================*/
 
-#define IR_OUT_NO_PIN               P1_0    /* NO ³£¿ªÊä³ö */
-#define IR_OUT_NC_PIN               P1_2    /* NC ³£±ÕÊä³ö */
-#define IR_LED_PIN                  P1_3    /* ºìÉ«Ö¸Ê¾µÆ */
-#define IR_DEBUG_WINDOW_PIN         P2_7    /* µ÷ÊÔ½Å£º´°¿Ú´ò¿ªÊ±·­×ª£¬ÓÃÊ¾²¨Æ÷¿´¶ÔÆë */
+#define IR_OUT_NO_PIN               P1_0    /* NO å¸¸å¼€è¾“å‡º */
+#define IR_OUT_NC_PIN               P1_2    /* NC å¸¸é—­è¾“å‡º */
+#define IR_LED_PIN                  P1_3    /* çº¢è‰²æŒ‡ç¤ºç¯ */
+#define IR_DEBUG_WINDOW_PIN         P2_7    /* è°ƒè¯•è„šï¼šçª—å£æ‰“å¼€æ—¶ç¿»è½¬ï¼Œç”¨ç¤ºæ³¢å™¨çœ‹å¯¹é½ */
 
 /*======================================================================
- * Èý¡¢Êä³ö¼«ÐÔÅäÖÃ
+ * ä¸‰ã€è¾“å‡ºæžæ€§é…ç½®
  *====================================================================*/
 
 #define OUT_ACTIVE_LEVEL            GPIO_HIGH
@@ -66,84 +66,79 @@
 #define LED_INACTIVE_LEVEL          GPIO_LOW
 
 /*
- * SENSOR_DARK_ON = 0£ºÁÁÍ¨£¬ÊÕµ½¹âÊ±Êä³ö¶¯×÷¡£
- * SENSOR_DARK_ON = 1£º°µÍ¨£¬ÕÚ¹âÊ±Êä³ö¶¯×÷¡£
+ * SENSOR_DARK_ON = 0ï¼šäº®é€šï¼Œæ”¶åˆ°å…‰æ—¶è¾“å‡ºåŠ¨ä½œã€‚
+ * SENSOR_DARK_ON = 1ï¼šæš—é€šï¼Œé®å…‰æ—¶è¾“å‡ºåŠ¨ä½œã€‚
  */
 #define SENSOR_DARK_ON              0U
 
 /*
- * RX_SIGNAL_ACTIVE_HIGH = 1£ºADC ±ä´ó±íÊ¾ÊÕµ½ºìÍâÂö³å¡£
- * RX_SIGNAL_ACTIVE_HIGH = 0£ºADC ±äÐ¡±íÊ¾ÊÕµ½ºìÍâÂö³å¡£
+ * RX_SIGNAL_ACTIVE_HIGH = 1ï¼šADC å˜å¤§è¡¨ç¤ºæ”¶åˆ°çº¢å¤–è„‰å†²ã€‚
+ * RX_SIGNAL_ACTIVE_HIGH = 0ï¼šADC å˜å°è¡¨ç¤ºæ”¶åˆ°çº¢å¤–è„‰å†²ã€‚
  */
 #define RX_SIGNAL_ACTIVE_HIGH       1U
 
 /*======================================================================
- * ËÄ¡¢1ms/25us Âö³åÍ¬²½²ÉÑù²ÎÊý
+ * å››ã€1ms/25us è„‰å†²åŒæ­¥é‡‡æ ·å‚æ•°
  *====================================================================*/
 
 #define IR_PERIOD_US                1000U
 #define IR_PULSE_WIDTH_US           25U
 
-/* ËÑË÷½×¶Î£ºÁ½¸öÂö³å¼ä¸ôÔÚÕâ¸ö·¶Î§ÄÚ£¬ÈÏÎªÊÇÍ¬Ò»¸ö 1ms ÐÅºÅÔ´¡£ */
+/* æœç´¢é˜¶æ®µï¼šä¸¤ä¸ªè„‰å†²é—´éš”åœ¨è¿™ä¸ªèŒƒå›´å†…ï¼Œè®¤ä¸ºæ˜¯åŒä¸€ä¸ª 1ms ä¿¡å·æºã€‚ */
 #define IR_SEARCH_PERIOD_MIN_US     850U
 #define IR_SEARCH_PERIOD_MAX_US     1150U
 
-/* ËÑË÷½×¶ÎÂö³å¿í¶ÈÐ£Ñé£º25us Âö³åÔÊÐíÒ»¶¨Îó²î£¬¹ýÕ­¶à°ëÊÇÃ«´Ì£¬¹ý¿í¶à°ëÊÇ»·¾³¸ÉÈÅ/±¥ºÍ¡£ */
-#define IR_SEARCH_PULSE_MIN_US      6U
-#define IR_SEARCH_PULSE_MAX_US      90U
-
-/* ¸ú×Ù½×¶Î£ºÔ¤¼ÆÂö³åÖÐÐÄÇ° 80us µ½ºó 120us ¿ª´°£¬×Ü´°¿Ú 200us¡£ */
-#define IR_WINDOW_PRE_US            80U
-#define IR_WINDOW_POST_US           120U
+/* è·Ÿè¸ªé˜¶æ®µï¼šé¢„è®¡è„‰å†²ä¸­å¿ƒå‰ 40us åˆ°åŽ 60us å¼€çª—ï¼Œæ€»çª—å£ 100usã€‚ */
+#define IR_WINDOW_PRE_US            40U
+#define IR_WINDOW_POST_US           60U
 #define IR_WINDOW_WIDTH_US          (IR_WINDOW_PRE_US + IR_WINDOW_POST_US)
 
-/* ÏìÓ¦ËÙ¶È£ºÔ¼ 4ms È·ÈÏÓÐ¹â£¬Ô¼ 10ms È·ÈÏÕÚ¹â£¬Á¬ÐøÂ©²ÉÏÈÖØËÑ²»Á¢¿ÌÉÁ¶Ï¡£ */
-#define IR_LIGHT_ON_CONFIRM_COUNT   4U
-#define IR_LIGHT_OFF_MISS_COUNT     10U     /* ÕæÕÚ¹âÈ·ÈÏ£ºÔ¼ 10ms£¬Ô¼ 100Hz£¬¿¹Â©²É¸üÇ¿ */
-#define IR_RELOCK_MISS_COUNT        3U      /* Á¬Ðø 3 ¸ö´°¿ÚÎ´ÃüÖÐ£¬ÏÈ»ØËÑË÷£¬µ«²»Á¢¿Ì¹ØÊä³ö */
-#define IR_LOST_SYNC_MISS_COUNT     20U     /* ½öÓÃÓÚµ÷ÊÔÍ³¼Æ£¬²»ÔÙÖ±½Ó¾ö¶¨Êä³öÉÁ¶Ï */
-#define IR_SEARCH_LOCK_COUNT        4U      /* ËÑË÷½×¶Î±ØÐëÁ¬Ðø 4 ¸ö 1ms ÖÜÆÚÕýÈ·£¬²ÅÔÊÐí½øÈë¸ú×Ù */
+/* å“åº”é€Ÿåº¦ï¼š2ms ç¡®è®¤æœ‰å…‰ï¼Œ3ms ç¡®è®¤é®å…‰ï¼Œ8ms ä¸¢åŒæ­¥é‡æœã€‚ */
+#define IR_LIGHT_ON_CONFIRM_COUNT   2U
+#define IR_LIGHT_OFF_MISS_COUNT     3U
+#define IR_LOST_SYNC_MISS_COUNT     8U
+#define IR_SEARCH_LOCK_COUNT        2U
 
-/* µ¥ÖÜÆÚ×î´óÏàÎ»ÐÞÕý£¬·ÀÖ¹±»ÔëÉùÍÏÅÜ¡£ */
-#define IR_PHASE_ADJUST_LIMIT_US    12
+/* å•å‘¨æœŸæœ€å¤§ç›¸ä½ä¿®æ­£ï¼Œé˜²æ­¢è¢«å™ªå£°æ‹–è·‘ã€‚ */
+#define IR_PHASE_ADJUST_LIMIT_US    5
 
 /*======================================================================
- * Îå¡¢ãÐÖµ/ÂË²¨²ÎÊý
+ * äº”ã€é˜ˆå€¼/æ»¤æ³¢å‚æ•°
  *====================================================================*/
 
 #define ADC_MAX_VALUE               4095U
 
 /*
- * ×¢Òâ£ºÕâÀïµÄãÐÖµÊÇ¡°Âö³å·ù¶ÈãÐÖµ¡±£¬²»ÊÇÔ­Ê¼ ADC ¾ø¶ÔÖµ¡£
- * ÒòÎª³ÌÐò»áÏÈ×ö amp = peak - baseline¡£
+ * æ³¨æ„ï¼šè¿™é‡Œçš„é˜ˆå€¼æ˜¯â€œè„‰å†²å¹…åº¦é˜ˆå€¼â€ï¼Œä¸æ˜¯åŽŸå§‹ ADC ç»å¯¹å€¼ã€‚
+ * å› ä¸ºç¨‹åºä¼šå…ˆåš amp = peak - baselineã€‚
  *
- * ¾àÀë²»¹»£º½µµÍ IR_TH_MIN_ADC / IR_TH_MAX_ADC¡£
- * Îó´¥·¢¶à£ºÉý¸ß IR_TH_MIN_ADC / IR_TH_MAX_ADC¡£
+ * è·ç¦»ä¸å¤Ÿï¼šé™ä½Ž IR_TH_MIN_ADC / IR_TH_MAX_ADCã€‚
+ * è¯¯è§¦å‘å¤šï¼šå‡é«˜ IR_TH_MIN_ADC / IR_TH_MAX_ADCã€‚
  */
-#define IR_TH_MIN_ADC               120U
+#define IR_TH_MIN_ADC               80U
 #define IR_TH_MAX_ADC               1800U
-#define IR_TH_DEFAULT_ADC           700U
-#define IR_TH_HYS_MIN_ADC           80U
+#define IR_TH_DEFAULT_ADC           600U
+#define IR_TH_HYS_MIN_ADC           40U
 
-#define IR_BASELINE_SHIFT           5U      /* »ùÏßÂýËÙ¸úËæ£º1/32 */
-#define IR_FAST_FILTER_SHIFT        1U      /* Êä³ö¿ìËÙ·ù¶ÈÂË²¨£º1/2 */
-#define IR_DISPLAY_FILTER_SHIFT     3U      /* ÏÔÊ¾ÂýËÙ·ù¶ÈÂË²¨£º1/8 */
-#define IR_ADJ_FILTER_SHIFT         3U      /* µçÎ»Æ÷ãÐÖµÂË²¨£º1/8 */
-#define IR_ADJ_UPDATE_US            10000U  /* 10ms ¸üÐÂÒ»´ÎµçÎ»Æ÷ */
+#define IR_BASELINE_SHIFT           5U      /* åŸºçº¿æ…¢é€Ÿè·Ÿéšï¼š1/32 */
+#define IR_FAST_FILTER_SHIFT        1U      /* è¾“å‡ºå¿«é€Ÿå¹…åº¦æ»¤æ³¢ï¼š1/2 */
+#define IR_DISPLAY_FILTER_SHIFT     3U      /* æ˜¾ç¤ºæ…¢é€Ÿå¹…åº¦æ»¤æ³¢ï¼š1/8 */
+#define IR_ADJ_FILTER_SHIFT         3U      /* ç”µä½å™¨é˜ˆå€¼æ»¤æ³¢ï¼š1/8 */
+#define IR_ADJ_UPDATE_US            10000U  /* 10ms æ›´æ–°ä¸€æ¬¡ç”µä½å™¨ */
 
 /*======================================================================
- * Áù¡¢Timer0 1us ×ÔÓÉÔËÐÐÅäÖÃ
+ * å…­ã€Timer0 1us è‡ªç”±è¿è¡Œé…ç½®
  *====================================================================*/
 
 /*
- * 24MHz / (23 + 1) = 1MHz£¬ËùÒÔ Timer0 Ã¿ 1us ¼Ó 1¡£
- * ×Ô¶¯ÖØ×° 0xFFFF£¬×ÔÈ» 65.536ms »ØÈÆ£»±¾³ÌÐòËùÓÐÊ±¼ä²î¶¼°´ uint16_t »ØÈÆ¼ÆËã¡£
+ * 24MHz / (23 + 1) = 1MHzï¼Œæ‰€ä»¥ Timer0 æ¯ 1us åŠ  1ã€‚
+ * è‡ªåŠ¨é‡è£… 0xFFFFï¼Œè‡ªç„¶ 65.536ms å›žç»•ï¼›æœ¬ç¨‹åºæ‰€æœ‰æ—¶é—´å·®éƒ½æŒ‰ uint16_t å›žç»•è®¡ç®—ã€‚
  */
 #define IR_TIMER0_1US_RELOAD        0xFFFFU
 #define IR_TIMER0_1US_PRESCALER     23U
 
 /*======================================================================
- * Æß¡¢×´Ì¬¶¨ÒåºÍµ÷ÊÔ±äÁ¿
+ * ä¸ƒã€çŠ¶æ€å®šä¹‰å’Œè°ƒè¯•å˜é‡
  *====================================================================*/
 
 typedef enum
@@ -154,24 +149,7 @@ typedef enum
 
 static volatile ir_state_t g_ir_state = IR_STATE_SEARCH;
 
-/* ÕâÐ©±äÁ¿½¨Òé±£Áô£¬·½±ã Keil ·ÂÕæ/´®¿Úµ÷ÊÔ¹Û²ì¡£ */
-/*
- * µ÷ÊÔ±äÁ¿ËµÃ÷£º
- * g_ir_light_ok          µ±Ç°ÄÚ²¿ÅÐ¶¨ÊÇ·ñÓÐ¹â£¬1=ÓÐ¹â£¬0=ÎÞ¹â¡£
- * g_ir_synced            µ±Ç°ÊÇ·ñÒÑ¾­Ëø¶¨ 1ms Âö³åÍ¬²½¡£
- * g_ir_output_state      ×îÖÕÊä³öÊÇ·ñ¶¯×÷£¬ÊÜÁÁÍ¨/°µÍ¨Ó°Ïì¡£
- * g_ir_adc_signal        ×î½üÒ»´Î¶ÁÈ¡µÄ½ÓÊÕ ADC Ô­Ê¼Öµ¡£
- * g_ir_adc_adj           ×î½üÒ»´Î¶ÁÈ¡µÄ ADJ µçÎ»Æ÷ ADC Ô­Ê¼Öµ¡£
- * g_ir_threshold_on      ÓÐ¹âÈ·ÈÏ¸ßãÐÖµ¡£
- * g_ir_threshold_off     ÓÐ¹â±£³ÖµÍãÐÖµ£¬Ò²¾ÍÊÇ»Ø²îºóµÄãÐÖµ¡£
- * g_ir_baseline          µ±Ç°½ÓÊÕÍ¨µÀ±³¾°»ùÏß¡£
- * g_ir_peak              ×î½üÒ»¸ö´°¿ÚÄÚµÄ·åÖµ¡£
- * g_ir_amp               ×î½üÒ»´Î´°¿ÚµÄË²Ê±·ù¶È£¬¼´ peak-baseline¡£
- * g_ir_amp_fast          ¿ìËÙÂË²¨·ù¶È£¬±ãÓÚ¹Û²ìÊä³öÏìÓ¦Ç÷ÊÆ¡£
- * g_ir_amp_display       ÂýËÙÂË²¨·ù¶È£¬ºóÐø¿ÉÓÃÓÚÏÔÊ¾¾àÀë/¹âÇ¿¡£
- * g_ir_next_center_us    ÏÂÒ»´ÎÔ¤¼ÆÂö³åÖÐÐÄÊ±¼ä¡£
- * g_ir_last_light_seen_us×îºóÒ»´ÎÈ·ÈÏ¿´µ½ÓÐÐ§ºìÍâµÄÊ±¼ä¡£
- */
+/* è¿™äº›å˜é‡å»ºè®®ä¿ç•™ï¼Œæ–¹ä¾¿ Keil ä»¿çœŸ/ä¸²å£è°ƒè¯•è§‚å¯Ÿã€‚ */
 static volatile uint8_t  g_ir_light_ok = 0;
 static volatile uint8_t  g_ir_synced = 0;
 static volatile uint8_t  g_ir_output_state = 0;
@@ -185,7 +163,6 @@ static volatile uint16_t g_ir_amp = 0;
 static volatile uint16_t g_ir_amp_fast = 0;
 static volatile uint16_t g_ir_amp_display = 0;
 static volatile uint16_t g_ir_next_center_us = 0;
-static volatile uint16_t g_ir_last_light_seen_us = 0;
 
 static uint8_t  g_ir_good_count = 0;
 static uint8_t  g_ir_miss_count = 0;
@@ -202,190 +179,41 @@ static uint32_t g_ir_threshold_filter = ((uint32_t)IR_TH_DEFAULT_ADC << IR_ADJ_F
 static uint8_t  g_ir_threshold_init = 0;
 
 /*======================================================================
- * °Ë¡¢º¯ÊýÉùÃ÷
+ * å…«ã€å‡½æ•°å£°æ˜Ž
  *====================================================================*/
 
-/*
- * GPIO_Init()£º
- * ÅäÖÃ½ÓÊÕ¶ËÓÃµ½µÄËùÓÐÒý½Å¡£
- * P1.0£ºNO ³£¿ªÊä³ö¡£
- * P1.2£ºNC ³£±ÕÊä³ö¡£
- * P1.3£ººìÉ«Ö¸Ê¾µÆ¡£
- * P2.7£ºÊ¾²¨Æ÷µ÷ÊÔ´°¿Ú½Å¡£
- * P1.5/P2.0£ºÏÈ»Ö¸´Ä¬ÈÏÅäÖÃ£¬Ö®ºóÓÉ ADC ³õÊ¼»¯ÇÐµ½Ä£ÄâÊäÈë¡£
- */
 void GPIO_Init(void);
-/*
- * ADC_Init()£º
- * ÅäÖÃ ADC Ê±ÖÓ¡¢²Î¿¼µçÑ¹¡¢²ÉÑùÊ±¼äºÍÍ¨µÀ¡£
- * ²ÉÑùÊ±¼äÉèÖÃ½Ï¶Ì£¬ÊÇÎªÁËÔÚ 200us ´°¿ÚÄÚ¾¡Á¿¶à²ÉÑù£¬
- * ´Ó¶ø¸üÈÝÒ××¥µ½ 25us µÄÕ­Âö³å·åÖµ¡£
- */
 void ADC_Init(void);
 
-/*
- * timer0_init_1us_free_run()£º
- * °Ñ Timer0 ÅäÖÃÎª 1us ×ÔÓÉÔËÐÐ¼ÆÊýÆ÷¡£
- * ±¾³ÌÐò²»ÒÀÀµ Timer0 ÖÐ¶Ï£¬Ö»·´¸´¶ÁÈ¡¼ÆÊýÖµ×÷ÎªÊ±¼ä´Á¡£
- * uint16_t ¼ÆÊý»áÔÚ 65.536ms »ØÈÆ£¬³ÌÐòÖÐµÄ time_sub_u16() »á´¦Àí»ØÈÆ¡£
- */
 static void timer0_init_1us_free_run(void);
-/*
- * time_us16()£º
- * °²È«¶ÁÈ¡ Timer0 µÄ 16 Î»¼ÆÊýÖµ¡£
- * ÓÉÓÚ¸ß/µÍ×Ö½Ú·Ö¿ª¶ÁÈ¡£¬ËùÒÔ²ÉÓÃ¡°¸ß-µÍ-¸ß¡±·½Ê½£¬
- * Á½´Î¸ß×Ö½ÚÒ»ÖÂ²ÅÈÏÎª¶ÁÈ¡ÎÈ¶¨£¬±ÜÃâµÍ×Ö½ÚÒç³öÊ±¶Á´í¡£
- */
 static uint16_t time_us16(void);
-/*
- * time_after_eq_u16()£º
- * ÅÐ¶Ï now ÊÇ·ñÒÑ¾­µ½´ï»ò³¬¹ý target¡£
- * ÓÃ int16_t ²îÖµ±È½Ï£¬¿ÉÒÔ¼æÈÝ uint16_t Ê±¼ä»ØÈÆ¡£
- */
 static uint8_t time_after_eq_u16(uint16_t now, uint16_t target);
-/*
- * time_sub_u16()£º
- * ¼ÆËãÁ½¸ö 16 Î»Ê±¼ä´ÁµÄ²îÖµ¡£
- * ÀûÓÃÎÞ·ûºÅÕûÊý×ÔÈ»»ØÈÆ£¬Ö»ÒªÊ±¼ä²îÐ¡ÓÚ 32768us~65535us Á¿¼¶£¬
- * ¶Ô±¾³ÌÐò 1ms/10ms µÄÅÐ¶ÏÊÇ°²È«µÄ¡£
- */
 static uint16_t time_sub_u16(uint16_t a, uint16_t b);
 
-/*
- * adc_read_once()£º
- * ¶ÔÖ¸¶¨ ADC Í¨µÀ×öÒ»´Î×èÈûÊ½²ÉÑù¡£
- * ×èÈûµÈ´ý×ª»»Íê³É£¬·µ»Ø 0~4095 µÄ 12 Î» ADC Öµ¡£
- * ÓÉÓÚÂö³åºÜÕ­£¬±¾º¯ÊýÒª¾¡Á¿¶Ì£¬²»½¨ÒéÔÚÀïÃæ¼ÓÈëÂË²¨»ò´òÓ¡¡£
- */
 static uint16_t adc_read_once(uint8_t ch);
-/*
- * ir_detector_init()£º
- * ³õÊ¼»¯ºìÍâ¼ì²â×´Ì¬»úºÍËùÓÐÔËÐÐ±äÁ¿¡£
- * ÉÏµçÊ±²»ÖªµÀ·¢ÉäÂö³åÏàÎ»£¬ËùÒÔÄ¬ÈÏ½øÈë SEARCH¡£
- * ³õÊ¼ baseline ÓÃµ±Ç° ADC Öµ£¬ºóÐøÔÚ·ÇÂö³åÇøÂýËÙ¸úËæ¡£
- */
 static void ir_detector_init(void);
-/*
- * ir_detector_poll()£º
- * ½ÓÊÕËã·¨µÄÖ÷ÂÖÑ¯º¯Êý¡£
- * Ã¿´Îµ÷ÓÃ¶¼ÏÈ¸ù¾Ý ADJ µçÎ»Æ÷¸üÐÂãÐÖµ£¬
- * È»ºó¸ù¾Ýµ±Ç°×´Ì¬Ö´ÐÐ¡°ËÑË÷¡±»ò¡°¸ú×Ù¡±¡£
- * ×îºóÓÃ last_light_seen ³¬Ê±ÅÐ¶ÏÕæÕýÕÚ¹â¡£
- */
 static void ir_detector_poll(void);
-/*
- * ir_set_search()£º
- * ÖØÐÂ»Øµ½ËÑË÷×´Ì¬¡£
- * ×¢Òâ£ºÕâÀï²»Ö±½Ó¹Ø±ÕÊä³ö¡£
- * ÒòÎªÁ¬ÐøÂ©²É¿ÉÄÜÖ»ÊÇ´°¿ÚÆ¯ÒÆ£¬²»Ò»¶¨ÊÇÕæÕÚ¹â£¬
- * ÕæÕý¹Ø±ÕÊä³öÓÉ ir_detector_poll() ÖÐµÄ³¬Ê±Âß¼­¾ö¶¨¡£
- */
 static void ir_set_search(void);
-/*
- * ir_search_sample()£º
- * ËÑË÷Í¬²½½×¶Î¡£
- * Âß¼­ÊÇÁ¬Ðø¸ßËÙ¶Á ADC£¬Ñ°ÕÒ³¬¹ýãÐÖµµÄÒÉËÆÂö³å£»
- * Âö³å½áÊøºó¼ì²é¿í¶ÈÊÇ·ñÏñ 25us Âö³å£»
- * ÔÙ¼ì²éÁ¬ÐøÂö³å¼ä¸ôÊÇ·ñÔ¼ 1ms£»
- * Á¬Ðø¶à¸öÖÜÆÚ¶¼ÕýÈ·ºó£¬²Å½øÈë TRACKING¡£
- */
 static void ir_search_sample(void);
-/*
- * ir_tracking_process()£º
- * Í¬²½¸ú×Ù½×¶Î¡£
- * ¸ù¾Ý g_ir_next_center_us ¼ÆËã´°¿ÚÆðµãºÍÖÕµã£»
- * ´°¿ÚÍâÖ»¸üÐÂ baseline£»´°¿ÚÄÚÀ­¸ß P2.7 ²¢¸ßËÙ²ÉÑù£»
- * ´°¿Ú½áÊøºó°Ñ´°¿Ú·åÖµ½»¸ø ir_process_frame()¡£
- */
 static void ir_tracking_process(void);
-/*
- * ir_process_frame()£º
- * ¶ÔÒ»¸ö 1ms ÖÜÆÚµÄ´°¿Ú½á¹û×öÅÐ¶Ï¡£
- * ÊäÈë peak ÊÇ´°¿Ú×îÇ¿Öµ£¬peak_us ÊÇ·åÖµ³öÏÖÊ±¼ä£¬expected_center_us ÊÇÔ¤¼ÆÖÐÐÄ¡£
- * º¯ÊýÍê³É£º·ù¶È¼ÆËã¡¢ÓÐÐ§/ÎÞÐ§ÅÐ¶Ï¡¢Á¬Ðø¼ÆÊý¡¢Êä³ö¸üÐÂ¡¢ÏàÎ»Î¢µ÷¡£
- */
 static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_center_us);
 
-/*
- * ir_abs_amp()£º
- * ¸ù¾Ý½ÓÊÕÐÅºÅ¼«ÐÔ£¬¼ÆËã sample Ïà¶Ô baseline µÄÓÐÐ§·ù¶È¡£
- * ÕýÂö³å£ºsample - baseline¡£
- * ¸ºÂö³å£ºbaseline - sample¡£
- */
 static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline);
-/*
- * ir_sample_stronger()£º
- * ÅÐ¶Ïµ±Ç° sample ÊÇ·ñ±È´°¿ÚÄÚÒÑÓÐ best ¸ü¡°Ç¿¡±¡£
- * ÕýÂö³åÕÒ×î´ó ADC£¬¸ºÂö³åÕÒ×îÐ¡ ADC¡£
- */
 static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best);
-/*
- * ir_best_init_value()£º
- * ·µ»Ø´°¿Ú·åÖµËÑË÷µÄ³õÊ¼Öµ¡£
- * ÕýÂö³å´Ó 0 ¿ªÊ¼ÕÒ×î´óÖµ£»¸ºÂö³å´Ó 0xFFFF ¿ªÊ¼ÕÒ×îÐ¡Öµ¡£
- */
 static uint16_t ir_best_init_value(void);
-/*
- * ir_iir_u16()£º
- * ÎÞ·ûºÅ 16 Î»Ò»½× IIR ÂË²¨¡£
- * shift=1 ±íÊ¾Ã¿´Î±ä»¯ 1/2£¬shift=3 ±íÊ¾Ã¿´Î±ä»¯ 1/8¡£
- * ÓÃÒÆÎ»ÊµÏÖ£¬±ÜÃâ 8051 ÉÏÊ¹ÓÃ¸¡µã¡£
- */
 static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift);
-/*
- * ir_limit_i16()£º
- * int16_t ÏÞ·ùº¯Êý¡£
- * ÕâÀïÖ÷ÒªÓÃÓÚÏÞÖÆÃ¿¸öÖÜÆÚµÄÏàÎ»ÐÞÕýÁ¿£¬·ÀÖ¹ÔëÉù°Ñ´°¿ÚÀ­Æ«¡£
- */
 static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v);
-/*
- * ir_update_baseline()£º
- * ¸üÐÂ±³¾°»ùÏß¡£
- * Ö»ÓÐµ±Ç°·ù¶ÈµÍÓÚ threshold_off£¬ËµÃ÷´ó¸ÅÂÊ²»ÊÇºìÍâÂö³å£¬
- * ²ÅÔÊÐí baseline ÂýËÙ¸úËæ sample£¬±ÜÃâ°ÑÂö³å·åÖµ³Ô½ø»ùÏß¡£
- */
 static void ir_update_baseline(uint16_t sample);
-/*
- * ir_update_threshold_from_adj()£º
- * ÖÜÆÚÐÔ¶ÁÈ¡ ADJ µçÎ»Æ÷£¬²¢Ó³Éä³É¼ì²âãÐÖµ¡£
- * ¸üÐÂÖÜÆÚÊÇ 10ms£¬²»»áÃ¿´ÎÑ­»·¶¼¶Á ADJ£¬±ÜÃâ¸ÉÈÅ½ÓÊÕ²ÉÑù¡£
- * ãÐÖµ±¾ÉíÒ²×ö IIR Æ½»¬£¬·ÀÖ¹µçÎ»Æ÷¶¶¶¯µ¼ÖÂÊä³ö¶¶¶¯¡£
- */
 static void ir_update_threshold_from_adj(void);
-/*
- * threshold_map_from_adj()£º
- * °ÑµçÎ»Æ÷ ADC 0~4095 ÏßÐÔÓ³Éäµ½ IR_TH_MIN_ADC~IR_TH_MAX_ADC¡£
- * Õâ¸öãÐÖµ´ú±í¡°ºìÍâÂö³å·ù¶È¡±ãÐÖµ£¬²»ÊÇ ADC Ô­Ê¼µçÑ¹ãÐÖµ¡£
- */
 static uint16_t threshold_map_from_adj(uint16_t adj);
 
-/*
- * output_apply()£º
- * ¸ù¾Ý light_ok ºÍ SENSOR_DARK_ON ¼ÆËã×îÖÕÊä³ö×´Ì¬¡£
- * ÁÁÍ¨£ºÓÐ¹âÊ±Êä³ö¶¯×÷¡£
- * °µÍ¨£ºÎÞ¹âÊ±Êä³ö¶¯×÷¡£
- * NO ºÍ NC Ê¼ÖÕ»¥²¹£¬LED °´ light_ok Ö¸Ê¾¡£
- */
 static void output_apply(uint8_t light_ok);
-/*
- * debug_window_pin()£º
- * ¿ØÖÆ P2.7 µ÷ÊÔ´°¿Ú½Å¡£
- * ´°¿Ú²ÉÑùÆÚ¼äÀ­¸ß£¬´°¿Ú½áÊøÀ­µÍ¡£
- * ÓÃÊ¾²¨Æ÷¹Û²ìËüºÍ½ÓÊÕÄ£ÄâÂö³åµÄÏà¶ÔÎ»ÖÃ£¬¿ÉÒÔÅÐ¶ÏÍ¬²½ÊÇ·ñÎÈ¶¨¡£
- */
 static void debug_window_pin(uint8_t level);
 
 /*======================================================================
- * ¾Å¡¢Ö÷º¯Êý
+ * ä¹ã€ä¸»å‡½æ•°
  *====================================================================*/
 
-/*
- * main() Ö÷Èë¿Ú£º
- * 1. ³õÊ¼»¯ÏµÍ³¡¢GPIO¡¢´®¿Ú¡¢ADC¡¢1us ¶¨Ê±Æ÷¡£
- * 2. ³õÊ¼»¯ºìÍâ¼ì²â×´Ì¬»ú¡£
- * 3. ¹Ø±Õ×ÜÖÐ¶Ï£¬±£Ö¤Ö÷Ñ­»·Á¬ÐøÉ¨Ãè ADC£¬²»±»ÖÐ¶Ï´ò¶Ï¡£
- * 4. while(1) ÖÐÖ»ÔËÐÐ ir_detector_poll()£¬²»Òª²åÈë³¤ÑÓÊ±¡£
- */
 void main(void)
 {
     system_init();
@@ -397,7 +225,7 @@ void main(void)
     timer0_init_1us_free_run();
     ir_detector_init();
 
-    /* È«¾Ö¹Ø±ÕÖÐ¶Ï£º±¾½ÓÊÕ°æ±¾²»ÒÀÀµÖÐ¶Ï£¬±ÜÃâÆäËüÖÐ¶ÏÓ°Ïì 25us Âö³å²¶×½¡£ */
+    /* å…¨å±€å…³é—­ä¸­æ–­ï¼šæœ¬æŽ¥æ”¶ç‰ˆæœ¬ä¸ä¾èµ–ä¸­æ–­ï¼Œé¿å…å…¶å®ƒä¸­æ–­å½±å“ 25us è„‰å†²æ•æ‰ã€‚ */
     EA = 0;
 
     output_apply(0U);
@@ -409,33 +237,33 @@ void main(void)
 }
 
 /*======================================================================
- * Ê®¡¢GPIO ³õÊ¼»¯
+ * åã€GPIO åˆå§‹åŒ–
  *====================================================================*/
 
 void GPIO_Init(void)
 {
-    /* P1.0 -> NO ³£¿ªÊä³ö¡£ */
+    /* P1.0 -> NO å¸¸å¼€è¾“å‡ºã€‚ */
     REG_P10_CFG = 0x00;
     gpio_init(IR_OUT_NO_PIN);
     gpio_dir_set(IR_OUT_NO_PIN, GPIO_DIR_OUT);
     gpio_dr_set(IR_OUT_NO_PIN, GPIO_SR_HIGH);
     gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
 
-    /* P1.2 -> NC ³£±ÕÊä³ö¡£ */
+    /* P1.2 -> NC å¸¸é—­è¾“å‡ºã€‚ */
     REG_P12_CFG = 0x00;
     gpio_init(IR_OUT_NC_PIN);
     gpio_dir_set(IR_OUT_NC_PIN, GPIO_DIR_OUT);
     gpio_dr_set(IR_OUT_NC_PIN, GPIO_SR_HIGH);
     gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
 
-    /* P1.3 -> ºìÉ«Ö¸Ê¾µÆ¡£ */
+    /* P1.3 -> çº¢è‰²æŒ‡ç¤ºç¯ã€‚ */
     REG_P13_CFG = 0x00;
     gpio_init(IR_LED_PIN);
     gpio_dir_set(IR_LED_PIN, GPIO_DIR_OUT);
     gpio_dr_set(IR_LED_PIN, GPIO_SR_HIGH);
     gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
 
-    /* P2.7 -> µ÷ÊÔ½Å£¬´°¿Ú´ò¿ªÊ±ÖÃ 1¡£ */
+    /* P2.7 -> è°ƒè¯•è„šï¼Œçª—å£æ‰“å¼€æ—¶ç½® 1ã€‚ */
 #ifdef REG_P27_CFG
     REG_P27_CFG = 0x00;
 #endif
@@ -444,17 +272,17 @@ void GPIO_Init(void)
     gpio_dr_set(IR_DEBUG_WINDOW_PIN, GPIO_SR_HIGH);
     gpio_io_set(IR_DEBUG_WINDOW_PIN, GPIO_LOW);
 
-    /* P1.5 -> U3-1 ½ÓÊÕÐÅºÅ£¬ºóÃæ adc_io_config() »áÅäÖÃÎª ADC ¹¦ÄÜ¡£ */
+    /* P1.5 -> U3-1 æŽ¥æ”¶ä¿¡å·ï¼ŒåŽé¢ adc_io_config() ä¼šé…ç½®ä¸º ADC åŠŸèƒ½ã€‚ */
     REG_P15_CFG = 0x00;
 
-    /* P2.0 -> ADJ µçÎ»Æ÷£¬ºóÃæ adc_io_config() »áÅäÖÃÎª ADC ¹¦ÄÜ¡£ */
+    /* P2.0 -> ADJ ç”µä½å™¨ï¼ŒåŽé¢ adc_io_config() ä¼šé…ç½®ä¸º ADC åŠŸèƒ½ã€‚ */
 #ifdef REG_P20_CFG
     REG_P20_CFG = 0x00;
 #endif
 }
 
 /*======================================================================
- * Ê®Ò»¡¢ADC ³õÊ¼»¯
+ * åä¸€ã€ADC åˆå§‹åŒ–
  *====================================================================*/
 
 void ADC_Init(void)
@@ -464,7 +292,7 @@ void ADC_Init(void)
                    4,
                    ADC_ENABLE);
 
-    /* ²ÉÑùÊ±¼ä¶ÌÒ»Ð©£¬·½±ã´°¿ÚÄÚ¾¡Á¿¶à²ÉÑù¡£ */
+    /* é‡‡æ ·æ—¶é—´çŸ­ä¸€äº›ï¼Œæ–¹ä¾¿çª—å£å†…å°½é‡å¤šé‡‡æ ·ã€‚ */
     adc_sample_clk_config(ADC_SAMPCLK_4);
 
     adc_io_config(IR_SIGNAL_ADC_CHANNEL | IR_ADJ_ADC_CHANNEL);
@@ -474,10 +302,9 @@ void ADC_Init(void)
 }
 
 /*======================================================================
- * Ê®¶þ¡¢Timer0 1us ×ÔÓÉÔËÐÐ
+ * åäºŒã€Timer0 1us è‡ªç”±è¿è¡Œ
  *====================================================================*/
 
-/* ÒÔÏÂÊÇ Timer0 1us Ê±¼ä»ù×¼µÄ¾ßÌå³õÊ¼»¯ÊµÏÖ¡£ */
 static void timer0_init_1us_free_run(void)
 {
     gtimer0_count_init(IR_TIMER0_1US_RELOAD, IR_TIMER0_1US_PRESCALER);
@@ -493,7 +320,6 @@ static void timer0_init_1us_free_run(void)
     gtimer0_start();
 }
 
-/* ÒÔÏÂÊµÏÖ°²È«¶ÁÈ¡ 16 Î»Ê±¼ä´Á¡£ */
 static uint16_t time_us16(void)
 {
     uint8_t hi1;
@@ -510,23 +336,20 @@ static uint16_t time_us16(void)
     return ((uint16_t)hi1 << 8) | (uint16_t)lo;
 }
 
-/* ÒÔÏÂÊµÏÖÁ½¸öÊ±¼ä´ÁÏà¼õ£¬ÔÊÐí uint16_t »ØÈÆ¡£ */
 static uint16_t time_sub_u16(uint16_t a, uint16_t b)
 {
     return (uint16_t)(a - b);
 }
 
-/* ÒÔÏÂÊµÏÖ¡°µ±Ç°Ê±¼äÊÇ·ñµ½´ïÄ¿±êÊ±¼ä¡±µÄÅÐ¶Ï¡£ */
 static uint8_t time_after_eq_u16(uint16_t now, uint16_t target)
 {
     return (((int16_t)(now - target)) >= 0) ? 1U : 0U;
 }
 
 /*======================================================================
- * Ê®Èý¡¢ADC µ¥´Î¶ÁÈ¡
+ * åä¸‰ã€ADC å•æ¬¡è¯»å–
  *====================================================================*/
 
-/* ÒÔÏÂÊµÏÖÖ¸¶¨ ADC Í¨µÀµÄµ¥´Î×èÈû²ÉÑù¡£ */
 static uint16_t adc_read_once(uint8_t ch)
 {
     uint16_t value;
@@ -549,10 +372,9 @@ static uint16_t adc_read_once(uint8_t ch)
 }
 
 /*======================================================================
- * Ê®ËÄ¡¢½ÓÊÕ¼ì²â³õÊ¼»¯
+ * åå››ã€æŽ¥æ”¶æ£€æµ‹åˆå§‹åŒ–
  *====================================================================*/
 
-/* ÒÔÏÂÊµÏÖ¼ì²â×´Ì¬»úµÄÉÏµç³õÊ¼»¯¡£ */
 static void ir_detector_init(void)
 {
     uint16_t sample;
@@ -574,7 +396,6 @@ static void ir_detector_init(void)
     g_ir_amp_fast = 0U;
     g_ir_amp_display = 0U;
     g_ir_next_center_us = 0U;
-    g_ir_last_light_seen_us = time_us16();
 
     g_ir_good_count = 0U;
     g_ir_miss_count = 0U;
@@ -592,7 +413,6 @@ static void ir_detector_init(void)
     ir_update_threshold_from_adj();
 }
 
-/* ÒÔÏÂÊµÏÖ»Øµ½ËÑË÷×´Ì¬£¬µ«²»Á¢¼´¸Ä±äÊä³ö¡£ */
 static void ir_set_search(void)
 {
     g_ir_state = IR_STATE_SEARCH;
@@ -605,14 +425,11 @@ static void ir_set_search(void)
 }
 
 /*======================================================================
- * Ê®Îå¡¢Ö÷¼ì²âÂÖÑ¯
+ * åäº”ã€ä¸»æ£€æµ‹è½®è¯¢
  *====================================================================*/
 
-/* ÒÔÏÂÊÇÃ¿´ÎÖ÷Ñ­»·µ÷ÓÃµÄºìÍâ¼ì²â×ÜÈë¿Ú¡£ */
 static void ir_detector_poll(void)
 {
-    uint16_t now;
-
     ir_update_threshold_from_adj();
 
     if(g_ir_state == IR_STATE_SEARCH)
@@ -623,30 +440,12 @@ static void ir_detector_poll(void)
     {
         ir_tracking_process();
     }
-
-    /*
-     * ¹Ø¼ü·ÀÉÁË¸Âß¼­£º
-     * ´°¿ÚÃ»²Éµ½£¬²»µÈÓÚÕæµÄÕÚ¹â£¬¿ÉÄÜÖ»ÊÇÍ¬²½Æ¯ÒÆ¡£
-     * Ö»ÓÐ³¬¹ý IR_LIGHT_OFF_MISS_COUNT ¸ö 1ms ÖÜÆÚ¶¼Ã»ÓÐÖØÐÂÈ·ÈÏµ½¹â£¬
-     * ²ÅÔÊÐíÊä³öÎÞ¹â¡£
-     */
-    if(g_ir_light_ok != 0U)
-    {
-        now = time_us16();
-        if(time_sub_u16(now, g_ir_last_light_seen_us) >=
-           (uint16_t)(IR_LIGHT_OFF_MISS_COUNT * IR_PERIOD_US))
-        {
-            g_ir_light_ok = 0U;
-            output_apply(0U);
-        }
-    }
 }
 
 /*======================================================================
- * Ê®Áù¡¢ËÑË÷Í¬²½½×¶Î
+ * åå…­ã€æœç´¢åŒæ­¥é˜¶æ®µ
  *====================================================================*/
 
-/* ÒÔÏÂÊµÏÖËÑË÷½×¶ÎµÄÂö³å¿í¶ÈÐ£ÑéºÍ 1ms ÖÜÆÚÐ£Ñé¡£ */
 static void ir_search_sample(void)
 {
     uint16_t now;
@@ -663,7 +462,6 @@ static void ir_search_sample(void)
     amp = ir_abs_amp(sample, g_ir_baseline);
     g_ir_amp = amp;
 
-    /* µ±Ç°²»ÔÚÂö³åÖÐ£ºµÈ´ý ADC ·ù¶ÈÔ½¹ý¸ßãÐÖµ£¬×÷ÎªÂö³åÆðµã¡£ */
     if(g_ir_in_pulse == 0U)
     {
         if(amp > g_ir_threshold_on)
@@ -682,21 +480,13 @@ static void ir_search_sample(void)
         g_ir_search_peak_us = now;
     }
 
-    /* µ±Ç°ÒÑ¾­ÔÚÂö³åÖÐ£ºµÈ·ù¶Èµø»ØµÍãÐÖµ£¬ÈÏÎªÂö³å½áÊø¡£ */
     if(amp < g_ir_threshold_off)
     {
         g_ir_in_pulse = 0U;
         width_us = time_sub_u16(now, g_ir_search_start_us);
 
-        /*
-         * ÕæÊµÂö³åÔ¼ 25us¡£
-         * ¿í¶ÈÌ«Õ­£º¶àÊýÊÇ ADC/ÔË·Å¼â·åÃ«´Ì¡£
-         * ¿í¶ÈÌ«¿í£º¶àÊýÊÇ»·¾³¹â¡¢±¥ºÍ¡¢Âý±ä»¯¸ÉÈÅ¡£
-         * ÕâÒ»²½ÄÜÃ÷ÏÔ¼õÉÙ¡°Å¼¶ûÎó´¥·¢¼¸¸öÐÅºÅ¡±¡£
-         */
-        /* ¿í¶ÈÐ£Ñé£º²»·ûºÏ 25us Âö³åÌØÕ÷µÄÐÅºÅÖ±½Ó¶ªÆú¡£ */
-        if((width_us < IR_SEARCH_PULSE_MIN_US) ||
-           (width_us > IR_SEARCH_PULSE_MAX_US))
+        /* çœŸå®žè„‰å†²çº¦ 25usï¼Œå…è®¸æ”¾å®½åˆ° 120usï¼›å¤ªå®½å¤šåŠæ˜¯çŽ¯å¢ƒå¹²æ‰°æˆ–é¥±å’Œã€‚ */
+        if(width_us > 120U)
         {
             g_ir_lock_count = 0U;
             g_ir_have_last_pulse = 0U;
@@ -713,7 +503,6 @@ static void ir_search_sample(void)
         dt = time_sub_u16(g_ir_search_peak_us, g_ir_last_pulse_us);
         g_ir_last_pulse_us = g_ir_search_peak_us;
 
-        /* ÖÜÆÚÐ£Ñé£ºÕæÊµ·¢ÉäÐÅºÅÓ¦½Ó½ü 1000us¡£ */
         if((dt >= IR_SEARCH_PERIOD_MIN_US) && (dt <= IR_SEARCH_PERIOD_MAX_US))
         {
             if(g_ir_lock_count < 255U)
@@ -733,16 +522,14 @@ static void ir_search_sample(void)
             g_ir_good_count = 0U;
             g_ir_miss_count = 0U;
             g_ir_next_center_us = (uint16_t)(g_ir_search_peak_us + IR_PERIOD_US);
-            g_ir_last_light_seen_us = g_ir_search_peak_us;
         }
     }
 }
 
 /*======================================================================
- * Ê®Æß¡¢Í¬²½¸ú×Ù½×¶Î£ºÃ¿ 1ms ´ò´°¿Ú²ÉÑù
+ * åä¸ƒã€åŒæ­¥è·Ÿè¸ªé˜¶æ®µï¼šæ¯ 1ms æ‰“çª—å£é‡‡æ ·
  *====================================================================*/
 
-/* ÒÔÏÂÊµÏÖÍ¬²½ºóµÄ¶¨Ê±´°¿Ú²ÉÑù¡£ */
 static void ir_tracking_process(void)
 {
     uint16_t center;
@@ -759,7 +546,6 @@ static void ir_tracking_process(void)
 
     now = time_us16();
 
-    /* »¹Ã»µ½´°¿Ú£¬¶Áµ½µÄ ADC ´ó¸ÅÂÊÊÇ±³¾°Öµ£¬¿ÉÓÃÓÚ¸üÐÂ baseline¡£ */
     if(!time_after_eq_u16(now, start))
     {
         sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
@@ -770,7 +556,7 @@ static void ir_tracking_process(void)
 
     if(time_after_eq_u16(now, end))
     {
-        /* Ö÷Ñ­»·´í¹ý´°¿Ú£¬°´Ò»´Î¶ªÂö³å´¦Àí¡£ */
+        /* ä¸»å¾ªçŽ¯é”™è¿‡çª—å£ï¼ŒæŒ‰ä¸€æ¬¡ä¸¢è„‰å†²å¤„ç†ã€‚ */
         ir_process_frame(g_ir_baseline, now, center);
         return;
     }
@@ -780,7 +566,6 @@ static void ir_tracking_process(void)
     best = ir_best_init_value();
     best_us = now;
 
-    /* ´°¿ÚÄÚ³ÖÐø²ÉÑù£¬×îÖÕÖ»±£Áô×îÇ¿µÄÒ»¸öµã best¡£ */
     do
     {
         now = time_us16();
@@ -799,7 +584,6 @@ static void ir_tracking_process(void)
     ir_process_frame(best, best_us, center);
 }
 
-/* ÒÔÏÂÊµÏÖµ¥¸ö´°¿Ú½á¹ûµÄÓÐÐ§ÐÔÅÐ¶Ï¡¢Êä³öÈ·ÈÏºÍÏàÎ»ÐÞÕý¡£ */
 static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_center_us)
 {
     uint16_t amp;
@@ -814,21 +598,15 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
     g_ir_amp_fast = ir_iir_u16(g_ir_amp_fast, amp, IR_FAST_FILTER_SHIFT);
     g_ir_amp_display = ir_iir_u16(g_ir_amp_display, amp, IR_DISPLAY_FILTER_SHIFT);
 
-    /*
-     * ×¢Òâ£ºÃ¿Ò»Ö¡ÊÇ·ñÃüÖÐÂö³å£¬±ØÐëÓÃ±¾´°¿ÚµÄË²Ê± amp ÅÐ¶Ï¡£
-     * ²»ÄÜÓÃ g_ir_amp_fast ÅÐ¶Ï£¬·ñÔòÒ»´ÎÂ©²Éºó£¬ÂË²¨²ÐÁôÈÔ¿ÉÄÜ±»µ±³ÉÓÐÐ§Âö³å£¬
-     * ½ø¶øÓÃ´íÎóµÄ peak_us ÐÞÕýÏàÎ»£¬×îÖÕÔì³ÉÊä³öÖÜÆÚÐÔÉÁË¸¡£
-     */
     if(g_ir_light_ok != 0U)
     {
-        valid = (amp > g_ir_threshold_off) ? 1U : 0U;
+        valid = (g_ir_amp_fast > g_ir_threshold_off) ? 1U : 0U;
     }
     else
     {
-        valid = (amp > g_ir_threshold_on) ? 1U : 0U;
+        valid = (g_ir_amp_fast > g_ir_threshold_on) ? 1U : 0U;
     }
 
-    /* ±¾Ö¡ÓÐÐ§£ºÔö¼ÓÓÐÐ§¼ÆÊý£¬Çå³ýÂ©²É¼ÆÊý£¬²¢¸ù¾Ý·åÖµÊ±¼äÎ¢µ÷ÏàÎ»¡£ */
     if(valid != 0U)
     {
         if(g_ir_good_count < 255U)
@@ -836,7 +614,6 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
             g_ir_good_count++;
         }
         g_ir_miss_count = 0U;
-        g_ir_last_light_seen_us = peak_us;
 
         if(g_ir_good_count >= IR_LIGHT_ON_CONFIRM_COUNT)
         {
@@ -856,7 +633,6 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
     }
     else
     {
-        /* ±¾Ö¡ÎÞÐ§£ºÇåÓÐÐ§¼ÆÊý£¬Ôö¼ÓÂ©²É¼ÆÊý¡£ */
         g_ir_good_count = 0U;
         if(g_ir_miss_count < 255U)
         {
@@ -865,12 +641,16 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
 
         g_ir_next_center_us = (uint16_t)(expected_center_us + IR_PERIOD_US);
 
-        /*
-         * ´°¿ÚÁ¬ÐøÂ©²É£¬ÓÅÏÈÈÏÎªÊÇÍ¬²½Æ¯ÒÆ£¬»Øµ½ËÑË÷ÖØÐÂËøÏà¡£
-         * ÕâÀï²»Ö±½Ó¹ØÊä³ö£»ÕæÕý¹ØÊä³öÓÉ ir_detector_poll() µÄ
-         * IR_LIGHT_OFF_MISS_COUNT * 1ms ³¬Ê±Í³Ò»´¦Àí¡£
-         */
-        if(g_ir_miss_count >= IR_RELOCK_MISS_COUNT)
+        if(g_ir_miss_count >= IR_LIGHT_OFF_MISS_COUNT)
+        {
+            if(g_ir_light_ok != 0U)
+            {
+                g_ir_light_ok = 0U;
+                output_apply(0U);
+            }
+        }
+
+        if(g_ir_miss_count >= IR_LOST_SYNC_MISS_COUNT)
         {
             ir_set_search();
         }
@@ -878,10 +658,9 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
 }
 
 /*======================================================================
- * Ê®°Ë¡¢ãÐÖµ¡¢»ùÏß¡¢ÂË²¨¹¤¾ß
+ * åå…«ã€é˜ˆå€¼ã€åŸºçº¿ã€æ»¤æ³¢å·¥å…·
  *====================================================================*/
 
-/* ÒÔÏÂ¸ù¾ÝÐÅºÅ¼«ÐÔ¼ÆËã·ù¶È¡£ */
 static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline)
 {
 #if RX_SIGNAL_ACTIVE_HIGH
@@ -891,7 +670,6 @@ static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline)
 #endif
 }
 
-/* ÒÔÏÂ¸ù¾ÝÐÅºÅ¼«ÐÔÅÐ¶ÏÄÄ¸ö²ÉÑùµã¸üÇ¿¡£ */
 static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best)
 {
 #if RX_SIGNAL_ACTIVE_HIGH
@@ -901,7 +679,6 @@ static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best)
 #endif
 }
 
-/* ÒÔÏÂ¸ø´°¿Ú·åÖµËÑË÷Ìá¹©³õÊ¼Öµ¡£ */
 static uint16_t ir_best_init_value(void)
 {
 #if RX_SIGNAL_ACTIVE_HIGH
@@ -911,7 +688,6 @@ static uint16_t ir_best_init_value(void)
 #endif
 }
 
-/* ÒÔÏÂÊµÏÖÕûÊý IIR ÂË²¨¡£ */
 static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift)
 {
     if(new_v >= old_v)
@@ -924,7 +700,6 @@ static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift)
     }
 }
 
-/* ÒÔÏÂÊµÏÖ int16_t ÏÞ·ù¡£ */
 static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v)
 {
     if(x < min_v)
@@ -940,21 +715,19 @@ static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v)
     return x;
 }
 
-/* ÒÔÏÂÊµÏÖ±³¾°»ùÏßÂýËÙ¸úËæ¡£ */
 static void ir_update_baseline(uint16_t sample)
 {
     uint16_t amp;
 
     amp = ir_abs_amp(sample, g_ir_baseline);
 
-    /* ·ÇÂö³åÇø²ÅÔÊÐí»ùÏßÂýËÙ¸úËæ£¬±ÜÃâ°ÑÂö³å·åÖµ³Ô½ø»ùÏß¡£ */
+    /* éžè„‰å†²åŒºæ‰å…è®¸åŸºçº¿æ…¢é€Ÿè·Ÿéšï¼Œé¿å…æŠŠè„‰å†²å³°å€¼åƒè¿›åŸºçº¿ã€‚ */
     if(amp < g_ir_threshold_off)
     {
         g_ir_baseline = ir_iir_u16(g_ir_baseline, sample, IR_BASELINE_SHIFT);
     }
 }
 
-/* ÒÔÏÂÊµÏÖ ADJ µçÎ»Æ÷µ½¼ì²âãÐÖµµÄ¸üÐÂ¡£ */
 static void ir_update_threshold_from_adj(void)
 {
     uint16_t now;
@@ -1013,7 +786,6 @@ static void ir_update_threshold_from_adj(void)
     g_ir_threshold_off = (g_ir_threshold_on > hys) ? (uint16_t)(g_ir_threshold_on - hys) : 0U;
 }
 
-/* ÒÔÏÂÊµÏÖµçÎ»Æ÷ ADC µ½ãÐÖµ·¶Î§µÄÏßÐÔÓ³Éä¡£ */
 static uint16_t threshold_map_from_adj(uint16_t adj)
 {
     uint32_t span;
@@ -1031,10 +803,9 @@ static uint16_t threshold_map_from_adj(uint16_t adj)
 }
 
 /*======================================================================
- * Ê®¾Å¡¢Êä³ö¿ØÖÆ
+ * åä¹ã€è¾“å‡ºæŽ§åˆ¶
  *====================================================================*/
 
-/* ÒÔÏÂÊµÏÖ NO/NC/LED µÄ×îÖÕÊä³öË¢ÐÂ¡£ */
 static void output_apply(uint8_t light_ok)
 {
     uint8_t output_active;
@@ -1068,7 +839,6 @@ static void output_apply(uint8_t light_ok)
     }
 }
 
-/* ÒÔÏÂÊµÏÖ P2.7 ´°¿Úµ÷ÊÔ½Å¿ØÖÆ¡£ */
 static void debug_window_pin(uint8_t level)
 {
     if(level != 0U)

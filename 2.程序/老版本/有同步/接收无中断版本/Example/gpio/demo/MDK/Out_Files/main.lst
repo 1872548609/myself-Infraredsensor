@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -10,1537 +10,1127 @@ COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2
 line level    source
 
    1          /***********************************************************************
-   2           * 文件名称：main.c
-   3           * 工程用途：工业级红外对射传感器接收端
+   2           * 文件名称：main.c（全文注释版）
+   3           * 工程用途：红外对射传感器接收端
    4           * 芯片平台：UM800Y / UM8004
    5           * 主频配置：24MHz
    6           *
-   7           * 工作方式：
-   8           *  1. 不使用 P1.4。
-   9           *     因为当前这版接收板原理图里，P1.4 没有作为有效接收输入使用。
+   7           * 信号条件：
+   8           * 1. 发射端红外信号周期约 1ms。
+   9           * 2. 有效脉冲宽度约 25us，占空比约 2.5%。
   10           *
-  11           *  2. 不使用任何中断。
-  12           *     不使用 GPIO 外部中断；
-  13           *     不使用 Timer0 中断；
-  14           *     不使用 UART 接收中断。
-  15           *
-  16           *  3. ADC 连续扫描接收信号。
-  17           *     发射端输出的是一个窄脉冲，不是持续电平。
-  18           *     所以接收端不能 1ms 采一次，否则可能刚好采不到脉冲。
-  19           *     正确方式是在 while(1) 中一直读取 ADC，捕捉脉冲峰值。
-  20           *
-  21           *  4. Timer0 只做 10us 软件时间基准。
-  22           *     Timer0 不负责触发 ADC；
-  23           *     Timer0 不进中断；
-  24           *     Timer0 只用于 ADJ 阈值低速更新，不再参与遮光超时判断。
-  25           *
-  26           *  5. 遮光不再使用“定时器超时”。
-  27           *     每次 ADC 快速扫描后，如果本次读取明确处于无效区，
-  28           *     连续无效读取次数加 1；
-  29           *     如果捕捉到有效脉冲，连续无效读取次数清 0。
-  30           *     连续无效读取次数超过 RX_INVALID_SAMPLE_CONFIRM_COUNT 后，
-  31           *     判定遮光。
-  32           *
-  33           *  6. 电位器 ADJ 低速更新阈值。
-  34           *     P2.0 / ADJ 不需要高速读取；
-  35           *     这里每 50ms 更新一次阈值，并做 IIR 平滑，避免阈值抖动。
-  36           *
-  37           * 硬件引脚对应：
-  38           *  P1.5 / U3-1  -> LM358 输出，接收红外脉冲信号，ADC 输入
-  39           *  P2.0 / ADJ   -> 电位器阈值调节，ADC 输入
-  40           *  P1.0         -> NO 常开输出
-  41           *  P1.2         -> NC 常闭输出
-  42           *  P1.3         -> 红色指示灯
-  43           *  P1.4         -> 当前版本不用
-  44           ***********************************************************************/
-  45          
-  46          #include "system_um800y.h"
-  47          #include "app.h"
-  48          #include "gtimer.h"
-  49          #include "pwm.h"
-  50          #include "common.h"
-  51          #include "config.h"
-  52          #include "gpio.h"
-  53          #include "adc.h"
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 2   
+  11           * 接收策略：
+  12           * 1. 上电先高速搜索有效脉冲。
+  13           * 2. 找到多个连续间隔约 1ms 的合格脉冲后，进入同步跟踪。
+  14           * 3. 同步后每 1ms 在预计脉冲附近打开一个约 200us 的采样窗口。
+  15           * 4. 窗口内高速读取 ADC，取峰值。
+  16           * 5. 用 峰值 - 基线 得到真实脉冲幅度，避免环境光/偏置影响。
+  17           * 6. 连续多个有效脉冲确认有光，并对搜索阶段脉冲宽度/周期做校验，减少误触发。
+  18           *
+  19           * 直接使用方法：
+  20           * 把本文件整体替换旧工程 Example/gpio/demo/source/main.c。
+  21           ***********************************************************************/
+  22          
+  23          #include "system_um800y.h"
+  24          #include "app.h"
+  25          #include "gtimer.h"
+  26          #include "pwm.h"
+  27          #include "common.h"
+  28          #include "config.h"
+  29          #include "gpio.h"
+  30          #include "adc.h"
+  31          
+  32          /*======================================================================
+  33           * 一、ADC 通道映射
+  34           *====================================================================*/
+  35          
+  36          /*
+  37           * 接收信号 ADC 通道。
+  38           * 旧版接收板：P1.5 / U3-1 为 LM358 输出，旧工程中按 ADC_CHANNEL_1 使用。
+  39           * 如果烧录后发现接收 ADC 不变，而电位器会影响接收值，请和 IR_ADJ_ADC_CHANNEL 对调。
+  40           */
+  41          #define IR_SIGNAL_ADC_CHANNEL       ADC_CHANNEL_1
+  42          
+  43          /*
+  44           * 电位器 ADJ ADC 通道。
+  45           * 原理图中 ADJ 已移动到 P2.0；UM800Y 中 P2.0 复用 AIN2。
+  46           */
+  47          #define IR_ADJ_ADC_CHANNEL          ADC_CHANNEL_2
+  48          
+  49          /*======================================================================
+  50           * 二、GPIO 引脚映射
+  51           *====================================================================*/
+  52          
+  53          #define IR_OUT_NO_PIN               P1_0    /* NO 常开输出 */
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 2   
 
-  54          
-  55          /*======================================================================
-  56           * 一、ADC 通道映射
-  57           *====================================================================*/
-  58          
-  59          /*
-  60           * 接收信号 ADC 通道。
-  61           *
-  62           * 按旧工程习惯：
-  63           *  ADC_CHANNEL_1 对应接收信号，也就是 P1.5 / U3-1。
-  64           *
-  65           * 如果你烧录后发现：
-  66           *  1. 遮挡和无遮挡 ADC 没变化；
-  67           *  2. 反而转动电位器会影响 g_adc_signal；
-  68           * 那说明 ADC 通道映射和库定义不一致。
-  69           * 这时只需要交换 IR_SIGNAL_ADC_CHANNEL 和 IR_ADJ_ADC_CHANNEL。
-  70           */
-  71          #define IR_SIGNAL_ADC_CHANNEL           ADC_CHANNEL_1
-  72          
-  73          /*
-  74           * 电位器 ADJ ADC 通道。
-  75           *
-  76           * 原理图说明 ADJ 已经由 P0.2 移动到 P2.0，
-  77           * 通过改变电位器电压来调整接收阈值，进而调节对射距离。
-  78           */
-  79          #define IR_ADJ_ADC_CHANNEL              ADC_CHANNEL_2
-  80          
-  81          
-  82          /*======================================================================
-  83           * 二、GPIO 引脚映射
-  84           *====================================================================*/
-  85          
-  86          /*
-  87           * NO 常开输出。
-  88           *
-  89           * 收到光时，如果是亮通模式，NO 输出动作。
-  90           */
-  91          #define IR_OUT_NO_PIN                   P1_0
-  92          
-  93          /*
-  94           * NC 常闭输出。
-  95           *
-  96           * NC 和 NO 做互补输出。
-  97           * NO 动作时，NC 不动作；
-  98           * NO 不动作时，NC 动作。
-  99           */
- 100          #define IR_OUT_NC_PIN                   P1_2
- 101          
- 102          /*
- 103           * 红色指示灯。
- 104           *
- 105           * 这里默认 LED 显示“收到光”的状态。
- 106           * 即：
- 107           *  收到光 -> LED 亮
- 108           *  遮光   -> LED 灭
- 109           *
- 110           * 如果你的板子 LED 是低电平点亮，只需要修改 LED_ACTIVE_LEVEL。
- 111           */
- 112          #define IR_LED_PIN                      P1_3
+  54          #define IR_OUT_NC_PIN               P1_2    /* NC 常闭输出 */
+  55          #define IR_LED_PIN                  P1_3    /* 红色指示灯 */
+  56          #define IR_DEBUG_WINDOW_PIN         P2_7    /* 调试脚：窗口打开时翻转，用示波器看对齐 */
+  57          
+  58          /*======================================================================
+  59           * 三、输出极性配置
+  60           *====================================================================*/
+  61          
+  62          #define OUT_ACTIVE_LEVEL            GPIO_HIGH
+  63          #define OUT_INACTIVE_LEVEL          GPIO_LOW
+  64          
+  65          #define LED_ACTIVE_LEVEL            GPIO_HIGH
+  66          #define LED_INACTIVE_LEVEL          GPIO_LOW
+  67          
+  68          /*
+  69           * SENSOR_DARK_ON = 0：亮通，收到光时输出动作。
+  70           * SENSOR_DARK_ON = 1：暗通，遮光时输出动作。
+  71           */
+  72          #define SENSOR_DARK_ON              0U
+  73          
+  74          /*
+  75           * RX_SIGNAL_ACTIVE_HIGH = 1：ADC 变大表示收到红外脉冲。
+  76           * RX_SIGNAL_ACTIVE_HIGH = 0：ADC 变小表示收到红外脉冲。
+  77           */
+  78          #define RX_SIGNAL_ACTIVE_HIGH       1U
+  79          
+  80          /*======================================================================
+  81           * 四、1ms/25us 脉冲同步采样参数
+  82           *====================================================================*/
+  83          
+  84          #define IR_PERIOD_US                1000U
+  85          #define IR_PULSE_WIDTH_US           25U
+  86          
+  87          /* 搜索阶段：两个脉冲间隔在这个范围内，认为是同一个 1ms 信号源。 */
+  88          #define IR_SEARCH_PERIOD_MIN_US     850U
+  89          #define IR_SEARCH_PERIOD_MAX_US     1150U
+  90          
+  91          /* 搜索阶段脉冲宽度校验：25us 脉冲允许一定误差，过窄多半是毛刺，过宽多半是环境干扰/饱和。 */
+  92          #define IR_SEARCH_PULSE_MIN_US      6U
+  93          #define IR_SEARCH_PULSE_MAX_US      90U
+  94          
+  95          /* 跟踪阶段：预计脉冲中心前 80us 到后 120us 开窗，总窗口 200us。 */
+  96          #define IR_WINDOW_PRE_US            80U
+  97          #define IR_WINDOW_POST_US           120U
+  98          #define IR_WINDOW_WIDTH_US          (IR_WINDOW_PRE_US + IR_WINDOW_POST_US)
+  99          
+ 100          /* 响应速度：约 4ms 确认有光，约 10ms 确认遮光，连续漏采先重搜不立刻闪断。 */
+ 101          #define IR_LIGHT_ON_CONFIRM_COUNT   4U
+ 102          #define IR_LIGHT_OFF_MISS_COUNT     10U     /* 真遮光确认：约 10ms，约 100Hz，抗漏采更强 */
+ 103          #define IR_RELOCK_MISS_COUNT        3U      /* 连续 3 个窗口未命中，先回搜索，但不立刻关输出 */
+ 104          #define IR_LOST_SYNC_MISS_COUNT     20U     /* 仅用于调试统计，不再直接决定输出闪断 */
+ 105          #define IR_SEARCH_LOCK_COUNT        4U      /* 搜索阶段必须连续 4 个 1ms 周期正确，才允许进入跟踪 */
+ 106          
+ 107          /* 单周期最大相位修正，防止被噪声拖跑。 */
+ 108          #define IR_PHASE_ADJUST_LIMIT_US    12
+ 109          
+ 110          /*======================================================================
+ 111           * 五、阈值/滤波参数
+ 112           *====================================================================*/
  113          
- 114          
- 115          /*======================================================================
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 3   
+ 114          #define ADC_MAX_VALUE               4095U
+ 115          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 3   
 
- 116           * 三、输出极性配置
- 117           *====================================================================*/
- 118          
- 119          /*
- 120           * NO/NC 输出有效电平。
- 121           *
- 122           * 当前默认：
- 123           *  GPIO_HIGH 表示输出动作；
- 124           *  GPIO_LOW  表示输出不动作。
- 125           *
- 126           * 如果实测三极管输出极性相反，把下面两个宏对调即可。
- 127           */
- 128          #define OUT_ACTIVE_LEVEL                GPIO_HIGH
- 129          #define OUT_INACTIVE_LEVEL              GPIO_LOW
- 130          
- 131          /*
- 132           * LED 有效电平。
- 133           *
- 134           * 如果 LED 是高电平点亮，保持 GPIO_HIGH；
- 135           * 如果 LED 是低电平点亮，改成 GPIO_LOW。
- 136           */
- 137          #define LED_ACTIVE_LEVEL                GPIO_HIGH
- 138          #define LED_INACTIVE_LEVEL              GPIO_LOW
- 139          
- 140          /*
- 141           * 亮通 / 暗通模式选择。
- 142           *
- 143           * SENSOR_DARK_ON = 0：
- 144           *  亮通模式。
- 145           *  收到光时输出动作；
- 146           *  遮光时输出释放。
- 147           *
- 148           * SENSOR_DARK_ON = 1：
- 149           *  暗通模式。
- 150           *  收到光时输出释放；
- 151           *  遮光时输出动作。
- 152           *
- 153           * 工业对射常见两种逻辑都有，这里用宏统一切换。
- 154           */
- 155          #define SENSOR_DARK_ON                  0
+ 116          /*
+ 117           * 注意：这里的阈值是“脉冲幅度阈值”，不是原始 ADC 绝对值。
+ 118           * 因为程序会先做 amp = peak - baseline。
+ 119           *
+ 120           * 距离不够：降低 IR_TH_MIN_ADC / IR_TH_MAX_ADC。
+ 121           * 误触发多：升高 IR_TH_MIN_ADC / IR_TH_MAX_ADC。
+ 122           */
+ 123          #define IR_TH_MIN_ADC               120U
+ 124          #define IR_TH_MAX_ADC               1800U
+ 125          #define IR_TH_DEFAULT_ADC           700U
+ 126          #define IR_TH_HYS_MIN_ADC           80U
+ 127          
+ 128          #define IR_BASELINE_SHIFT           5U      /* 基线慢速跟随：1/32 */
+ 129          #define IR_FAST_FILTER_SHIFT        1U      /* 输出快速幅度滤波：1/2 */
+ 130          #define IR_DISPLAY_FILTER_SHIFT     3U      /* 显示慢速幅度滤波：1/8 */
+ 131          #define IR_ADJ_FILTER_SHIFT         3U      /* 电位器阈值滤波：1/8 */
+ 132          #define IR_ADJ_UPDATE_US            10000U  /* 10ms 更新一次电位器 */
+ 133          
+ 134          /*======================================================================
+ 135           * 六、Timer0 1us 自由运行配置
+ 136           *====================================================================*/
+ 137          
+ 138          /*
+ 139           * 24MHz / (23 + 1) = 1MHz，所以 Timer0 每 1us 加 1。
+ 140           * 自动重装 0xFFFF，自然 65.536ms 回绕；本程序所有时间差都按 uint16_t 回绕计算。
+ 141           */
+ 142          #define IR_TIMER0_1US_RELOAD        0xFFFFU
+ 143          #define IR_TIMER0_1US_PRESCALER     23U
+ 144          
+ 145          /*======================================================================
+ 146           * 七、状态定义和调试变量
+ 147           *====================================================================*/
+ 148          
+ 149          typedef enum
+ 150          {
+ 151              IR_STATE_SEARCH = 0,
+ 152              IR_STATE_TRACKING = 1
+ 153          } ir_state_t;
+ 154          
+ 155          static volatile ir_state_t g_ir_state = IR_STATE_SEARCH;
  156          
- 157          
- 158          /*======================================================================
- 159           * 四、接收脉冲极性配置
- 160           *====================================================================*/
- 161          
- 162          /*
- 163           * 接收信号有效方向。
- 164           *
- 165           * RX_SIGNAL_ACTIVE_HIGH = 1：
- 166           *  表示 U3-1 输出高脉冲有效；
- 167           *  ADC 数值变大代表收到红外脉冲。
- 168           *
- 169           * RX_SIGNAL_ACTIVE_HIGH = 0：
- 170           *  表示 U3-1 输出低脉冲有效；
- 171           *  ADC 数值变小代表收到红外脉冲。
- 172           *
- 173           * 当前按一般 LM358 放大后输出高脉冲有效处理。
- 174           * 如果示波器看到遮光时高、收到光时出现低脉冲，则改成 0。
- 175           */
- 176          #define RX_SIGNAL_ACTIVE_HIGH           1
- 177          
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 4   
+ 157          /* 这些变量建议保留，方便 Keil 仿真/串口调试观察。 */
+ 158          /*
+ 159           * 调试变量说明：
+ 160           * g_ir_light_ok          当前内部判定是否有光，1=有光，0=无光。
+ 161           * g_ir_synced            当前是否已经锁定 1ms 脉冲同步。
+ 162           * g_ir_output_state      最终输出是否动作，受亮通/暗通影响。
+ 163           * g_ir_adc_signal        最近一次读取的接收 ADC 原始值。
+ 164           * g_ir_adc_adj           最近一次读取的 ADJ 电位器 ADC 原始值。
+ 165           * g_ir_threshold_on      有光确认高阈值。
+ 166           * g_ir_threshold_off     有光保持低阈值，也就是回差后的阈值。
+ 167           * g_ir_baseline          当前接收通道背景基线。
+ 168           * g_ir_peak              最近一个窗口内的峰值。
+ 169           * g_ir_amp               最近一次窗口的瞬时幅度，即 peak-baseline。
+ 170           * g_ir_amp_fast          快速滤波幅度，便于观察输出响应趋势。
+ 171           * g_ir_amp_display       慢速滤波幅度，后续可用于显示距离/光强。
+ 172           * g_ir_next_center_us    下一次预计脉冲中心时间。
+ 173           * g_ir_last_light_seen_us最后一次确认看到有效红外的时间。
+ 174           */
+ 175          static volatile uint8_t  g_ir_light_ok = 0;
+ 176          static volatile uint8_t  g_ir_synced = 0;
+ 177          static volatile uint8_t  g_ir_output_state = 0;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 4   
 
- 178          
- 179          /*======================================================================
- 180           * 五、Timer0 软件时间基准
- 181           *====================================================================*/
- 182          
- 183          /*
- 184           * Timer0 配置为 10us 溢出一次。
- 185           *
- 186           * 计算方式：
- 187           *  主频 24MHz；
- 188           *  TIMER0_PRESCALER = 24 - 1；
- 189           *  Timer 计数频率 = 24MHz / 24 = 1MHz；
- 190           *  1 个计数周期 = 1us；
- 191           *  自动重装值 10，约等于 10us 溢出一次。
- 192           *
- 193           * 注意：
- 194           *  Timer0 这里只提供时间基准。
- 195           *  ADC 不等 Timer0；
- 196           *  ADC 在 while(1) 里一直扫。
- 197           */
- 198          #define TIMER0_TICK_US                  10U
- 199          #define TIMER0_10US_RELOAD              10U
- 200          #define TIMER0_PRESCALER                (24U - 1U)
- 201          
- 202          /*
- 203           * 时间换算宏。
- 204           *
- 205           * 后续所有“超时 / 周期”都先写成 ms 或 us，
- 206           * 再统一换算成 Timer0 tick。
- 207           *
- 208           * 这样以后如果 Timer0 从 10us 改成 20us / 50us，
- 209           * 只需要改 TIMER0_TICK_US 和 TIMER0_xxUS_RELOAD，
- 210           * 不需要到处手动改计数值，避免时间错误。
- 211           */
- 212          #define TIMER0_US_TO_TICKS(us)          ((uint16_t)(((uint32_t)(us) + (TIMER0_TICK_US - 1U)) / TIMER0_TICK
-             -_US))
- 213          #define TIMER0_MS_TO_TICKS(ms)          TIMER0_US_TO_TICKS((uint32_t)(ms) * 1000UL)
- 214          
- 215          /*
- 216           * 有些库文件里已经定义了 GTIMER0_UIF。
- 217           * 如果没有定义，这里补一个默认值。
- 218           * UIF 是 Timer0 溢出标志位。
- 219           */
- 220          #ifndef GTIMER0_UIF
-              #define GTIMER0_UIF                     0x01
-              #endif
- 223          
- 224          
- 225          /*======================================================================
- 226           * 六、阈值和检测参数
- 227           *====================================================================*/
- 228          
- 229          /*
- 230           * 电位器 ADJ 映射出来的阈值范围。
- 231           *
- 232           * ADJ 的 ADC 范围理论是 0 ~ 4095。
- 233           * 这里把它映射成 THRESHOLD_MIN_ADC ~ THRESHOLD_MAX_ADC。
- 234           *
- 235           * 如果距离不够：
- 236           *  说明要求的信号太高，阈值太高；
- 237           *  可以降低 THRESHOLD_MIN_ADC 和 THRESHOLD_MAX_ADC。
- 238           *
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 5   
+ 178          static volatile uint16_t g_ir_adc_signal = 0;
+ 179          static volatile uint16_t g_ir_adc_adj = 0;
+ 180          static volatile uint16_t g_ir_threshold_on = IR_TH_DEFAULT_ADC;
+ 181          static volatile uint16_t g_ir_threshold_off = (IR_TH_DEFAULT_ADC - 80U);
+ 182          static volatile uint16_t g_ir_baseline = 0;
+ 183          static volatile uint16_t g_ir_peak = 0;
+ 184          static volatile uint16_t g_ir_amp = 0;
+ 185          static volatile uint16_t g_ir_amp_fast = 0;
+ 186          static volatile uint16_t g_ir_amp_display = 0;
+ 187          static volatile uint16_t g_ir_next_center_us = 0;
+ 188          static volatile uint16_t g_ir_last_light_seen_us = 0;
+ 189          
+ 190          static uint8_t  g_ir_good_count = 0;
+ 191          static uint8_t  g_ir_miss_count = 0;
+ 192          static uint8_t  g_ir_lock_count = 0;
+ 193          static uint8_t  g_ir_in_pulse = 0;
+ 194          static uint8_t  g_ir_have_last_pulse = 0;
+ 195          
+ 196          static uint16_t g_ir_last_pulse_us = 0;
+ 197          static uint16_t g_ir_search_start_us = 0;
+ 198          static uint16_t g_ir_search_peak = 0;
+ 199          static uint16_t g_ir_search_peak_us = 0;
+ 200          static uint16_t g_ir_last_adj_update_us = 0;
+ 201          static uint32_t g_ir_threshold_filter = ((uint32_t)IR_TH_DEFAULT_ADC << IR_ADJ_FILTER_SHIFT);
+ 202          static uint8_t  g_ir_threshold_init = 0;
+ 203          
+ 204          /*======================================================================
+ 205           * 八、函数声明
+ 206           *====================================================================*/
+ 207          
+ 208          /*
+ 209           * GPIO_Init()：
+ 210           * 配置接收端用到的所有引脚。
+ 211           * P1.0：NO 常开输出。
+ 212           * P1.2：NC 常闭输出。
+ 213           * P1.3：红色指示灯。
+ 214           * P2.7：示波器调试窗口脚。
+ 215           * P1.5/P2.0：先恢复默认配置，之后由 ADC 初始化切到模拟输入。
+ 216           */
+ 217          void GPIO_Init(void);
+ 218          /*
+ 219           * ADC_Init()：
+ 220           * 配置 ADC 时钟、参考电压、采样时间和通道。
+ 221           * 采样时间设置较短，是为了在 200us 窗口内尽量多采样，
+ 222           * 从而更容易抓到 25us 的窄脉冲峰值。
+ 223           */
+ 224          void ADC_Init(void);
+ 225          
+ 226          /*
+ 227           * timer0_init_1us_free_run()：
+ 228           * 把 Timer0 配置为 1us 自由运行计数器。
+ 229           * 本程序不依赖 Timer0 中断，只反复读取计数值作为时间戳。
+ 230           * uint16_t 计数会在 65.536ms 回绕，程序中的 time_sub_u16() 会处理回绕。
+ 231           */
+ 232          static void timer0_init_1us_free_run(void);
+ 233          /*
+ 234           * time_us16()：
+ 235           * 安全读取 Timer0 的 16 位计数值。
+ 236           * 由于高/低字节分开读取，所以采用“高-低-高”方式，
+ 237           * 两次高字节一致才认为读取稳定，避免低字节溢出时读错。
+ 238           */
+ 239          static uint16_t time_us16(void);
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 5   
 
- 239           * 如果误触发多：
- 240           *  说明阈值太低；
- 241           *  可以提高 THRESHOLD_MIN_ADC 和 THRESHOLD_MAX_ADC。
- 242           */
- 243          #define THRESHOLD_MIN_ADC               800U    //650U
- 244          #define THRESHOLD_MAX_ADC               3200U   //2800U
- 245          #define THRESHOLD_DEFAULT_ADC           1300U
- 246          
- 247          /*
- 248           * 脉冲进入阈值迟滞。
- 249           *
- 250           * 高脉冲有效时：
- 251           *  ADC >= g_threshold + RX_ON_MARGIN_ADC
- 252           *  才认为进入有效脉冲。
- 253           *
- 254           * 这样可以避免 ADC 在阈值附近轻微波动时误触发。
- 255           */
- 256          #define RX_ON_MARGIN_ADC                100U
- 257          
- 258          /*
- 259           * 脉冲离开阈值迟滞。
- 260           *
- 261           * 高脉冲有效时：
- 262           *  ADC <= g_threshold - RX_OFF_MARGIN_ADC
- 263           *  才认为当前脉冲已经结束。
- 264           *
- 265           * 这样可以保证一个宽脉冲只计一次，不会在一个脉冲内部重复计数。
+ 240          /*
+ 241           * time_after_eq_u16()：
+ 242           * 判断 now 是否已经到达或超过 target。
+ 243           * 用 int16_t 差值比较，可以兼容 uint16_t 时间回绕。
+ 244           */
+ 245          static uint8_t time_after_eq_u16(uint16_t now, uint16_t target);
+ 246          /*
+ 247           * time_sub_u16()：
+ 248           * 计算两个 16 位时间戳的差值。
+ 249           * 利用无符号整数自然回绕，只要时间差小于 32768us~65535us 量级，
+ 250           * 对本程序 1ms/10ms 的判断是安全的。
+ 251           */
+ 252          static uint16_t time_sub_u16(uint16_t a, uint16_t b);
+ 253          
+ 254          /*
+ 255           * adc_read_once()：
+ 256           * 对指定 ADC 通道做一次阻塞式采样。
+ 257           * 阻塞等待转换完成，返回 0~4095 的 12 位 ADC 值。
+ 258           * 由于脉冲很窄，本函数要尽量短，不建议在里面加入滤波或打印。
+ 259           */
+ 260          static uint16_t adc_read_once(uint8_t ch);
+ 261          /*
+ 262           * ir_detector_init()：
+ 263           * 初始化红外检测状态机和所有运行变量。
+ 264           * 上电时不知道发射脉冲相位，所以默认进入 SEARCH。
+ 265           * 初始 baseline 用当前 ADC 值，后续在非脉冲区慢速跟随。
  266           */
- 267          #define RX_OFF_MARGIN_ADC               100U
- 268          
- 269          /*
- 270           * 连续有效脉冲确认次数。
- 271           *
- 272           * 捕捉到 1 个脉冲，不一定马上认为有光；
- 273           * 连续捕捉到 RX_PULSE_CONFIRM_COUNT 个有效脉冲后，才确认有光。
- 274           *
- 275           * 值越大：
- 276           *  抗干扰越强；
- 277           *  响应越慢。
- 278           *
- 279           * 值越小：
- 280           *  响应越快；
- 281           *  但容易被单个干扰脉冲误触发。
+ 267          static void ir_detector_init(void);
+ 268          /*
+ 269           * ir_detector_poll()：
+ 270           * 接收算法的主轮询函数。
+ 271           * 每次调用都先根据 ADJ 电位器更新阈值，
+ 272           * 然后根据当前状态执行“搜索”或“跟踪”。
+ 273           * 最后用 last_light_seen 超时判断真正遮光。
+ 274           */
+ 275          static void ir_detector_poll(void);
+ 276          /*
+ 277           * ir_set_search()：
+ 278           * 重新回到搜索状态。
+ 279           * 注意：这里不直接关闭输出。
+ 280           * 因为连续漏采可能只是窗口漂移，不一定是真遮光，
+ 281           * 真正关闭输出由 ir_detector_poll() 中的超时逻辑决定。
  282           */
- 283          #define RX_PULSE_CONFIRM_COUNT          2U
- 284          
- 285          
- 286          /*
- 287           * 连续无效 ADC 读取确认次数。
- 288           *
- 289           * 这版取消了“定时器遮光超时”，遮光判定改成：
- 290           *  连续 RX_INVALID_SAMPLE_CONFIRM_COUNT 次 ADC 读取都处于无效区，
- 291           *  才认为遮光。
- 292           *
- 293           * 注意：
- 294           *  发射端是窄脉冲，两个有效脉冲之间本来就会读到很多次无效值。
- 295           *  所以这个值不能太小。
- 296           *  如果无遮挡时也容易误判遮光，就增大这个值。
- 297           *  如果遮光响应太慢，就减小这个值。
- 298           */
- 299          #define RX_INVALID_SAMPLE_CONFIRM_COUNT 100U
- 300          
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 6   
-
+ 283          static void ir_set_search(void);
+ 284          /*
+ 285           * ir_search_sample()：
+ 286           * 搜索同步阶段。
+ 287           * 逻辑是连续高速读 ADC，寻找超过阈值的疑似脉冲；
+ 288           * 脉冲结束后检查宽度是否像 25us 脉冲；
+ 289           * 再检查连续脉冲间隔是否约 1ms；
+ 290           * 连续多个周期都正确后，才进入 TRACKING。
+ 291           */
+ 292          static void ir_search_sample(void);
+ 293          /*
+ 294           * ir_tracking_process()：
+ 295           * 同步跟踪阶段。
+ 296           * 根据 g_ir_next_center_us 计算窗口起点和终点；
+ 297           * 窗口外只更新 baseline；窗口内拉高 P2.7 并高速采样；
+ 298           * 窗口结束后把窗口峰值交给 ir_process_frame()。
+ 299           */
+ 300          static void ir_tracking_process(void);
  301          /*
- 302           * ADJ 阈值更新周期。
- 303           *
- 304           * 单位：ms。
- 305           *
- 306           * 50ms / 10us = 5000 tick。
- 307           *
- 308           * 为什么 ADJ 不一直扫？
- 309           *  因为发射有效信号是窄脉冲；
- 310           *  ADC 时间应该尽量让给接收信号；
- 311           *  电位器变化很慢，50ms 更新一次足够。
- 312           */
- 313          #define ADJ_UPDATE_PERIOD_MS            50U
- 314          #define ADJ_UPDATE_PERIOD_TICKS         TIMER0_MS_TO_TICKS(ADJ_UPDATE_PERIOD_MS)
- 315          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 6   
+
+ 302           * ir_process_frame()：
+ 303           * 对一个 1ms 周期的窗口结果做判断。
+ 304           * 输入 peak 是窗口最强值，peak_us 是峰值出现时间，expected_center_us 是预计中心。
+ 305           * 函数完成：幅度计算、有效/无效判断、连续计数、输出更新、相位微调。
+ 306           */
+ 307          static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_center_us);
+ 308          
+ 309          /*
+ 310           * ir_abs_amp()：
+ 311           * 根据接收信号极性，计算 sample 相对 baseline 的有效幅度。
+ 312           * 正脉冲：sample - baseline。
+ 313           * 负脉冲：baseline - sample。
+ 314           */
+ 315          static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline);
  316          /*
- 317           * 阈值 IIR 滤波系数。
- 318           *
- 319           * ADJ_FILTER_SHIFT = 3 表示：
- 320           *  新阈值 = 7/8 旧阈值 + 1/8 新采样值
- 321           *
- 322           * 这样电位器轻微抖动不会导致输出抖动。
- 323           */
- 324          #define ADJ_FILTER_SHIFT                3U
- 325          
- 326          /*
- 327           * ADC 最大有效值。
- 328           *
- 329           * 12 位 ADC 理论最大 4095。
- 330           */
- 331          #define ADC_MAX_VALUE                   4095U
- 332          
- 333          
- 334          /*
- 335           * 串口有效脉冲幅度调试开关。
- 336           *
- 337           * UART_ADC_DEBUG_ENABLE = 1：
- 338           *  打开串口调试，只回传“有效脉冲幅度”。
- 339           *
- 340           * UART_ADC_DEBUG_ENABLE = 0：
- 341           *  关闭串口回传，恢复最快 ADC 扫描速度。
- 342           *
- 343           * 注意：
- 344           *  printfS() 是阻塞发送，会占用主循环时间；
- 345           *  所以这里不是每个 ADC 点都打印，而是按周期汇总一次。
- 346           *  一个周期内如果没有有效脉冲，就不回传任何内容，避免再看到 S=0。
- 347           */
- 348          #define UART_ADC_DEBUG_ENABLE           1U
- 349          
- 350          /*
- 351           * 有效脉冲幅度回传周期。
- 352           *
- 353           * 单位：ms。
- 354           * 当前 100ms 检查一次。
- 355           * 只有本周期内捕捉到有效脉冲，才回传该周期内的最大有效脉冲幅度；
- 356           * 如果本周期内没有有效脉冲，不发送任何内容。
- 357           */
- 358          #define UART_ADC_DEBUG_PERIOD_MS        100U
- 359          #define UART_ADC_DEBUG_PERIOD_TICKS     TIMER0_MS_TO_TICKS(UART_ADC_DEBUG_PERIOD_MS)
- 360          
+ 317           * ir_sample_stronger()：
+ 318           * 判断当前 sample 是否比窗口内已有 best 更“强”。
+ 319           * 正脉冲找最大 ADC，负脉冲找最小 ADC。
+ 320           */
+ 321          static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best);
+ 322          /*
+ 323           * ir_best_init_value()：
+ 324           * 返回窗口峰值搜索的初始值。
+ 325           * 正脉冲从 0 开始找最大值；负脉冲从 0xFFFF 开始找最小值。
+ 326           */
+ 327          static uint16_t ir_best_init_value(void);
+ 328          /*
+ 329           * ir_iir_u16()：
+ 330           * 无符号 16 位一阶 IIR 滤波。
+ 331           * shift=1 表示每次变化 1/2，shift=3 表示每次变化 1/8。
+ 332           * 用移位实现，避免 8051 上使用浮点。
+ 333           */
+ 334          static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift);
+ 335          /*
+ 336           * ir_limit_i16()：
+ 337           * int16_t 限幅函数。
+ 338           * 这里主要用于限制每个周期的相位修正量，防止噪声把窗口拉偏。
+ 339           */
+ 340          static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v);
+ 341          /*
+ 342           * ir_update_baseline()：
+ 343           * 更新背景基线。
+ 344           * 只有当前幅度低于 threshold_off，说明大概率不是红外脉冲，
+ 345           * 才允许 baseline 慢速跟随 sample，避免把脉冲峰值吃进基线。
+ 346           */
+ 347          static void ir_update_baseline(uint16_t sample);
+ 348          /*
+ 349           * ir_update_threshold_from_adj()：
+ 350           * 周期性读取 ADJ 电位器，并映射成检测阈值。
+ 351           * 更新周期是 10ms，不会每次循环都读 ADJ，避免干扰接收采样。
+ 352           * 阈值本身也做 IIR 平滑，防止电位器抖动导致输出抖动。
+ 353           */
+ 354          static void ir_update_threshold_from_adj(void);
+ 355          /*
+ 356           * threshold_map_from_adj()：
+ 357           * 把电位器 ADC 0~4095 线性映射到 IR_TH_MIN_ADC~IR_TH_MAX_ADC。
+ 358           * 这个阈值代表“红外脉冲幅度”阈值，不是 ADC 原始电压阈值。
+ 359           */
+ 360          static uint16_t threshold_map_from_adj(uint16_t adj);
  361          
- 362          /*======================================================================
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 7   
+ 362          /*
+ 363           * output_apply()：
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 7   
 
- 363           * 七、全局运行状态
- 364           *====================================================================*/
- 365          
- 366          /*
- 367           * 10us 软件时间计数。
- 368           *
- 369           * 每次 Timer0 约 10us 溢出时加 1。
- 370           * uint16_t 会自然回绕，后面用差值计算超时，回绕不影响短时间判断。
- 371           */
- 372          static volatile uint16_t g_tick_10us = 0;
- 373          
- 374          /*
- 375           * 当前接收信号 ADC 值。
- 376           *
- 377           * 调试时可以在仿真器里观察这个变量：
- 378           *  对准时应该能看到脉冲峰值；
- 379           *  遮挡时应该接近背景值。
- 380           */
- 381          static volatile uint16_t g_adc_signal = 0;
- 382          
- 383          /*
- 384           * 当前电位器 ADJ ADC 值。
- 385           *
- 386           * 调试时转动电位器，这个值应该变化。
- 387           */
- 388          static volatile uint16_t g_adc_adj = 0;
- 389          
- 390          /*
- 391           * 当前实际使用的判断阈值。
- 392           *
- 393           * 它由 ADJ 映射并滤波得到。
- 394           */
- 395          static volatile uint16_t g_threshold = THRESHOLD_DEFAULT_ADC;
- 396          
- 397          /*
- 398           * 阈值滤波内部变量。
- 399           *
- 400           * 这里用放大后的整数做 IIR，避免使用 float。
- 401           */
- 402          static uint32_t g_threshold_filter = ((uint32_t)THRESHOLD_DEFAULT_ADC << ADJ_FILTER_SHIFT);
- 403          
- 404          /*
- 405           * 阈值是否已经初始化。
- 406           *
- 407           * 第一次读取 ADJ 时，直接同步阈值；
- 408           * 后续再做 IIR 平滑。
- 409           */
- 410          static uint8_t g_threshold_init = 0;
- 411          
- 412          /*
- 413           * 当前是否确认收到光。
- 414           *
- 415           * 0：未收到光 / 遮光
- 416           * 1：收到光
- 417           */
- 418          static uint8_t g_light_ok = 0;
- 419          
- 420          /*
- 421           * 当前输出动作状态。
- 422           *
- 423           * 这个变量主要用于调试观察。
- 424           * 0：输出不动作
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 8   
+ 364           * 根据 light_ok 和 SENSOR_DARK_ON 计算最终输出状态。
+ 365           * 亮通：有光时输出动作。
+ 366           * 暗通：无光时输出动作。
+ 367           * NO 和 NC 始终互补，LED 按 light_ok 指示。
+ 368           */
+ 369          static void output_apply(uint8_t light_ok);
+ 370          /*
+ 371           * debug_window_pin()：
+ 372           * 控制 P2.7 调试窗口脚。
+ 373           * 窗口采样期间拉高，窗口结束拉低。
+ 374           * 用示波器观察它和接收模拟脉冲的相对位置，可以判断同步是否稳定。
+ 375           */
+ 376          static void debug_window_pin(uint8_t level);
+ 377          
+ 378          /*======================================================================
+ 379           * 九、主函数
+ 380           *====================================================================*/
+ 381          
+ 382          /*
+ 383           * main() 主入口：
+ 384           * 1. 初始化系统、GPIO、串口、ADC、1us 定时器。
+ 385           * 2. 初始化红外检测状态机。
+ 386           * 3. 关闭总中断，保证主循环连续扫描 ADC，不被中断打断。
+ 387           * 4. while(1) 中只运行 ir_detector_poll()，不要插入长延时。
+ 388           */
+ 389          void main(void)
+ 390          {
+ 391   1          system_init();
+ 392   1      
+ 393   1          GPIO_Init();
+ 394   1          uart_init();
+ 395   1          ADC_Init();
+ 396   1      
+ 397   1          timer0_init_1us_free_run();
+ 398   1          ir_detector_init();
+ 399   1      
+ 400   1          /* 全局关闭中断：本接收版本不依赖中断，避免其它中断影响 25us 脉冲捕捉。 */
+ 401   1          EA = 0;
+ 402   1      
+ 403   1          output_apply(0U);
+ 404   1      
+ 405   1          while(1)
+ 406   1          {
+ 407   2              ir_detector_poll();
+ 408   2          }
+ 409   1      }
+ 410          
+ 411          /*======================================================================
+ 412           * 十、GPIO 初始化
+ 413           *====================================================================*/
+ 414          
+ 415          void GPIO_Init(void)
+ 416          {
+ 417   1          /* P1.0 -> NO 常开输出。 */
+ 418   1          REG_P10_CFG = 0x00;
+ 419   1          gpio_init(IR_OUT_NO_PIN);
+ 420   1          gpio_dir_set(IR_OUT_NO_PIN, GPIO_DIR_OUT);
+ 421   1          gpio_dr_set(IR_OUT_NO_PIN, GPIO_SR_HIGH);
+ 422   1          gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
+ 423   1      
+ 424   1          /* P1.2 -> NC 常闭输出。 */
+ 425   1          REG_P12_CFG = 0x00;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 8   
 
- 425           * 1：输出动作
- 426           */
- 427          static uint8_t g_output_state = 0;
- 428          
- 429          /*
- 430           * 当前是否处于一个有效脉冲内部。
- 431           *
- 432           * 0：当前不在脉冲内部，可以等待下一次进入阈值
- 433           * 1：当前已经进入脉冲内部，要等信号离开阈值后才能重新计数
- 434           *
- 435           * 作用：
- 436           *  防止一个宽脉冲被 while(1) 连续 ADC 扫描重复计很多次。
- 437           */
- 438          static uint8_t g_in_pulse = 0;
- 439          
- 440          /*
- 441           * 连续捕捉到的有效脉冲数量。
- 442           *
- 443           * 达到 RX_PULSE_CONFIRM_COUNT 后，确认收到光。
- 444           */
- 445          static uint8_t g_valid_pulse_count = 0;
- 446          
- 447          /*
- 448           * 连续无效 ADC 读取次数。
- 449           *
- 450           * 只有当本次 ADC 采样已经明确离开有效脉冲区时才累加。
- 451           * 一旦捕捉到新的有效脉冲，就立即清零。
- 452           * 达到 RX_INVALID_SAMPLE_CONFIRM_COUNT 后，判定遮光。
- 453           *
- 454           * 用 uint16_t 是为了以后把确认次数调到 255 以上时不会溢出。
- 455           */
- 456          static uint16_t g_invalid_sample_count = 0;
- 457          
- 458          /*
- 459           * ADJ 更新计时。
- 460           *
- 461           * 单位：10us tick。
- 462           */
- 463          static uint16_t g_adj_update_tick = 0;
- 464          
- 465          
- 466          #if UART_ADC_DEBUG_ENABLE
- 467          /*
- 468           * 串口 ADC 调试计时。
- 469           *
- 470           * 单位同 g_tick_10us，靠 Timer0 轮询产生节拍。
- 471           */
- 472          static uint16_t g_uart_adc_debug_tick = 0;
- 473          
- 474          /*
- 475           * 串口有效脉冲幅度发送标志。
- 476           *
- 477           * Timer0 轮询只置位标志，不直接 printfS；
- 478           * 真正发送放在主循环中处理，便于控制发送频率。
- 479           */
- 480          static uint8_t g_uart_adc_debug_send_flag = 0;
- 481          
- 482          /*
- 483           * 本周期内最后一次有效脉冲 ADC 幅度。
- 484           *
- 485           * 这里的“有效”是指已经超过 signal_enter_active() 判断阈值的 ADC 值，
- 486           * 不再记录两个脉冲之间的 0 或背景值。
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 9   
+ 426   1          gpio_init(IR_OUT_NC_PIN);
+ 427   1          gpio_dir_set(IR_OUT_NC_PIN, GPIO_DIR_OUT);
+ 428   1          gpio_dr_set(IR_OUT_NC_PIN, GPIO_SR_HIGH);
+ 429   1          gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
+ 430   1      
+ 431   1          /* P1.3 -> 红色指示灯。 */
+ 432   1          REG_P13_CFG = 0x00;
+ 433   1          gpio_init(IR_LED_PIN);
+ 434   1          gpio_dir_set(IR_LED_PIN, GPIO_DIR_OUT);
+ 435   1          gpio_dr_set(IR_LED_PIN, GPIO_SR_HIGH);
+ 436   1          gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
+ 437   1      
+ 438   1          /* P2.7 -> 调试脚，窗口打开时置 1。 */
+ 439   1      #ifdef REG_P27_CFG
+ 440   1          REG_P27_CFG = 0x00;
+ 441   1      #endif
+ 442   1          gpio_init(IR_DEBUG_WINDOW_PIN);
+ 443   1          gpio_dir_set(IR_DEBUG_WINDOW_PIN, GPIO_DIR_OUT);
+ 444   1          gpio_dr_set(IR_DEBUG_WINDOW_PIN, GPIO_SR_HIGH);
+ 445   1          gpio_io_set(IR_DEBUG_WINDOW_PIN, GPIO_LOW);
+ 446   1      
+ 447   1          /* P1.5 -> U3-1 接收信号，后面 adc_io_config() 会配置为 ADC 功能。 */
+ 448   1          REG_P15_CFG = 0x00;
+ 449   1      
+ 450   1          /* P2.0 -> ADJ 电位器，后面 adc_io_config() 会配置为 ADC 功能。 */
+ 451   1      #ifdef REG_P20_CFG
+ 452   1          REG_P20_CFG = 0x00;
+ 453   1      #endif
+ 454   1      }
+ 455          
+ 456          /*======================================================================
+ 457           * 十一、ADC 初始化
+ 458           *====================================================================*/
+ 459          
+ 460          void ADC_Init(void)
+ 461          {
+ 462   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK,
+ 463   1                         ADC_VREFSOURCE_AVDD33,
+ 464   1                         4,
+ 465   1                         ADC_ENABLE);
+ 466   1      
+ 467   1          /* 采样时间短一些，方便窗口内尽量多采样。 */
+ 468   1          adc_sample_clk_config(ADC_SAMPCLK_4);
+ 469   1      
+ 470   1          adc_io_config(IR_SIGNAL_ADC_CHANNEL | IR_ADJ_ADC_CHANNEL);
+ 471   1          adc_scan_mode_config(ADC_MODE_SINGLE);
+ 472   1          adc_power_config(ADC_ENABLE);
+ 473   1          adc_controller_config(ADC_ENABLE);
+ 474   1      }
+ 475          
+ 476          /*======================================================================
+ 477           * 十二、Timer0 1us 自由运行
+ 478           *====================================================================*/
+ 479          
+ 480          /* 以下是 Timer0 1us 时间基准的具体初始化实现。 */
+ 481          static void timer0_init_1us_free_run(void)
+ 482          {
+ 483   1          gtimer0_count_init(IR_TIMER0_1US_RELOAD, IR_TIMER0_1US_PRESCALER);
+ 484   1      
+ 485   1      #ifdef REG_GTIM0_IER
+ 486   1          REG_GTIM0_IER = 0x00;
+ 487   1      #endif
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 9   
 
- 487           */
- 488          static uint16_t g_uart_valid_pulse_amp_last = 0;
- 489          
- 490          /*
- 491           * 本周期内有效脉冲 ADC 最大幅度。
- 492           *
- 493           * 串口默认回传这个值。
- 494           * 原因是发射信号是窄脉冲，单次采样不一定正好采到峰顶，
- 495           * 用一个回传周期内的最大值更方便判断实际接收强度。
- 496           */
- 497          static uint16_t g_uart_valid_pulse_amp_max = 0;
- 498          
- 499          /*
- 500           * 本周期内采到的有效 ADC 点数。
- 501           *
- 502           * 只要这个值为 0，说明本周期没有捕捉到有效脉冲，串口不回传。
- 503           */
- 504          static uint16_t g_uart_valid_sample_count = 0;
- 505          #endif
- 506          
- 507          
- 508          /*======================================================================
- 509           * 八、函数声明
- 510           *====================================================================*/
- 511          
- 512          void GPIO_Init(void);
- 513          void ADC_Init(void);
- 514          
- 515          static void timer0_init_poll_10us(void);
- 516          static void timer0_poll_process(void);
- 517          
- 518          static uint16_t adc_read_once(uint8_t ch);
- 519          
- 520          static void signal_fast_scan_process(void);
- 521          static void valid_pulse_process(void);
- 522          static void invalid_sample_process(void);
- 523          
- 524          static void threshold_update_process(void);
- 525          static uint16_t threshold_map_from_adj(uint16_t adj);
- 526          
- 527          static uint8_t signal_enter_active(uint16_t adc_value);
- 528          static uint8_t signal_leave_active(uint16_t adc_value);
- 529          
- 530          static void output_apply(uint8_t light_ok);
- 531          
- 532          static void uart_adc_debug_record_valid_signal(uint16_t signal);
- 533          static void uart_adc_debug_process(void);
- 534          
- 535          
- 536          
- 537          /*======================================================================
- 538           * 九、主函数
- 539           *====================================================================*/
- 540          
- 541          void main(void)
- 542          {
- 543   1          /*
- 544   1           * 系统初始化。
- 545   1           *
- 546   1           * system_init() 内部会根据 config.h 的 FCLK 配置系统时钟。
- 547   1           * 这里要求 config.h 中：
- 548   1           *  #define FCLK 24000000
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 10  
+ 488   1      
+ 489   1          REG_GTIM0_SR = 0x07;
+ 490   1          REG_GTIM0_CNT0 = 0x00;
+ 491   1          REG_GTIM0_CNT1 = 0x00;
+ 492   1      
+ 493   1          gtimer0_start();
+ 494   1      }
+ 495          
+ 496          /* 以下实现安全读取 16 位时间戳。 */
+ 497          static uint16_t time_us16(void)
+ 498          {
+ 499   1          uint8_t hi1;
+ 500   1          uint8_t hi2;
+ 501   1          uint8_t lo;
+ 502   1      
+ 503   1          do
+ 504   1          {
+ 505   2              hi1 = REG_GTIM0_CNT1;
+ 506   2              lo  = REG_GTIM0_CNT0;
+ 507   2              hi2 = REG_GTIM0_CNT1;
+ 508   2          } while(hi1 != hi2);
+ 509   1      
+ 510   1          return ((uint16_t)hi1 << 8) | (uint16_t)lo;
+ 511   1      }
+ 512          
+ 513          /* 以下实现两个时间戳相减，允许 uint16_t 回绕。 */
+ 514          static uint16_t time_sub_u16(uint16_t a, uint16_t b)
+ 515          {
+ 516   1          return (uint16_t)(a - b);
+ 517   1      }
+ 518          
+ 519          /* 以下实现“当前时间是否到达目标时间”的判断。 */
+ 520          static uint8_t time_after_eq_u16(uint16_t now, uint16_t target)
+ 521          {
+ 522   1          return (((int16_t)(now - target)) >= 0) ? 1U : 0U;
+ 523   1      }
+ 524          
+ 525          /*======================================================================
+ 526           * 十三、ADC 单次读取
+ 527           *====================================================================*/
+ 528          
+ 529          /* 以下实现指定 ADC 通道的单次阻塞采样。 */
+ 530          static uint16_t adc_read_once(uint8_t ch)
+ 531          {
+ 532   1          uint16_t value;
+ 533   1      
+ 534   1          adc_convert_start(ch);
+ 535   1      
+ 536   1          while((ADCGCR1 & 0x04) != 0);
+ 537   1          while(!(ADCCSTAT & 0x01));
+ 538   1      
+ 539   1          ADCCSTAT = 0x01;
+ 540   1      
+ 541   1          value = adc_get_value();
+ 542   1      
+ 543   1          if(value > ADC_MAX_VALUE)
+ 544   1          {
+ 545   2              value = ADC_MAX_VALUE;
+ 546   2          }
+ 547   1      
+ 548   1          return value;
+ 549   1      }
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 10  
 
- 549   1           */
- 550   1          system_init();
- 551   1      
- 552   1          /*
- 553   1           * 初始化 GPIO。
- 554   1           *
- 555   1           * 包括：
- 556   1           *  P1.0 NO 输出
- 557   1           *  P1.2 NC 输出
- 558   1           *  P1.3 LED 输出
- 559   1           *  P1.5 接收信号 ADC 脚
- 560   1           */
- 561   1          GPIO_Init();
- 562   1      
- 563   1          /*
- 564   1           * 串口初始化。
- 565   1           *
- 566   1           * 注意：
- 567   1           *  app.c 里的 uart_init() 要关闭 uart0_irq_init()。
- 568   1           *  这版不使用 UART 中断。
- 569   1           */
- 570   1          uart_init();
- 571   1      
- 572   1          /*
- 573   1           * ADC 初始化。
- 574   1           *
- 575   1           * 配置接收信号 ADC 通道和 ADJ 阈值 ADC 通道。
- 576   1           */
- 577   1          ADC_Init();
+ 550          
+ 551          /*======================================================================
+ 552           * 十四、接收检测初始化
+ 553           *====================================================================*/
+ 554          
+ 555          /* 以下实现检测状态机的上电初始化。 */
+ 556          static void ir_detector_init(void)
+ 557          {
+ 558   1          uint16_t sample;
+ 559   1      
+ 560   1          sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
+ 561   1      
+ 562   1          g_ir_state = IR_STATE_SEARCH;
+ 563   1          g_ir_light_ok = 0U;
+ 564   1          g_ir_synced = 0U;
+ 565   1          g_ir_output_state = 0U;
+ 566   1      
+ 567   1          g_ir_adc_signal = sample;
+ 568   1          g_ir_adc_adj = 0U;
+ 569   1          g_ir_threshold_on = IR_TH_DEFAULT_ADC;
+ 570   1          g_ir_threshold_off = (IR_TH_DEFAULT_ADC - 80U);
+ 571   1          g_ir_baseline = sample;
+ 572   1          g_ir_peak = sample;
+ 573   1          g_ir_amp = 0U;
+ 574   1          g_ir_amp_fast = 0U;
+ 575   1          g_ir_amp_display = 0U;
+ 576   1          g_ir_next_center_us = 0U;
+ 577   1          g_ir_last_light_seen_us = time_us16();
  578   1      
- 579   1          /*
- 580   1           * Timer0 初始化为 10us 轮询时间基准。
- 581   1           *
- 582   1           * 不打开 Timer0 中断。
- 583   1           */
- 584   1          timer0_init_poll_10us();
- 585   1      
- 586   1          /*
- 587   1           * 上电后先读取一次 ADJ。
- 588   1           *
- 589   1           * 这样可以避免刚上电时使用默认阈值太久。
- 590   1           */
- 591   1          threshold_update_process();
- 592   1      
- 593   1          /*
- 594   1           * 全局关闭中断。
- 595   1           *
- 596   1           * 这个是兜底处理。
- 597   1           * 即使某些库函数不小心开了中断，也在这里关闭。
- 598   1           */
- 599   1          EA = 0;
- 600   1      
- 601   1          /*
- 602   1           * 上电默认输出为遮光 / 未收到光状态。
- 603   1           */
- 604   1          output_apply(0);
- 605   1      
- 606   1          /*
- 607   1           * 主循环。
- 608   1           *
- 609   1           * 重点：
- 610   1           *  signal_fast_scan_process() 每一轮都执行。
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 11  
+ 579   1          g_ir_good_count = 0U;
+ 580   1          g_ir_miss_count = 0U;
+ 581   1          g_ir_lock_count = 0U;
+ 582   1          g_ir_in_pulse = 0U;
+ 583   1          g_ir_have_last_pulse = 0U;
+ 584   1          g_ir_last_pulse_us = 0U;
+ 585   1          g_ir_search_start_us = 0U;
+ 586   1          g_ir_search_peak = sample;
+ 587   1          g_ir_search_peak_us = 0U;
+ 588   1          g_ir_last_adj_update_us = time_us16();
+ 589   1          g_ir_threshold_filter = ((uint32_t)IR_TH_DEFAULT_ADC << IR_ADJ_FILTER_SHIFT);
+ 590   1          g_ir_threshold_init = 0U;
+ 591   1      
+ 592   1          ir_update_threshold_from_adj();
+ 593   1      }
+ 594          
+ 595          /* 以下实现回到搜索状态，但不立即改变输出。 */
+ 596          static void ir_set_search(void)
+ 597          {
+ 598   1          g_ir_state = IR_STATE_SEARCH;
+ 599   1          g_ir_synced = 0U;
+ 600   1          g_ir_good_count = 0U;
+ 601   1          g_ir_miss_count = 0U;
+ 602   1          g_ir_lock_count = 0U;
+ 603   1          g_ir_in_pulse = 0U;
+ 604   1          g_ir_have_last_pulse = 0U;
+ 605   1      }
+ 606          
+ 607          /*======================================================================
+ 608           * 十五、主检测轮询
+ 609           *====================================================================*/
+ 610          
+ 611          /* 以下是每次主循环调用的红外检测总入口。 */
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 11  
 
- 611   1           *  不等待 1ms；
- 612   1           *  不等待 Timer；
- 613   1           *  不做多次平均；
- 614   1           *  目的就是尽量快地捕捉发射端窄脉冲。
- 615   1           */
- 616   1          while(1)
- 617   1          {
- 618   2              /*
- 619   2               * 轮询 Timer0 溢出标志。
- 620   2               *
- 621   2               * 只更新时间基准和慢任务：
- 622   2               *  1. Timer0 不再参与遮光判断；
- 623   2               *  2. ADJ 阈值低速更新。
- 624   2               */
- 625   2              timer0_poll_process();
- 626   2      
- 627   2              /*
- 628   2               * 连续快速扫描接收 ADC。
- 629   2               *
- 630   2               * 这是本程序最核心的部分。
- 631   2               */
- 632   2              signal_fast_scan_process();
- 633   2      
- 634   2      
- 635   2              /*
- 636   2               * 串口只回传有效脉冲幅度。
- 637   2               *
- 638   2               * 注意：
- 639   2               *  没有有效脉冲时不会发送 S=0；
- 640   2               *  只在本周期内捕捉到有效脉冲后，才发送该周期有效幅度最大值。
- 641   2               */
- 642   2              uart_adc_debug_process();
- 643   2          }
- 644   1      }
- 645          
- 646          
- 647          /*======================================================================
- 648           * 十、GPIO 初始化
- 649           *====================================================================*/
- 650          
- 651          void GPIO_Init(void)
- 652          {
- 653   1          /*
- 654   1           * P1.0 -> NO 常开输出。
- 655   1           *
- 656   1           * 默认先输出不动作状态。
- 657   1           */
- 658   1          REG_P10_CFG = 0x00;
- 659   1          gpio_init(IR_OUT_NO_PIN);
- 660   1          gpio_dir_set(IR_OUT_NO_PIN, GPIO_DIR_OUT);
- 661   1          gpio_dr_set(IR_OUT_NO_PIN, GPIO_SR_HIGH);
- 662   1          gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
- 663   1      
- 664   1          /*
- 665   1           * P1.2 -> NC 常闭输出。
- 666   1           *
- 667   1           * 默认 NC 动作，和 NO 互补。
- 668   1           */
- 669   1          REG_P12_CFG = 0x00;
- 670   1          gpio_init(IR_OUT_NC_PIN);
- 671   1          gpio_dir_set(IR_OUT_NC_PIN, GPIO_DIR_OUT);
- 672   1          gpio_dr_set(IR_OUT_NC_PIN, GPIO_SR_HIGH);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 12  
+ 612          static void ir_detector_poll(void)
+ 613          {
+ 614   1          uint16_t now;
+ 615   1      
+ 616   1          ir_update_threshold_from_adj();
+ 617   1      
+ 618   1          if(g_ir_state == IR_STATE_SEARCH)
+ 619   1          {
+ 620   2              ir_search_sample();
+ 621   2          }
+ 622   1          else
+ 623   1          {
+ 624   2              ir_tracking_process();
+ 625   2          }
+ 626   1      
+ 627   1          /*
+ 628   1           * 关键防闪烁逻辑：
+ 629   1           * 窗口没采到，不等于真的遮光，可能只是同步漂移。
+ 630   1           * 只有超过 IR_LIGHT_OFF_MISS_COUNT 个 1ms 周期都没有重新确认到光，
+ 631   1           * 才允许输出无光。
+ 632   1           */
+ 633   1          if(g_ir_light_ok != 0U)
+ 634   1          {
+ 635   2              now = time_us16();
+ 636   2              if(time_sub_u16(now, g_ir_last_light_seen_us) >=
+ 637   2                 (uint16_t)(IR_LIGHT_OFF_MISS_COUNT * IR_PERIOD_US))
+ 638   2              {
+ 639   3                  g_ir_light_ok = 0U;
+ 640   3                  output_apply(0U);
+ 641   3              }
+ 642   2          }
+ 643   1      }
+ 644          
+ 645          /*======================================================================
+ 646           * 十六、搜索同步阶段
+ 647           *====================================================================*/
+ 648          
+ 649          /* 以下实现搜索阶段的脉冲宽度校验和 1ms 周期校验。 */
+ 650          static void ir_search_sample(void)
+ 651          {
+ 652   1          uint16_t now;
+ 653   1          uint16_t sample;
+ 654   1          uint16_t amp;
+ 655   1          uint16_t width_us;
+ 656   1          uint16_t dt;
+ 657   1      
+ 658   1          now = time_us16();
+ 659   1          sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
+ 660   1          g_ir_adc_signal = sample;
+ 661   1      
+ 662   1          ir_update_baseline(sample);
+ 663   1          amp = ir_abs_amp(sample, g_ir_baseline);
+ 664   1          g_ir_amp = amp;
+ 665   1      
+ 666   1          /* 当前不在脉冲中：等待 ADC 幅度越过高阈值，作为脉冲起点。 */
+ 667   1          if(g_ir_in_pulse == 0U)
+ 668   1          {
+ 669   2              if(amp > g_ir_threshold_on)
+ 670   2              {
+ 671   3                  g_ir_in_pulse = 1U;
+ 672   3                  g_ir_search_start_us = now;
+ 673   3                  g_ir_search_peak = sample;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 12  
 
- 673   1          gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
- 674   1      
- 675   1          /*
- 676   1           * P1.3 -> 红色指示灯。
- 677   1           *
- 678   1           * 默认灭。
- 679   1           */
- 680   1          REG_P13_CFG = 0x00;
- 681   1          gpio_init(IR_LED_PIN);
- 682   1          gpio_dir_set(IR_LED_PIN, GPIO_DIR_OUT);
- 683   1          gpio_dr_set(IR_LED_PIN, GPIO_SR_HIGH);
- 684   1          gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
- 685   1      
- 686   1       
- 687   1          /*
- 688   1           * P1.5 -> U3-1 接收信号。
- 689   1           *
- 690   1           * 这里不需要配置成普通 GPIO 输入；
- 691   1           * 后面的 adc_io_config() 会把它配置为 ADC 功能。
- 692   1           *
- 693   1           * 这里先把配置寄存器清一下，避免残留特殊功能。
- 694   1           */
- 695   1          REG_P15_CFG = 0x00;
- 696   1      }
- 697          
- 698          
- 699          /*======================================================================
- 700           * 十一、ADC 初始化
- 701           *====================================================================*/
- 702          
- 703          void ADC_Init(void)
- 704          {
- 705   1          /*
- 706   1           * ADC 时钟配置。
- 707   1           *
- 708   1           * ADC_CLKSOURCE_SYSCLK：
- 709   1           *  ADC 使用系统时钟。
- 710   1           *
- 711   1           * ADC_VREFSOURCE_AVDD33：
- 712   1           *  ADC 参考电压使用 AVDD33。
- 713   1           *
- 714   1           * 4：
- 715   1           *  ADC 分频参数，沿用旧工程配置。
- 716   1           */
- 717   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK,
- 718   1                         ADC_VREFSOURCE_AVDD33,
- 719   1                         4,
- 720   1                         ADC_ENABLE);
- 721   1      
- 722   1          /*
- 723   1           * ADC 采样时间配置。
- 724   1           *
- 725   1           * ADC_SAMPCLK_4：
- 726   1           *  采样时钟较短，有利于提高扫描速度。
- 727   1           *
- 728   1           * 如果现场 ADC 抖动很大，可以适当加大采样时间，
- 729   1           * 但加大后会降低扫描速度。
- 730   1           */
- 731   1          adc_sample_clk_config(ADC_SAMPCLK_6);
- 732   1      
- 733   1          /*
- 734   1           * 使能接收信号 ADC 通道和 ADJ ADC 通道。
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 13  
+ 674   3                  g_ir_search_peak_us = now;
+ 675   3              }
+ 676   2              return;
+ 677   2          }
+ 678   1      
+ 679   1          if(ir_sample_stronger(sample, g_ir_search_peak))
+ 680   1          {
+ 681   2              g_ir_search_peak = sample;
+ 682   2              g_ir_search_peak_us = now;
+ 683   2          }
+ 684   1      
+ 685   1          /* 当前已经在脉冲中：等幅度跌回低阈值，认为脉冲结束。 */
+ 686   1          if(amp < g_ir_threshold_off)
+ 687   1          {
+ 688   2              g_ir_in_pulse = 0U;
+ 689   2              width_us = time_sub_u16(now, g_ir_search_start_us);
+ 690   2      
+ 691   2              /*
+ 692   2               * 真实脉冲约 25us。
+ 693   2               * 宽度太窄：多数是 ADC/运放尖峰毛刺。
+ 694   2               * 宽度太宽：多数是环境光、饱和、慢变化干扰。
+ 695   2               * 这一步能明显减少“偶尔误触发几个信号”。
+ 696   2               */
+ 697   2              /* 宽度校验：不符合 25us 脉冲特征的信号直接丢弃。 */
+ 698   2              if((width_us < IR_SEARCH_PULSE_MIN_US) ||
+ 699   2                 (width_us > IR_SEARCH_PULSE_MAX_US))
+ 700   2              {
+ 701   3                  g_ir_lock_count = 0U;
+ 702   3                  g_ir_have_last_pulse = 0U;
+ 703   3                  return;
+ 704   3              }
+ 705   2      
+ 706   2              if(g_ir_have_last_pulse == 0U)
+ 707   2              {
+ 708   3                  g_ir_have_last_pulse = 1U;
+ 709   3                  g_ir_last_pulse_us = g_ir_search_peak_us;
+ 710   3                  return;
+ 711   3              }
+ 712   2      
+ 713   2              dt = time_sub_u16(g_ir_search_peak_us, g_ir_last_pulse_us);
+ 714   2              g_ir_last_pulse_us = g_ir_search_peak_us;
+ 715   2      
+ 716   2              /* 周期校验：真实发射信号应接近 1000us。 */
+ 717   2              if((dt >= IR_SEARCH_PERIOD_MIN_US) && (dt <= IR_SEARCH_PERIOD_MAX_US))
+ 718   2              {
+ 719   3                  if(g_ir_lock_count < 255U)
+ 720   3                  {
+ 721   4                      g_ir_lock_count++;
+ 722   4                  }
+ 723   3              }
+ 724   2              else
+ 725   2              {
+ 726   3                  g_ir_lock_count = 0U;
+ 727   3              }
+ 728   2      
+ 729   2              if(g_ir_lock_count >= IR_SEARCH_LOCK_COUNT)
+ 730   2              {
+ 731   3                  g_ir_state = IR_STATE_TRACKING;
+ 732   3                  g_ir_synced = 1U;
+ 733   3                  g_ir_good_count = 0U;
+ 734   3                  g_ir_miss_count = 0U;
+ 735   3                  g_ir_next_center_us = (uint16_t)(g_ir_search_peak_us + IR_PERIOD_US);
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 13  
 
- 735   1           */
- 736   1          adc_io_config(IR_SIGNAL_ADC_CHANNEL | IR_ADJ_ADC_CHANNEL);
- 737   1      
- 738   1          /*
- 739   1           * 单次转换模式。
- 740   1           *
- 741   1           * 每次调用 adc_read_once() 时启动一次转换。
- 742   1           */
- 743   1          adc_scan_mode_config(ADC_MODE_SINGLE);
- 744   1      
- 745   1          /*
- 746   1           * 打开 ADC 电源。
- 747   1           */
- 748   1          adc_power_config(ADC_ENABLE);
- 749   1      
- 750   1          /*
- 751   1           * 使能 ADC 控制器。
- 752   1           */
- 753   1          adc_controller_config(ADC_ENABLE);
- 754   1      }
- 755          
- 756          
- 757          /*======================================================================
- 758           * 十二、Timer0 初始化和轮询
- 759           *====================================================================*/
- 760          
- 761          static void timer0_init_poll_10us(void)
- 762          {
- 763   1          /*
- 764   1           * 配置 Timer0：
- 765   1           *  自动重装值 TIMER0_10US_RELOAD；
- 766   1           *  预分频 TIMER0_PRESCALER。
- 767   1           */
- 768   1          gtimer0_count_init(TIMER0_10US_RELOAD, TIMER0_PRESCALER);
- 769   1      
- 770   1          /*
- 771   1           * 如果工程里定义了 Timer0 中断使能寄存器，
- 772   1           * 这里主动清零，确保不启用 Timer0 中断。
- 773   1           */
- 774   1      #ifdef REG_GTIM0_IER
- 775   1          REG_GTIM0_IER = 0x00;
- 776   1      #endif
+ 736   3                  g_ir_last_light_seen_us = g_ir_search_peak_us;
+ 737   3              }
+ 738   2          }
+ 739   1      }
+ 740          
+ 741          /*======================================================================
+ 742           * 十七、同步跟踪阶段：每 1ms 打窗口采样
+ 743           *====================================================================*/
+ 744          
+ 745          /* 以下实现同步后的定时窗口采样。 */
+ 746          static void ir_tracking_process(void)
+ 747          {
+ 748   1          uint16_t center;
+ 749   1          uint16_t start;
+ 750   1          uint16_t end;
+ 751   1          uint16_t now;
+ 752   1          uint16_t sample;
+ 753   1          uint16_t best;
+ 754   1          uint16_t best_us;
+ 755   1      
+ 756   1          center = g_ir_next_center_us;
+ 757   1          start = (uint16_t)(center - IR_WINDOW_PRE_US);
+ 758   1          end = (uint16_t)(center + IR_WINDOW_POST_US);
+ 759   1      
+ 760   1          now = time_us16();
+ 761   1      
+ 762   1          /* 还没到窗口，读到的 ADC 大概率是背景值，可用于更新 baseline。 */
+ 763   1          if(!time_after_eq_u16(now, start))
+ 764   1          {
+ 765   2              sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
+ 766   2              g_ir_adc_signal = sample;
+ 767   2              ir_update_baseline(sample);
+ 768   2              return;
+ 769   2          }
+ 770   1      
+ 771   1          if(time_after_eq_u16(now, end))
+ 772   1          {
+ 773   2              /* 主循环错过窗口，按一次丢脉冲处理。 */
+ 774   2              ir_process_frame(g_ir_baseline, now, center);
+ 775   2              return;
+ 776   2          }
  777   1      
- 778   1          /*
- 779   1           * 清除 Timer0 状态标志。
- 780   1           *
- 781   1           * 旧驱动里常用 REG_GTIM0_SR = 0x07 清标志，
- 782   1           * 这里沿用这个写法。
- 783   1           */
- 784   1          REG_GTIM0_SR = 0x07;
- 785   1      
- 786   1          /*
- 787   1           * 清零计数器。
- 788   1           */
- 789   1          REG_GTIM0_CNT0 = 0x00;
- 790   1          REG_GTIM0_CNT1 = 0x00;
- 791   1      
- 792   1          /*
- 793   1           * 启动 Timer0。
- 794   1           *
- 795   1           * 注意：
- 796   1           *  这里只启动计数，不开启中断。
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 14  
+ 778   1          debug_window_pin(1U);
+ 779   1      
+ 780   1          best = ir_best_init_value();
+ 781   1          best_us = now;
+ 782   1      
+ 783   1          /* 窗口内持续采样，最终只保留最强的一个点 best。 */
+ 784   1          do
+ 785   1          {
+ 786   2              now = time_us16();
+ 787   2              sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
+ 788   2              g_ir_adc_signal = sample;
+ 789   2      
+ 790   2              if(ir_sample_stronger(sample, best))
+ 791   2              {
+ 792   3                  best = sample;
+ 793   3                  best_us = now;
+ 794   3              }
+ 795   2          } while(!time_after_eq_u16(now, end));
+ 796   1      
+ 797   1          debug_window_pin(0U);
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 14  
 
- 797   1           */
- 798   1          gtimer0_start();
- 799   1      }
- 800          
- 801          static void timer0_poll_process(void)
- 802          {
- 803   1          /*
- 804   1           * 轮询 Timer0 溢出标志。
- 805   1           *
- 806   1           * 如果 UIF 置位，说明过去了约 10us。
- 807   1           */
- 808   1          if(REG_GTIM0_SR & GTIMER0_UIF)
- 809   1          {
- 810   2              /*
- 811   2               * 清除 UIF 标志。
- 812   2               */
- 813   2              REG_GTIM0_SR = GTIMER0_UIF;
- 814   2      
- 815   2              /*
- 816   2               * 软件时间 +1。
- 817   2               *
- 818   2               * 单位：10us。
- 819   2               */
- 820   2              g_tick_10us++;
- 821   2      
- 822   2              /*
- 823   2               * ADJ 阈值低速更新计数。
- 824   2               */
- 825   2              g_adj_update_tick++;
- 826   2      
- 827   2              /*
- 828   2               * 到达 ADJ 更新周期后，读取电位器并更新阈值。
- 829   2               */
- 830   2              if(g_adj_update_tick >= ADJ_UPDATE_PERIOD_TICKS)
- 831   2              {
- 832   3                  g_adj_update_tick = 0;
- 833   3                  threshold_update_process();
- 834   3              }
- 835   2      
- 836   2      
- 837   2      #if UART_ADC_DEBUG_ENABLE
- 838   2              /*
- 839   2               * 串口有效脉冲幅度调试周期计数。
- 840   2               *
- 841   2               * 这里只置位发送标志，不在这里直接 printfS，
- 842   2               * 避免把 Timer0 轮询处理变得太重。
- 843   2               */
- 844   2              g_uart_adc_debug_tick++;
- 845   2              if(g_uart_adc_debug_tick >= UART_ADC_DEBUG_PERIOD_TICKS)
- 846   2              {
- 847   3                  g_uart_adc_debug_tick = 0;
- 848   3                  g_uart_adc_debug_send_flag = 1;
- 849   3              }
- 850   2      #endif
- 851   2          }
- 852   1      }
- 853          
- 854          
- 855          /*======================================================================
- 856           * 十三、ADC 单次读取
- 857           *====================================================================*/
- 858          
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 15  
+ 798   1      
+ 799   1          ir_process_frame(best, best_us, center);
+ 800   1      }
+ 801          
+ 802          /* 以下实现单个窗口结果的有效性判断、输出确认和相位修正。 */
+ 803          static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_center_us)
+ 804          {
+ 805   1          uint16_t amp;
+ 806   1          uint8_t valid;
+ 807   1          int16_t phase_error;
+ 808   1          int16_t adjust;
+ 809   1      
+ 810   1          g_ir_peak = peak;
+ 811   1          amp = ir_abs_amp(peak, g_ir_baseline);
+ 812   1          g_ir_amp = amp;
+ 813   1      
+ 814   1          g_ir_amp_fast = ir_iir_u16(g_ir_amp_fast, amp, IR_FAST_FILTER_SHIFT);
+ 815   1          g_ir_amp_display = ir_iir_u16(g_ir_amp_display, amp, IR_DISPLAY_FILTER_SHIFT);
+ 816   1      
+ 817   1          /*
+ 818   1           * 注意：每一帧是否命中脉冲，必须用本窗口的瞬时 amp 判断。
+ 819   1           * 不能用 g_ir_amp_fast 判断，否则一次漏采后，滤波残留仍可能被当成有效脉冲，
+ 820   1           * 进而用错误的 peak_us 修正相位，最终造成输出周期性闪烁。
+ 821   1           */
+ 822   1          if(g_ir_light_ok != 0U)
+ 823   1          {
+ 824   2              valid = (amp > g_ir_threshold_off) ? 1U : 0U;
+ 825   2          }
+ 826   1          else
+ 827   1          {
+ 828   2              valid = (amp > g_ir_threshold_on) ? 1U : 0U;
+ 829   2          }
+ 830   1      
+ 831   1          /* 本帧有效：增加有效计数，清除漏采计数，并根据峰值时间微调相位。 */
+ 832   1          if(valid != 0U)
+ 833   1          {
+ 834   2              if(g_ir_good_count < 255U)
+ 835   2              {
+ 836   3                  g_ir_good_count++;
+ 837   3              }
+ 838   2              g_ir_miss_count = 0U;
+ 839   2              g_ir_last_light_seen_us = peak_us;
+ 840   2      
+ 841   2              if(g_ir_good_count >= IR_LIGHT_ON_CONFIRM_COUNT)
+ 842   2              {
+ 843   3                  if(g_ir_light_ok == 0U)
+ 844   3                  {
+ 845   4                      g_ir_light_ok = 1U;
+ 846   4                      output_apply(1U);
+ 847   4                  }
+ 848   3              }
+ 849   2      
+ 850   2              phase_error = (int16_t)((int16_t)peak_us - (int16_t)expected_center_us);
+ 851   2              adjust = ir_limit_i16((int16_t)(phase_error / 4),
+ 852   2                                    (int16_t)-IR_PHASE_ADJUST_LIMIT_US,
+ 853   2                                    (int16_t) IR_PHASE_ADJUST_LIMIT_US);
+ 854   2      
+ 855   2              g_ir_next_center_us = (uint16_t)(expected_center_us + IR_PERIOD_US + adjust);
+ 856   2          }
+ 857   1          else
+ 858   1          {
+ 859   2              /* 本帧无效：清有效计数，增加漏采计数。 */
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 15  
 
- 859          static uint16_t adc_read_once(uint8_t ch)
- 860          {
- 861   1          uint16_t value;
- 862   1      
- 863   1          /*
- 864   1           * 启动指定通道 ADC 转换。
- 865   1           */
- 866   1          adc_convert_start(ch);
- 867   1      
- 868   1          /*
- 869   1           * 等待 ADC 启动/忙状态结束。
- 870   1           *
- 871   1           * 这里沿用旧代码的等待方式。
- 872   1           */
- 873   1          while((ADCGCR1 & 0x04) != 0);
- 874   1      
- 875   1          /*
- 876   1           * 等待 ADC 转换完成。
- 877   1           */
- 878   1          while(!(ADCCSTAT & 0x01));
- 879   1      
- 880   1          /*
- 881   1           * 清除 ADC 转换完成标志。
- 882   1           */
- 883   1          ADCCSTAT = 0x01;
- 884   1      
- 885   1          /*
- 886   1           * 读取 ADC 转换值。
- 887   1           */
- 888   1          value = adc_get_value();
- 889   1      
- 890   1          /*
- 891   1           * 限幅，防止异常值超过 12 位范围。
- 892   1           */
- 893   1          if(value > ADC_MAX_VALUE)
- 894   1          {
- 895   2              value = ADC_MAX_VALUE;
- 896   2          }
- 897   1      
- 898   1          return value;
- 899   1      }
- 900          
- 901          
- 902          /*======================================================================
- 903           * 十四、连续快速扫描接收信号
- 904           *====================================================================*/
- 905          
- 906          static void signal_fast_scan_process(void)
- 907          {
- 908   1          uint16_t signal;
- 909   1      
- 910   1          /*
- 911   1           * 每次主循环只读取一次接收信号 ADC。
- 912   1           *
- 913   1           * 这里不要做多次平均。
- 914   1           * 原因：
- 915   1           *  发射有效光是窄脉冲；
- 916   1           *  多次平均会把脉冲峰值平均掉；
- 917   1           *  也会拖慢扫描速度，导致漏检脉冲。
- 918   1           */
- 919   1          signal = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
- 920   1      
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 16  
+ 860   2              g_ir_good_count = 0U;
+ 861   2              if(g_ir_miss_count < 255U)
+ 862   2              {
+ 863   3                  g_ir_miss_count++;
+ 864   3              }
+ 865   2      
+ 866   2              g_ir_next_center_us = (uint16_t)(expected_center_us + IR_PERIOD_US);
+ 867   2      
+ 868   2              /*
+ 869   2               * 窗口连续漏采，优先认为是同步漂移，回到搜索重新锁相。
+ 870   2               * 这里不直接关输出；真正关输出由 ir_detector_poll() 的
+ 871   2               * IR_LIGHT_OFF_MISS_COUNT * 1ms 超时统一处理。
+ 872   2               */
+ 873   2              if(g_ir_miss_count >= IR_RELOCK_MISS_COUNT)
+ 874   2              {
+ 875   3                  ir_set_search();
+ 876   3              }
+ 877   2          }
+ 878   1      }
+ 879          
+ 880          /*======================================================================
+ 881           * 十八、阈值、基线、滤波工具
+ 882           *====================================================================*/
+ 883          
+ 884          /* 以下根据信号极性计算幅度。 */
+ 885          static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline)
+ 886          {
+ 887   1      #if RX_SIGNAL_ACTIVE_HIGH
+ 888   1          return (sample > baseline) ? (uint16_t)(sample - baseline) : 0U;
+ 889   1      #else
+                  return (baseline > sample) ? (uint16_t)(baseline - sample) : 0U;
+              #endif
+ 892   1      }
+ 893          
+ 894          /* 以下根据信号极性判断哪个采样点更强。 */
+ 895          static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best)
+ 896          {
+ 897   1      #if RX_SIGNAL_ACTIVE_HIGH
+ 898   1          return (sample > old_best) ? 1U : 0U;
+ 899   1      #else
+                  return (sample < old_best) ? 1U : 0U;
+              #endif
+ 902   1      }
+ 903          
+ 904          /* 以下给窗口峰值搜索提供初始值。 */
+ 905          static uint16_t ir_best_init_value(void)
+ 906          {
+ 907   1      #if RX_SIGNAL_ACTIVE_HIGH
+ 908   1          return 0U;
+ 909   1      #else
+                  return 0xFFFFU;
+              #endif
+ 912   1      }
+ 913          
+ 914          /* 以下实现整数 IIR 滤波。 */
+ 915          static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift)
+ 916          {
+ 917   1          if(new_v >= old_v)
+ 918   1          {
+ 919   2              return (uint16_t)(old_v + ((new_v - old_v) >> shift));
+ 920   2          }
+ 921   1          else
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 16  
 
- 921   1          /*
- 922   1           * 保存到全局变量，方便调试观察。
- 923   1           */
- 924   1          g_adc_signal = signal;
- 925   1      
- 926   1          /*
- 927   1           * 本次采样达到“进入有效脉冲”的阈值。
- 928   1           *
- 929   1           * 只要读到有效电平，就说明光路仍然存在，
- 930   1           * 所以必须立即清零连续无效读取次数。
- 931   1           */
- 932   1          if(signal_enter_active(signal))
- 933   1          {
- 934   2              /*
- 935   2               * 串口调试只记录有效脉冲幅度。
- 936   2               *
- 937   2               * 这里不会记录 S=0 或背景值；
- 938   2               * 只有超过进入阈值的 ADC 值才进入串口调试缓存。
- 939   2               */
- 940   2              uart_adc_debug_record_valid_signal(signal);
- 941   2      
- 942   2              g_invalid_sample_count = 0;
- 943   2      
- 944   2              /*
- 945   2               * 只有从“脉冲外”进入“脉冲内”时，才计 1 个有效脉冲。
- 946   2               *
- 947   2               * 如果一个脉冲持续了多个 ADC 扫描周期，
- 948   2               * 后续扫描虽然仍然有效，但不能重复计数，
- 949   2               * 否则一个宽脉冲会被误认为很多个脉冲。
- 950   2               */
- 951   2              if(g_in_pulse == 0)
- 952   2              {
- 953   3                  g_in_pulse = 1;
- 954   3                  valid_pulse_process();
- 955   3              }
- 956   2      
- 957   2              return;
- 958   2          }
- 959   1      
- 960   1          /*
- 961   1           * 走到这里，说明本次 ADC 读取没有达到有效脉冲阈值。
- 962   1           * 按本次需求，它就属于一次“无效读取”，需要累计。
- 963   1           *
- 964   1           * 注意：
- 965   1           *  迟滞仍然保留给 g_in_pulse 使用。
- 966   1           *  只有信号明确离开有效区后，才允许下一次有效脉冲重新计数；
- 967   1           *  但遮光计数按“本次是否有效”来统计，避免信号卡在迟滞区时永远不遮光。
- 968   1           */
- 969   1          if((g_in_pulse != 0) && signal_leave_active(signal))
+ 922   1          {
+ 923   2              return (uint16_t)(old_v - ((old_v - new_v) >> shift));
+ 924   2          }
+ 925   1      }
+ 926          
+ 927          /* 以下实现 int16_t 限幅。 */
+ 928          static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v)
+ 929          {
+ 930   1          if(x < min_v)
+ 931   1          {
+ 932   2              return min_v;
+ 933   2          }
+ 934   1      
+ 935   1          if(x > max_v)
+ 936   1          {
+ 937   2              return max_v;
+ 938   2          }
+ 939   1      
+ 940   1          return x;
+ 941   1      }
+ 942          
+ 943          /* 以下实现背景基线慢速跟随。 */
+ 944          static void ir_update_baseline(uint16_t sample)
+ 945          {
+ 946   1          uint16_t amp;
+ 947   1      
+ 948   1          amp = ir_abs_amp(sample, g_ir_baseline);
+ 949   1      
+ 950   1          /* 非脉冲区才允许基线慢速跟随，避免把脉冲峰值吃进基线。 */
+ 951   1          if(amp < g_ir_threshold_off)
+ 952   1          {
+ 953   2              g_ir_baseline = ir_iir_u16(g_ir_baseline, sample, IR_BASELINE_SHIFT);
+ 954   2          }
+ 955   1      }
+ 956          
+ 957          /* 以下实现 ADJ 电位器到检测阈值的更新。 */
+ 958          static void ir_update_threshold_from_adj(void)
+ 959          {
+ 960   1          uint16_t now;
+ 961   1          uint16_t dt;
+ 962   1          uint16_t adj;
+ 963   1          uint16_t new_threshold;
+ 964   1          uint16_t hys;
+ 965   1      
+ 966   1          now = time_us16();
+ 967   1          dt = time_sub_u16(now, g_ir_last_adj_update_us);
+ 968   1      
+ 969   1          if((g_ir_threshold_init != 0U) && (dt < IR_ADJ_UPDATE_US))
  970   1          {
- 971   2              g_in_pulse = 0;
+ 971   2              return;
  972   2          }
  973   1      
- 974   1          /*
- 975   1           * 连续无效 ADC 读取计数。
- 976   1           *
- 977   1           * 两个有效脉冲之间会自然出现很多次无效读取，
- 978   1           * 所以 RX_INVALID_SAMPLE_CONFIRM_COUNT 必须根据实际 ADC 扫描速度
- 979   1           * 和发射周期调整，不能过小。
- 980   1           */
- 981   1          invalid_sample_process();
- 982   1      }
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 17  
+ 974   1          g_ir_last_adj_update_us = now;
+ 975   1      
+ 976   1          adj = adc_read_once(IR_ADJ_ADC_CHANNEL);
+ 977   1          if(adj > ADC_MAX_VALUE)
+ 978   1          {
+ 979   2              adj = ADC_MAX_VALUE;
+ 980   2          }
+ 981   1          g_ir_adc_adj = adj;
+ 982   1      
+ 983   1          new_threshold = threshold_map_from_adj(adj);
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 17  
 
- 983          
- 984          
- 985          /*======================================================================
- 986           * 十五、有效脉冲处理
- 987           *====================================================================*/
- 988          
- 989          static void valid_pulse_process(void)
- 990          {
- 991   1          /*
- 992   1           * 捕捉到有效脉冲后，连续无效读取次数必须清零。
- 993   1           *
- 994   1           * 这是本次取消定时器超时后的关键点：
- 995   1           *  遮光只看“连续无效读取次数”；
- 996   1           *  只要中途出现一次有效脉冲，就不能继续沿用之前的无效计数。
- 997   1           */
- 998   1          g_invalid_sample_count = 0;
- 999   1      
-1000   1          /*
-1001   1           * 连续有效脉冲计数累加。
-1002   1           *
-1003   1           * 限制最大 255，防止溢出。
-1004   1           */
-1005   1          if(g_valid_pulse_count < 255U)
-1006   1          {
-1007   2              g_valid_pulse_count++;
-1008   2          }
-1009   1      
-1010   1          /*
-1011   1           * 连续有效脉冲达到确认次数后，判定收到光。
-1012   1           */
-1013   1          if(g_valid_pulse_count >= RX_PULSE_CONFIRM_COUNT)
-1014   1          {
-1015   2              /*
-1016   2               * 状态从遮光变为有光时，才刷新输出。
-1017   2               * 如果原来已经是有光状态，则不重复写 GPIO。
-1018   2               */
-1019   2              if(g_light_ok == 0)
-1020   2              {
-1021   3                  g_light_ok = 1;
-1022   3                  output_apply(1);
-1023   3              }
-1024   2          }
-1025   1      }
-1026          
-1027          static void invalid_sample_process(void)
-1028          {
-1029   1          /*
-1030   1           * 连续无效 ADC 读取计数累加。
-1031   1           *
-1032   1           * 这里统计的是“ADC 采样次数”，不是毫秒数。
-1033   1           * 因此它和 adc_read_once() 的耗时、ADJ 更新占用时间、主频有关。
-1034   1           */
-1035   1          if(g_invalid_sample_count < 65535U)
-1036   1          {
-1037   2              g_invalid_sample_count++;
-1038   2          }
-1039   1      
-1040   1          /*
-1041   1           * 连续无效次数没有达到确认值之前，不改变输出。
-1042   1           *
-1043   1           * 这样可以避免有效脉冲之间的正常空白区，
-1044   1           * 或者偶发的一两次低电平读取，导致输出乱跳。
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 18  
-
-1045   1           */
-1046   1          if(g_invalid_sample_count < RX_INVALID_SAMPLE_CONFIRM_COUNT)
-1047   1          {
-1048   2              return;
-1049   2          }
-1050   1      
-1051   1          /*
-1052   1           * 已经确认遮光：
-1053   1           *  1. 清除有效脉冲确认计数；
-1054   1           *  2. 清除脉冲内部状态；
-1055   1           *  3. 如果当前还处于有光状态，则切换为遮光并刷新输出。
-1056   1           */
-1057   1          g_valid_pulse_count = 0;
-1058   1          g_in_pulse = 0;
-1059   1      
-1060   1          if(g_light_ok != 0)
-1061   1          {
-1062   2              g_light_ok = 0;
-1063   2              output_apply(0);
-1064   2          }
-1065   1      }
-1066          
-1067          
-1068          /*======================================================================
-1069           * 十六、遮光判断说明
-1070           *====================================================================*/
-1071          /*
-1072           * 本版本不再使用定时器遮光超时函数。
-1073           *
-1074           * 旧逻辑：
-1075           *  Timer0 每 10us 计数，超过固定毫秒数没有收到脉冲，就认为遮光。
-1076           *
-1077           * 新逻辑：
-1078           *  不再用时间判断遮光，而是用“连续无效 ADC 读取次数”判断遮光。
-1079           *  也就是：
-1080           *      有效脉冲出现 -> g_invalid_sample_count 清 0；
-1081           *      明确无效读取 -> g_invalid_sample_count 加 1；
-1082           *      连续无效超过 RX_INVALID_SAMPLE_CONFIRM_COUNT -> 遮光。
-1083           *
-1084           * 优点：
-1085           *  去掉了遮光判定对 Timer0 超时时间的依赖。
-1086           *
-1087           * 注意：
-1088           *  因为这是按 ADC 读取次数计数，不是按真实时间计数，
-1089           *  所以 RX_INVALID_SAMPLE_CONFIRM_COUNT 需要结合现场发射周期和 ADC 扫描速度调整。
-1090           */
-1091          
-1092          
-1093          /*======================================================================
-1094           * 十七、ADJ 阈值更新
-1095           *====================================================================*/
-1096          static void threshold_update_process(void)
-1097          {
-1098   1          uint16_t adj;
-1099   1          uint16_t new_threshold;
-1100   1      
-1101   1          /*
-1102   1           * 读取 ADJ 电位器。
-1103   1           *
-1104   1           * 这里只读取一次，不做多次平均。
-1105   1           * 原因：
-1106   1           *  ADJ 更新函数虽然是低速运行，
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 19  
-
-1107   1           *  但也不应该长时间占用 ADC，
-1108   1           *  否则可能影响接收脉冲捕捉。
-1109   1           */
-1110   1          adj = adc_read_once(IR_ADJ_ADC_CHANNEL);
-1111   1      
-1112   1          /*
-1113   1           * 保存 ADJ 原始值，方便调试观察。
-1114   1           */
-1115   1          g_adc_adj = adj;
-1116   1      
-1117   1          /*
-1118   1           * 把 ADJ 原始 ADC 值映射成实际接收阈值。
-1119   1           */
-1120   1          new_threshold = threshold_map_from_adj(adj);
-1121   1      
-1122   1          /*
-1123   1           * 第一次初始化时，直接同步阈值。
-1124   1           *
-1125   1           * 不做 IIR，否则刚上电阈值会慢慢逼近，导致前几十毫秒判断不准。
-1126   1           */
-1127   1          if(g_threshold_init == 0)
-1128   1          {
-1129   2              g_threshold_init = 1;
-1130   2              g_threshold_filter = ((uint32_t)new_threshold << ADJ_FILTER_SHIFT);
-1131   2              g_threshold = new_threshold;
-1132   2              return;
-1133   2          }
-1134   1      
-1135   1          /*
-1136   1           * IIR 平滑滤波。
-1137   1           *
-1138   1           * 等价于：
-1139   1           *  g_threshold = 7/8 * old + 1/8 * new
-1140   1           *
-1141   1           * 目的：
-1142   1           *  避免电位器轻微抖动导致阈值抖动；
-1143   1           *  避免输出在临界点来回跳。
-1144   1           */
-1145   1          g_threshold_filter -= (g_threshold_filter >> ADJ_FILTER_SHIFT);
-1146   1          g_threshold_filter += new_threshold;
-1147   1      
-1148   1          /*
-1149   1           * 还原成实际阈值。
-1150   1           */
-1151   1          g_threshold = (uint16_t)(g_threshold_filter >> ADJ_FILTER_SHIFT);
-1152   1      
-1153   1          /*
-1154   1           * 阈值限幅。
-1155   1           */
-1156   1          if(g_threshold < THRESHOLD_MIN_ADC)
-1157   1          {
-1158   2              g_threshold = THRESHOLD_MIN_ADC;
-1159   2          }
-1160   1          else if(g_threshold > THRESHOLD_MAX_ADC)
-1161   1          {
-1162   2              g_threshold = THRESHOLD_MAX_ADC;
-1163   2          }
-1164   1      }
-1165          
-1166          static uint16_t threshold_map_from_adj(uint16_t adj)
-1167          {
-1168   1          uint32_t span;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 20  
-
-1169   1          uint16_t threshold;
-1170   1      
-1171   1          /*
-1172   1           * ADJ 限幅到 12 位 ADC 范围。
-1173   1           */
-1174   1          if(adj > ADC_MAX_VALUE)
-1175   1          {
-1176   2              adj = ADC_MAX_VALUE;
-1177   2          }
-1178   1      
-1179   1          /*
-1180   1           * 阈值范围跨度。
-1181   1           */
-1182   1          span = (uint32_t)(THRESHOLD_MAX_ADC - THRESHOLD_MIN_ADC);
-1183   1      
-1184   1          /*
-1185   1           * 线性映射：
-1186   1           *
-1187   1           *  adj = 0    -> threshold = THRESHOLD_MIN_ADC
-1188   1           *  adj = 4095 -> threshold = THRESHOLD_MAX_ADC
-1189   1           */
-1190   1          threshold = (uint16_t)(THRESHOLD_MIN_ADC +
-1191   1                      ((uint32_t)adj * span) / ADC_MAX_VALUE);
-1192   1      
-1193   1          return threshold;
-1194   1      }
-1195          
-1196          
-1197          /*======================================================================
-1198           * 十八、脉冲进入/离开判断
-1199           *====================================================================*/
-1200          static uint8_t signal_enter_active(uint16_t adc_value)
-1201          {
-1202   1          uint16_t th;
-1203   1      
-1204   1      #if RX_SIGNAL_ACTIVE_HIGH
-1205   1      
-1206   1          /*
-1207   1           * 高脉冲有效：
-1208   1           *
-1209   1           * 只有 ADC 高于：
-1210   1           *  g_threshold + RX_ON_MARGIN_ADC
-1211   1           * 才认为进入有效脉冲。
-1212   1           */
-1213   1          th = g_threshold + RX_ON_MARGIN_ADC;
-1214   1      
-1215   1          /*
-1216   1           * 防止阈值超过 ADC 最大值。
-1217   1           */
-1218   1          if(th > ADC_MAX_VALUE)
-1219   1          {
-1220   2              th = ADC_MAX_VALUE;
-1221   2          }
-1222   1      
-1223   1          if(adc_value >= th)
-1224   1          {
-1225   2              return 1;
-1226   2          }
-1227   1      
-1228   1      #else
-              
-                  /*
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 21  
-
-                   * 低脉冲有效：
-                   *
-                   * 只有 ADC 低于：
-                   *  g_threshold - RX_ON_MARGIN_ADC
-                   * 才认为进入有效脉冲。
-                   */
-                  if(g_threshold > RX_ON_MARGIN_ADC)
-                  {
-                      th = g_threshold - RX_ON_MARGIN_ADC;
-                  }
-                  else
-                  {
-                      th = 0;
-                  }
-              
-                  if(adc_value <= th)
-                  {
-                      return 1;
-                  }
-              
-              #endif
-1252   1      
-1253   1          return 0;
-1254   1      }
-1255          
-1256          static uint8_t signal_leave_active(uint16_t adc_value)
-1257          {
-1258   1          uint16_t th;
-1259   1      
-1260   1      #if RX_SIGNAL_ACTIVE_HIGH
-1261   1      
-1262   1          /*
-1263   1           * 高脉冲有效：
-1264   1           *
-1265   1           * 当 ADC 低于：
-1266   1           *  g_threshold - RX_OFF_MARGIN_ADC
-1267   1           * 认为脉冲已经结束。
-1268   1           */
-1269   1          if(g_threshold > RX_OFF_MARGIN_ADC)
-1270   1          {
-1271   2              th = g_threshold - RX_OFF_MARGIN_ADC;
-1272   2          }
-1273   1          else
-1274   1          {
-1275   2              th = 0;
-1276   2          }
-1277   1      
-1278   1          if(adc_value <= th)
-1279   1          {
-1280   2              return 1;
-1281   2          }
-1282   1      
-1283   1      #else
-              
-                  /*
-                   * 低脉冲有效：
-                   *
-                   * 当 ADC 高于：
-                   *  g_threshold + RX_OFF_MARGIN_ADC
-                   * 认为脉冲已经结束。
-                   */
-                  th = g_threshold + RX_OFF_MARGIN_ADC;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 22  
-
-              
-                  if(th > ADC_MAX_VALUE)
-                  {
-                      th = ADC_MAX_VALUE;
-                  }
-              
-                  if(adc_value >= th)
-                  {
-                      return 1;
-                  }
-              
-              #endif
-1305   1      
-1306   1          return 0;
-1307   1      }
-1308          
-1309          
-1310          /*======================================================================
-1311           * 十九、串口有效脉冲幅度调试输出
-1312           *====================================================================*/
-1313          static void uart_adc_debug_record_valid_signal(uint16_t signal)
-1314          {
-1315   1      #if UART_ADC_DEBUG_ENABLE
-1316   1          /*
-1317   1           * 只记录已经超过有效阈值的 ADC 值。
-1318   1           *
-1319   1           * 这个函数只在 signal_enter_active(signal) 成立后调用，
-1320   1           * 所以这里记录到的一定是有效脉冲区域内的幅度，
-1321   1           * 不会记录无信号时的 0。
-1322   1           */
-1323   1          g_uart_valid_pulse_amp_last = signal;
-1324   1      
-1325   1          /*
-1326   1           * 记录本回传周期内的最大有效脉冲幅度。
-1327   1           *
-1328   1           * 因为红外发射是窄脉冲，ADC 不一定每次都采到峰顶，
-1329   1           * 取一个周期内最大值更利于判断接收强度。
-1330   1           */
-1331   1          if(signal > g_uart_valid_pulse_amp_max)
-1332   1          {
-1333   2              g_uart_valid_pulse_amp_max = signal;
-1334   2          }
-1335   1      
-1336   1          /*
-1337   1           * 统计本周期内采到过多少个有效 ADC 点。
-1338   1           *
-1339   1           * 串口发送时会用它判断“本周期是否真的有有效脉冲”。
-1340   1           */
-1341   1          if(g_uart_valid_sample_count < 65535U)
-1342   1          {
-1343   2              g_uart_valid_sample_count++;
-1344   2          }
-1345   1      #else
-                  (void)signal;
-              #endif
-1348   1      }
-1349          
-1350          static void uart_adc_debug_process(void)
-1351          {
-1352   1      #if UART_ADC_DEBUG_ENABLE
-1353   1          uint16_t amp;
-1354   1      
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 23  
-
-1355   1          /*
-1356   1           * 没到发送周期，不发送。
-1357   1           */
-1358   1          if(g_uart_adc_debug_send_flag == 0)
-1359   1          {
-1360   2              return;
-1361   2          }
-1362   1      
-1363   1          /*
-1364   1           * 先清标志，避免 printfS 阻塞期间重复进入。
-1365   1           */
-1366   1          g_uart_adc_debug_send_flag = 0;
-1367   1      
-1368   1          /*
-1369   1           * 本周期内没有捕捉到有效脉冲，不回传任何内容。
-1370   1           *
-1371   1           * 这样串口上就不会再出现 S=0、背景值、INV 等无信号检测信息。
-1372   1           */
-1373   1          if(g_uart_valid_sample_count == 0)
-1374   1          {
-1375   2              return;
-1376   2          }
-1377   1      
-1378   1          /*
-1379   1           * 默认回传本周期内最大有效脉冲幅度。
-1380   1           *
-1381   1           * 如果你想看最后一次有效幅度，可以把下面这一行改成：
-1382   1           *  amp = g_uart_valid_pulse_amp_last;
-1383   1           */
-1384   1          amp = g_uart_valid_pulse_amp_max;
-1385   1      
-1386   1          /*
-1387   1           * 清空本周期统计，准备统计下一个周期。
-1388   1           */
-1389   1          g_uart_valid_pulse_amp_max = 0;
-1390   1          g_uart_valid_sample_count = 0;
-1391   1      
-1392   1          /*
-1393   1           * 只回传有效脉冲幅度。
-1394   1           *
-1395   1           * 串口显示示例：
-1396   1           *  P=3326
-1397   1           *
-1398   1           * 其中 3326 就是本周期内捕捉到的最大有效 ADC 幅度。
-1399   1           */
-1400   1          printfS("P=%u\r\n", amp);
-1401   1      #endif
-1402   1      }
-1403          
-1404          
-1405          /*======================================================================
-1406           * 二十、输出控制
-1407           *====================================================================*/
-1408          static void output_apply(uint8_t light_ok)
-1409          {
-1410   1          uint8_t output_active;
-1411   1      
-1412   1          /*
-1413   1           * 根据亮通/暗通模式，决定输出是否动作。
-1414   1           */
-1415   1      #if SENSOR_DARK_ON
-                  /*
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 24  
-
-                   * 暗通：
-                   *  有光 -> 输出不动作
-                   *  遮光 -> 输出动作
-                   */
-                  output_active = light_ok ? 0 : 1;
+ 984   1      
+ 985   1          if(g_ir_threshold_init == 0U)
+ 986   1          {
+ 987   2              g_ir_threshold_init = 1U;
+ 988   2              g_ir_threshold_filter = ((uint32_t)new_threshold << IR_ADJ_FILTER_SHIFT);
+ 989   2          }
+ 990   1          else
+ 991   1          {
+ 992   2              g_ir_threshold_filter -= (g_ir_threshold_filter >> IR_ADJ_FILTER_SHIFT);
+ 993   2              g_ir_threshold_filter += new_threshold;
+ 994   2          }
+ 995   1      
+ 996   1          g_ir_threshold_on = (uint16_t)(g_ir_threshold_filter >> IR_ADJ_FILTER_SHIFT);
+ 997   1      
+ 998   1          if(g_ir_threshold_on < IR_TH_MIN_ADC)
+ 999   1          {
+1000   2              g_ir_threshold_on = IR_TH_MIN_ADC;
+1001   2          }
+1002   1          else if(g_ir_threshold_on > IR_TH_MAX_ADC)
+1003   1          {
+1004   2              g_ir_threshold_on = IR_TH_MAX_ADC;
+1005   2          }
+1006   1      
+1007   1          hys = (uint16_t)(g_ir_threshold_on >> 3);
+1008   1          if(hys < IR_TH_HYS_MIN_ADC)
+1009   1          {
+1010   2              hys = IR_TH_HYS_MIN_ADC;
+1011   2          }
+1012   1      
+1013   1          g_ir_threshold_off = (g_ir_threshold_on > hys) ? (uint16_t)(g_ir_threshold_on - hys) : 0U;
+1014   1      }
+1015          
+1016          /* 以下实现电位器 ADC 到阈值范围的线性映射。 */
+1017          static uint16_t threshold_map_from_adj(uint16_t adj)
+1018          {
+1019   1          uint32_t span;
+1020   1          uint16_t threshold;
+1021   1      
+1022   1          if(adj > ADC_MAX_VALUE)
+1023   1          {
+1024   2              adj = ADC_MAX_VALUE;
+1025   2          }
+1026   1      
+1027   1          span = (uint32_t)(IR_TH_MAX_ADC - IR_TH_MIN_ADC);
+1028   1          threshold = (uint16_t)(IR_TH_MIN_ADC + (((uint32_t)adj * span) / ADC_MAX_VALUE));
+1029   1      
+1030   1          return threshold;
+1031   1      }
+1032          
+1033          /*======================================================================
+1034           * 十九、输出控制
+1035           *====================================================================*/
+1036          
+1037          /* 以下实现 NO/NC/LED 的最终输出刷新。 */
+1038          static void output_apply(uint8_t light_ok)
+1039          {
+1040   1          uint8_t output_active;
+1041   1      
+1042   1      #if SENSOR_DARK_ON
+                  output_active = (light_ok == 0U) ? 1U : 0U;
               #else
-1423   1          /*
-1424   1           * 亮通：
-1425   1           *  有光 -> 输出动作
-1426   1           *  遮光 -> 输出不动作
-1427   1           */
-1428   1          output_active = light_ok ? 1 : 0;
-1429   1      #endif
-1430   1      
-1431   1          /*
-1432   1           * NO / NC 互补输出。
-1433   1           */
-1434   1          if(output_active)
-1435   1          {
-1436   2              /*
-1437   2               * 输出动作：
-1438   2               *  NO 动作；
-1439   2               *  NC 释放。
-1440   2               */
-1441   2              gpio_io_set(IR_OUT_NO_PIN, OUT_ACTIVE_LEVEL);
-1442   2              gpio_io_set(IR_OUT_NC_PIN, OUT_INACTIVE_LEVEL);
-1443   2          }
-1444   1          else
-1445   1          {
-1446   2              /*
-1447   2               * 输出不动作：
-1448   2               *  NO 释放；
-1449   2               *  NC 动作。
-1450   2               */
-1451   2              gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
-1452   2              gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
-1453   2          }
-1454   1      
-1455   1          /*
-1456   1           * LED 显示收到光状态。
-1457   1           *
-1458   1           * 注意：
-1459   1           *  LED 不跟随亮通/暗通模式；
-1460   1           *  LED 只表示光路是否通。
-1461   1           */
-1462   1          if(light_ok)
-1463   1          {
-1464   2              gpio_io_set(IR_LED_PIN, LED_ACTIVE_LEVEL);
-1465   2          }
-1466   1          else
-1467   1          {
-1468   2              gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
-1469   2          }
-1470   1      
-1471   1          /*
-1472   1           * 保存当前输出状态，方便调试观察。
-1473   1           */
-1474   1          g_output_state = output_active;
-1475   1      }
-1476          
-1477          
+1045   1          output_active = (light_ok != 0U) ? 1U : 0U;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 18  
 
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 11:08:49 PAGE 25  
+1046   1      #endif
+1047   1      
+1048   1          g_ir_output_state = output_active;
+1049   1      
+1050   1          if(output_active != 0U)
+1051   1          {
+1052   2              gpio_io_set(IR_OUT_NO_PIN, OUT_ACTIVE_LEVEL);
+1053   2              gpio_io_set(IR_OUT_NC_PIN, OUT_INACTIVE_LEVEL);
+1054   2          }
+1055   1          else
+1056   1          {
+1057   2              gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
+1058   2              gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
+1059   2          }
+1060   1      
+1061   1          if(light_ok != 0U)
+1062   1          {
+1063   2              gpio_io_set(IR_LED_PIN, LED_ACTIVE_LEVEL);
+1064   2          }
+1065   1          else
+1066   1          {
+1067   2              gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
+1068   2          }
+1069   1      }
+1070          
+1071          /* 以下实现 P2.7 窗口调试脚控制。 */
+1072          static void debug_window_pin(uint8_t level)
+1073          {
+1074   1          if(level != 0U)
+1075   1          {
+1076   2              gpio_io_set(IR_DEBUG_WINDOW_PIN, GPIO_HIGH);
+1077   2          }
+1078   1          else
+1079   1          {
+1080   2              gpio_io_set(IR_DEBUG_WINDOW_PIN, GPIO_LOW);
+1081   2          }
+1082   1      }
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =   1037    ----
-   CONSTANT SIZE    =      7    ----
-   XDATA SIZE       =     30      10
+   CODE SIZE        =   2344    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     46      40
    PDATA SIZE       =   ----    ----
    DATA SIZE        =   ----    ----
    IDATA SIZE       =   ----    ----

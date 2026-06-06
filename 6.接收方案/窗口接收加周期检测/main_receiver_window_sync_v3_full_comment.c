@@ -1,23 +1,23 @@
 /***********************************************************************
- * �ļ����ƣ�main.c��ȫ��ע�Ͱ棩
- * ������;��������䴫�������ն�
- * оƬƽ̨��UM800Y / UM8004
- * ��Ƶ���ã�24MHz
+ * 文件名称：main.c（全文注释版）
+ * 工程用途：红外对射传感器接收端
+ * 芯片平台：UM800Y / UM8004
+ * 主频配置：24MHz
  *
- * �ź�������
- * 1. ����˺����ź�����Լ 1ms��
- * 2. ��Ч�������Լ 25us��ռ�ձ�Լ 2.5%��
+ * 信号条件：
+ * 1. 发射端红外信号周期约 1ms。
+ * 2. 有效脉冲宽度约 25us，占空比约 2.5%。
  *
- * ���ղ��ԣ�
- * 1. �ϵ��ȸ���������Ч���塣
- * 2. �ҵ�����������Լ 1ms �ĺϸ�����󣬽���ͬ�����١�
- * 3. ͬ����ÿ 1ms ��Ԥ�����帽����һ��Լ 200us �Ĳ������ڡ�
- * 4. �����ڸ��ٶ�ȡ ADC��ȡ��ֵ��
- * 5. �� ��ֵ - ���� �õ���ʵ������ȣ����⻷����/ƫ��Ӱ�졣
- * 6. ���������Ч����ȷ���й⣬���������׶��������/������У�飬�����󴥷���
+ * 接收策略：
+ * 1. 上电先高速搜索有效脉冲。
+ * 2. 找到多个连续间隔约 1ms 的合格脉冲后，进入同步跟踪。
+ * 3. 同步后每 1ms 在预计脉冲附近打开一个约 200us 的采样窗口。
+ * 4. 窗口内高速读取 ADC，取峰值。
+ * 5. 用 峰值 - 基线 得到真实脉冲幅度，避免环境光/偏置影响。
+ * 6. 连续多个有效脉冲确认有光，并对搜索阶段脉冲宽度/周期做校验，减少误触发。
  *
- * ֱ��ʹ�÷�����
- * �ѱ��ļ������滻�ɹ��� Example/gpio/demo/source/main.c��
+ * 直接使用方法：
+ * 把本文件整体替换旧工程 Example/gpio/demo/source/main.c。
  ***********************************************************************/
 
 #include "system_um800y.h"
@@ -30,33 +30,33 @@
 #include "adc.h"
 
 /*======================================================================
- * һ��ADC ͨ��ӳ��
+ * 一、ADC 通道映射
  *====================================================================*/
 
 /*
- * �����ź� ADC ͨ����
- * �ɰ���հ壺P1.5 / U3-1 Ϊ LM358 ������ɹ����а� ADC_CHANNEL_1 ʹ�á�
- * �����¼���ֽ��� ADC ���䣬����λ����Ӱ�����ֵ����� IR_ADJ_ADC_CHANNEL �Ե���
+ * 接收信号 ADC 通道。
+ * 旧版接收板：P1.5 / U3-1 为 LM358 输出，旧工程中按 ADC_CHANNEL_1 使用。
+ * 如果烧录后发现接收 ADC 不变，而电位器会影响接收值，请和 IR_ADJ_ADC_CHANNEL 对调。
  */
 #define IR_SIGNAL_ADC_CHANNEL       ADC_CHANNEL_1
 
 /*
- * ��λ�� ADJ ADC ͨ����
- * ԭ��ͼ�� ADJ ���ƶ��� P2.0��UM800Y �� P2.0 ���� AIN2��
+ * 电位器 ADJ ADC 通道。
+ * 原理图中 ADJ 已移动到 P2.0；UM800Y 中 P2.0 复用 AIN2。
  */
 #define IR_ADJ_ADC_CHANNEL          ADC_CHANNEL_2
 
 /*======================================================================
- * ����GPIO ����ӳ��
+ * 二、GPIO 引脚映射
  *====================================================================*/
 
-#define IR_OUT_NO_PIN               P1_0    /* NO ������� */
-#define IR_OUT_NC_PIN               P1_2    /* NC ������� */
-#define IR_LED_PIN                  P1_3    /* ��ɫָʾ�� */
-#define IR_DEBUG_WINDOW_PIN         P2_7    /* ���Խţ����ڴ�ʱ��ת����ʾ���������� */
+#define IR_OUT_NO_PIN               P1_0    /* NO 常开输出 */
+#define IR_OUT_NC_PIN               P1_2    /* NC 常闭输出 */
+#define IR_LED_PIN                  P1_3    /* 红色指示灯 */
+#define IR_DEBUG_WINDOW_PIN         P2_7    /* 调试脚：窗口打开时翻转，用示波器看对齐 */
 
 /*======================================================================
- * ���������������
+ * 三、输出极性配置
  *====================================================================*/
 
 #define OUT_ACTIVE_LEVEL            GPIO_HIGH
@@ -66,84 +66,84 @@
 #define LED_INACTIVE_LEVEL          GPIO_LOW
 
 /*
- * SENSOR_DARK_ON = 0����ͨ���յ���ʱ���������
- * SENSOR_DARK_ON = 1����ͨ���ڹ�ʱ���������
+ * SENSOR_DARK_ON = 0：亮通，收到光时输出动作。
+ * SENSOR_DARK_ON = 1：暗通，遮光时输出动作。
  */
 #define SENSOR_DARK_ON              0U
 
 /*
- * RX_SIGNAL_ACTIVE_HIGH = 1��ADC ����ʾ�յ��������塣
- * RX_SIGNAL_ACTIVE_HIGH = 0��ADC ��С��ʾ�յ��������塣
+ * RX_SIGNAL_ACTIVE_HIGH = 1：ADC 变大表示收到红外脉冲。
+ * RX_SIGNAL_ACTIVE_HIGH = 0：ADC 变小表示收到红外脉冲。
  */
 #define RX_SIGNAL_ACTIVE_HIGH       1U
 
 /*======================================================================
- * �ġ�1ms/25us ����ͬ����������
+ * 四、1ms/25us 脉冲同步采样参数
  *====================================================================*/
 
 #define IR_PERIOD_US                1000U
 #define IR_PULSE_WIDTH_US           25U
 
-/* �����׶Σ������������������Χ�ڣ���Ϊ��ͬһ�� 1ms �ź�Դ�� */
+/* 搜索阶段：两个脉冲间隔在这个范围内，认为是同一个 1ms 信号源。 */
 #define IR_SEARCH_PERIOD_MIN_US     850U
 #define IR_SEARCH_PERIOD_MAX_US     1150U
 
-/* �����׶��������У�飺25us ��������һ������խ�����ë�̣���������ǻ�������/���͡� */
+/* 搜索阶段脉冲宽度校验：25us 脉冲允许一定误差，过窄多半是毛刺，过宽多半是环境干扰/饱和。 */
 #define IR_SEARCH_PULSE_MIN_US      6U
 #define IR_SEARCH_PULSE_MAX_US      90U
 
-/* ���ٽ׶Σ�Ԥ����������ǰ 80us ���� 120us �������ܴ��� 200us�� */
+/* 跟踪阶段：预计脉冲中心前 80us 到后 120us 开窗，总窗口 200us。 */
 #define IR_WINDOW_PRE_US            80U
 #define IR_WINDOW_POST_US           120U
 #define IR_WINDOW_WIDTH_US          (IR_WINDOW_PRE_US + IR_WINDOW_POST_US)
 
-/* ��Ӧ�ٶȣ�Լ 4ms ȷ���й⣬Լ 10ms ȷ���ڹ⣬����©�������Ѳ��������ϡ� */
+/* 响应速度：约 4ms 确认有光，约 10ms 确认遮光，连续漏采先重搜不立刻闪断。 */
 #define IR_LIGHT_ON_CONFIRM_COUNT   4U
-#define IR_LIGHT_OFF_MISS_COUNT     10U     /* ���ڹ�ȷ�ϣ�Լ 10ms��Լ 100Hz����©�ɸ�ǿ */
-#define IR_RELOCK_MISS_COUNT        3U      /* ���� 3 ������δ���У��Ȼ��������������̹���� */
-#define IR_LOST_SYNC_MISS_COUNT     20U     /* �����ڵ���ͳ�ƣ�����ֱ�Ӿ���������� */
-#define IR_SEARCH_LOCK_COUNT        4U      /* �����׶α������� 4 �� 1ms ������ȷ��������������� */
+#define IR_LIGHT_OFF_MISS_COUNT     10U     /* 真遮光确认：约 10ms，约 100Hz，抗漏采更强 */
+#define IR_RELOCK_MISS_COUNT        3U      /* 连续 3 个窗口未命中，先回搜索，但不立刻关输出 */
+#define IR_LOST_SYNC_MISS_COUNT     20U     /* 仅用于调试统计，不再直接决定输出闪断 */
+#define IR_SEARCH_LOCK_COUNT        4U      /* 搜索阶段必须连续 4 个 1ms 周期正确，才允许进入跟踪 */
 
-/* �����������λ��������ֹ���������ܡ� */
+/* 单周期最大相位修正，防止被噪声拖跑。 */
 #define IR_PHASE_ADJUST_LIMIT_US    12
 
 /*======================================================================
- * �塢��ֵ/�˲�����
+ * 五、阈值/滤波参数
  *====================================================================*/
 
 #define ADC_MAX_VALUE               4095U
 
 /*
- * ע�⣺�������ֵ�ǡ����������ֵ��������ԭʼ ADC ����ֵ��
- * ��Ϊ��������� amp = peak - baseline��
+ * 注意：这里的阈值是“脉冲幅度阈值”，不是原始 ADC 绝对值。
+ * 因为程序会先做 amp = peak - baseline。
  *
- * ���벻�������� IR_TH_MIN_ADC / IR_TH_MAX_ADC��
- * �󴥷��ࣺ���� IR_TH_MIN_ADC / IR_TH_MAX_ADC��
+ * 距离不够：降低 IR_TH_MIN_ADC / IR_TH_MAX_ADC。
+ * 误触发多：升高 IR_TH_MIN_ADC / IR_TH_MAX_ADC。
  */
 #define IR_TH_MIN_ADC               120U
 #define IR_TH_MAX_ADC               1800U
 #define IR_TH_DEFAULT_ADC           700U
 #define IR_TH_HYS_MIN_ADC           80U
 
-#define IR_BASELINE_SHIFT           5U      /* �������ٸ��棺1/32 */
-#define IR_FAST_FILTER_SHIFT        1U      /* ������ٷ����˲���1/2 */
-#define IR_DISPLAY_FILTER_SHIFT     3U      /* ��ʾ���ٷ����˲���1/8 */
-#define IR_ADJ_FILTER_SHIFT         3U      /* ��λ����ֵ�˲���1/8 */
-#define IR_ADJ_UPDATE_US            10000U  /* 10ms ����һ�ε�λ�� */
+#define IR_BASELINE_SHIFT           5U      /* 基线慢速跟随：1/32 */
+#define IR_FAST_FILTER_SHIFT        1U      /* 输出快速幅度滤波：1/2 */
+#define IR_DISPLAY_FILTER_SHIFT     3U      /* 显示慢速幅度滤波：1/8 */
+#define IR_ADJ_FILTER_SHIFT         3U      /* 电位器阈值滤波：1/8 */
+#define IR_ADJ_UPDATE_US            10000U  /* 10ms 更新一次电位器 */
 
 /*======================================================================
- * ����Timer0 1us ������������
+ * 六、Timer0 1us 自由运行配置
  *====================================================================*/
 
 /*
- * 24MHz / (23 + 1) = 1MHz������ Timer0 ÿ 1us �� 1��
- * �Զ���װ 0xFFFF����Ȼ 65.536ms ���ƣ�����������ʱ���� uint16_t ���Ƽ��㡣
+ * 24MHz / (23 + 1) = 1MHz，所以 Timer0 每 1us 加 1。
+ * 自动重装 0xFFFF，自然 65.536ms 回绕；本程序所有时间差都按 uint16_t 回绕计算。
  */
 #define IR_TIMER0_1US_RELOAD        0xFFFFU
 #define IR_TIMER0_1US_PRESCALER     23U
 
 /*======================================================================
- * �ߡ�״̬����͵��Ա���
+ * 七、状态定义和调试变量
  *====================================================================*/
 
 typedef enum
@@ -154,23 +154,23 @@ typedef enum
 
 static volatile ir_state_t g_ir_state = IR_STATE_SEARCH;
 
-/* ��Щ�������鱣�������� Keil ����/���ڵ��Թ۲졣 */
+/* 这些变量建议保留，方便 Keil 仿真/串口调试观察。 */
 /*
- * ���Ա���˵����
- * g_ir_light_ok          ��ǰ�ڲ��ж��Ƿ��й⣬1=�й⣬0=�޹⡣
- * g_ir_synced            ��ǰ�Ƿ��Ѿ����� 1ms ����ͬ����
- * g_ir_output_state      ��������Ƿ���������ͨ/��ͨӰ�졣
- * g_ir_adc_signal        ���һ�ζ�ȡ�Ľ��� ADC ԭʼֵ��
- * g_ir_adc_adj           ���һ�ζ�ȡ�� ADJ ��λ�� ADC ԭʼֵ��
- * g_ir_threshold_on      �й�ȷ�ϸ���ֵ��
- * g_ir_threshold_off     �йⱣ�ֵ���ֵ��Ҳ���ǻز�����ֵ��
- * g_ir_baseline          ��ǰ����ͨ���������ߡ�
- * g_ir_peak              ���һ�������ڵķ�ֵ��
- * g_ir_amp               ���һ�δ��ڵ�˲ʱ���ȣ��� peak-baseline��
- * g_ir_amp_fast          �����˲����ȣ����ڹ۲������Ӧ���ơ�
- * g_ir_amp_display       �����˲����ȣ�������������ʾ����/��ǿ��
- * g_ir_next_center_us    ��һ��Ԥ����������ʱ�䡣
- * g_ir_last_light_seen_us���һ��ȷ�Ͽ�����Ч�����ʱ�䡣
+ * 调试变量说明：
+ * g_ir_light_ok          当前内部判定是否有光，1=有光，0=无光。
+ * g_ir_synced            当前是否已经锁定 1ms 脉冲同步。
+ * g_ir_output_state      最终输出是否动作，受亮通/暗通影响。
+ * g_ir_adc_signal        最近一次读取的接收 ADC 原始值。
+ * g_ir_adc_adj           最近一次读取的 ADJ 电位器 ADC 原始值。
+ * g_ir_threshold_on      有光确认高阈值。
+ * g_ir_threshold_off     有光保持低阈值，也就是回差后的阈值。
+ * g_ir_baseline          当前接收通道背景基线。
+ * g_ir_peak              最近一个窗口内的峰值。
+ * g_ir_amp               最近一次窗口的瞬时幅度，即 peak-baseline。
+ * g_ir_amp_fast          快速滤波幅度，便于观察输出响应趋势。
+ * g_ir_amp_display       慢速滤波幅度，后续可用于显示距离/光强。
+ * g_ir_next_center_us    下一次预计脉冲中心时间。
+ * g_ir_last_light_seen_us最后一次确认看到有效红外的时间。
  */
 static volatile uint8_t  g_ir_light_ok = 0;
 static volatile uint8_t  g_ir_synced = 0;
@@ -202,189 +202,189 @@ static uint32_t g_ir_threshold_filter = ((uint32_t)IR_TH_DEFAULT_ADC << IR_ADJ_F
 static uint8_t  g_ir_threshold_init = 0;
 
 /*======================================================================
- * �ˡ���������
+ * 八、函数声明
  *====================================================================*/
 
 /*
- * GPIO_Init()��
- * ���ý��ն��õ����������š�
- * P1.0��NO ���������
- * P1.2��NC ���������
- * P1.3����ɫָʾ�ơ�
- * P2.7��ʾ�������Դ��ڽš�
- * P1.5/P2.0���Ȼָ�Ĭ�����ã�֮���� ADC ��ʼ���е�ģ�����롣
+ * GPIO_Init()：
+ * 配置接收端用到的所有引脚。
+ * P1.0：NO 常开输出。
+ * P1.2：NC 常闭输出。
+ * P1.3：红色指示灯。
+ * P2.7：示波器调试窗口脚。
+ * P1.5/P2.0：先恢复默认配置，之后由 ADC 初始化切到模拟输入。
  */
 void GPIO_Init(void);
 /*
- * ADC_Init()��
- * ���� ADC ʱ�ӡ��ο���ѹ������ʱ���ͨ����
- * ����ʱ�����ý϶̣���Ϊ���� 200us �����ھ����������
- * �Ӷ�������ץ�� 25us ��խ�����ֵ��
+ * ADC_Init()：
+ * 配置 ADC 时钟、参考电压、采样时间和通道。
+ * 采样时间设置较短，是为了在 200us 窗口内尽量多采样，
+ * 从而更容易抓到 25us 的窄脉冲峰值。
  */
 void ADC_Init(void);
 
 /*
- * timer0_init_1us_free_run()��
- * �� Timer0 ����Ϊ 1us �������м�������
- * ���������� Timer0 �жϣ�ֻ������ȡ����ֵ��Ϊʱ�����
- * uint16_t �������� 65.536ms ���ƣ������е� time_sub_u16() �ᴦ�����ơ�
+ * timer0_init_1us_free_run()：
+ * 把 Timer0 配置为 1us 自由运行计数器。
+ * 本程序不依赖 Timer0 中断，只反复读取计数值作为时间戳。
+ * uint16_t 计数会在 65.536ms 回绕，程序中的 time_sub_u16() 会处理回绕。
  */
 static void timer0_init_1us_free_run(void);
 /*
- * time_us16()��
- * ��ȫ��ȡ Timer0 �� 16 λ����ֵ��
- * ���ڸ�/���ֽڷֿ���ȡ�����Բ��á���-��-�ߡ���ʽ��
- * ���θ��ֽ�һ�²���Ϊ��ȡ�ȶ���������ֽ����ʱ������
+ * time_us16()：
+ * 安全读取 Timer0 的 16 位计数值。
+ * 由于高/低字节分开读取，所以采用“高-低-高”方式，
+ * 两次高字节一致才认为读取稳定，避免低字节溢出时读错。
  */
 static uint16_t time_us16(void);
 /*
- * time_after_eq_u16()��
- * �ж� now �Ƿ��Ѿ�����򳬹� target��
- * �� int16_t ��ֵ�Ƚϣ����Լ��� uint16_t ʱ����ơ�
+ * time_after_eq_u16()：
+ * 判断 now 是否已经到达或超过 target。
+ * 用 int16_t 差值比较，可以兼容 uint16_t 时间回绕。
  */
 static uint8_t time_after_eq_u16(uint16_t now, uint16_t target);
 /*
- * time_sub_u16()��
- * �������� 16 λʱ����Ĳ�ֵ��
- * �����޷���������Ȼ���ƣ�ֻҪʱ���С�� 32768us~65535us ������
- * �Ա����� 1ms/10ms ���ж��ǰ�ȫ�ġ�
+ * time_sub_u16()：
+ * 计算两个 16 位时间戳的差值。
+ * 利用无符号整数自然回绕，只要时间差小于 32768us~65535us 量级，
+ * 对本程序 1ms/10ms 的判断是安全的。
  */
 static uint16_t time_sub_u16(uint16_t a, uint16_t b);
 
 /*
- * adc_read_once()��
- * ��ָ�� ADC ͨ����һ������ʽ������
- * �����ȴ�ת����ɣ����� 0~4095 �� 12 λ ADC ֵ��
- * ���������խ��������Ҫ�����̣�����������������˲����ӡ��
+ * adc_read_once()：
+ * 对指定 ADC 通道做一次阻塞式采样。
+ * 阻塞等待转换完成，返回 0~4095 的 12 位 ADC 值。
+ * 由于脉冲很窄，本函数要尽量短，不建议在里面加入滤波或打印。
  */
 static uint16_t adc_read_once(uint8_t ch);
 /*
- * ir_detector_init()��
- * ��ʼ��������״̬�����������б�����
- * �ϵ�ʱ��֪������������λ������Ĭ�Ͻ��� SEARCH��
- * ��ʼ baseline �õ�ǰ ADC ֵ�������ڷ����������ٸ��档
+ * ir_detector_init()：
+ * 初始化红外检测状态机和所有运行变量。
+ * 上电时不知道发射脉冲相位，所以默认进入 SEARCH。
+ * 初始 baseline 用当前 ADC 值，后续在非脉冲区慢速跟随。
  */
 static void ir_detector_init(void);
 /*
- * ir_detector_poll()��
- * �����㷨������ѯ������
- * ÿ�ε��ö��ȸ��� ADJ ��λ��������ֵ��
- * Ȼ����ݵ�ǰ״ִ̬�С��������򡰸��١���
- * ����� last_light_seen ��ʱ�ж������ڹ⡣
+ * ir_detector_poll()：
+ * 接收算法的主轮询函数。
+ * 每次调用都先根据 ADJ 电位器更新阈值，
+ * 然后根据当前状态执行“搜索”或“跟踪”。
+ * 最后用 last_light_seen 超时判断真正遮光。
  */
 static void ir_detector_poll(void);
 /*
- * ir_set_search()��
- * ���»ص�����״̬��
- * ע�⣺���ﲻֱ�ӹر������
- * ��Ϊ����©�ɿ���ֻ�Ǵ���Ư�ƣ���һ�������ڹ⣬
- * �����ر������ ir_detector_poll() �еĳ�ʱ�߼�������
+ * ir_set_search()：
+ * 重新回到搜索状态。
+ * 注意：这里不直接关闭输出。
+ * 因为连续漏采可能只是窗口漂移，不一定是真遮光，
+ * 真正关闭输出由 ir_detector_poll() 中的超时逻辑决定。
  */
 static void ir_set_search(void);
 /*
- * ir_search_sample()��
- * ����ͬ���׶Ρ�
- * �߼����������ٶ� ADC��Ѱ�ҳ�����ֵ���������壻
- * ���������������Ƿ��� 25us ���壻
- * �ټ�������������Ƿ�Լ 1ms��
- * ����������ڶ���ȷ�󣬲Ž��� TRACKING��
+ * ir_search_sample()：
+ * 搜索同步阶段。
+ * 逻辑是连续高速读 ADC，寻找超过阈值的疑似脉冲；
+ * 脉冲结束后检查宽度是否像 25us 脉冲；
+ * 再检查连续脉冲间隔是否约 1ms；
+ * 连续多个周期都正确后，才进入 TRACKING。
  */
 static void ir_search_sample(void);
 /*
- * ir_tracking_process()��
- * ͬ�����ٽ׶Ρ�
- * ���� g_ir_next_center_us ���㴰�������յ㣻
- * ������ֻ���� baseline������������ P2.7 �����ٲ�����
- * ���ڽ�����Ѵ��ڷ�ֵ���� ir_process_frame()��
+ * ir_tracking_process()：
+ * 同步跟踪阶段。
+ * 根据 g_ir_next_center_us 计算窗口起点和终点；
+ * 窗口外只更新 baseline；窗口内拉高 P2.7 并高速采样；
+ * 窗口结束后把窗口峰值交给 ir_process_frame()。
  */
 static void ir_tracking_process(void);
 /*
- * ir_process_frame()��
- * ��һ�� 1ms ���ڵĴ��ڽ�����жϡ�
- * ���� peak �Ǵ�����ǿֵ��peak_us �Ƿ�ֵ����ʱ�䣬expected_center_us ��Ԥ�����ġ�
- * ������ɣ����ȼ��㡢��Ч/��Ч�жϡ�����������������¡���λ΢����
+ * ir_process_frame()：
+ * 对一个 1ms 周期的窗口结果做判断。
+ * 输入 peak 是窗口最强值，peak_us 是峰值出现时间，expected_center_us 是预计中心。
+ * 函数完成：幅度计算、有效/无效判断、连续计数、输出更新、相位微调。
  */
 static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_center_us);
 
 /*
- * ir_abs_amp()��
- * ���ݽ����źż��ԣ����� sample ��� baseline ����Ч���ȡ�
- * �����壺sample - baseline��
- * �����壺baseline - sample��
+ * ir_abs_amp()：
+ * 根据接收信号极性，计算 sample 相对 baseline 的有效幅度。
+ * 正脉冲：sample - baseline。
+ * 负脉冲：baseline - sample。
  */
 static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline);
 /*
- * ir_sample_stronger()��
- * �жϵ�ǰ sample �Ƿ�ȴ��������� best ����ǿ����
- * ����������� ADC������������С ADC��
+ * ir_sample_stronger()：
+ * 判断当前 sample 是否比窗口内已有 best 更“强”。
+ * 正脉冲找最大 ADC，负脉冲找最小 ADC。
  */
 static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best);
 /*
- * ir_best_init_value()��
- * ���ش��ڷ�ֵ�����ĳ�ʼֵ��
- * ������� 0 ��ʼ�����ֵ��������� 0xFFFF ��ʼ����Сֵ��
+ * ir_best_init_value()：
+ * 返回窗口峰值搜索的初始值。
+ * 正脉冲从 0 开始找最大值；负脉冲从 0xFFFF 开始找最小值。
  */
 static uint16_t ir_best_init_value(void);
 /*
- * ir_iir_u16()��
- * �޷��� 16 λһ�� IIR �˲���
- * shift=1 ��ʾÿ�α仯 1/2��shift=3 ��ʾÿ�α仯 1/8��
- * ����λʵ�֣����� 8051 ��ʹ�ø��㡣
+ * ir_iir_u16()：
+ * 无符号 16 位一阶 IIR 滤波。
+ * shift=1 表示每次变化 1/2，shift=3 表示每次变化 1/8。
+ * 用移位实现，避免 8051 上使用浮点。
  */
 static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift);
 /*
- * ir_limit_i16()��
- * int16_t �޷�������
- * ������Ҫ��������ÿ�����ڵ���λ����������ֹ�����Ѵ�����ƫ��
+ * ir_limit_i16()：
+ * int16_t 限幅函数。
+ * 这里主要用于限制每个周期的相位修正量，防止噪声把窗口拉偏。
  */
 static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v);
 /*
- * ir_update_baseline()��
- * ���±������ߡ�
- * ֻ�е�ǰ���ȵ��� threshold_off��˵������ʲ��Ǻ������壬
- * ������ baseline ���ٸ��� sample������������ֵ�Խ����ߡ�
+ * ir_update_baseline()：
+ * 更新背景基线。
+ * 只有当前幅度低于 threshold_off，说明大概率不是红外脉冲，
+ * 才允许 baseline 慢速跟随 sample，避免把脉冲峰值吃进基线。
  */
 static void ir_update_baseline(uint16_t sample);
 /*
- * ir_update_threshold_from_adj()��
- * �����Զ�ȡ ADJ ��λ������ӳ��ɼ����ֵ��
- * ���������� 10ms������ÿ��ѭ������ ADJ��������Ž��ղ�����
- * ��ֵ����Ҳ�� IIR ƽ������ֹ��λ�������������������
+ * ir_update_threshold_from_adj()：
+ * 周期性读取 ADJ 电位器，并映射成检测阈值。
+ * 更新周期是 10ms，不会每次循环都读 ADJ，避免干扰接收采样。
+ * 阈值本身也做 IIR 平滑，防止电位器抖动导致输出抖动。
  */
 static void ir_update_threshold_from_adj(void);
 /*
- * threshold_map_from_adj()��
- * �ѵ�λ�� ADC 0~4095 ����ӳ�䵽 IR_TH_MIN_ADC~IR_TH_MAX_ADC��
- * �����ֵ����������������ȡ���ֵ������ ADC ԭʼ��ѹ��ֵ��
+ * threshold_map_from_adj()：
+ * 把电位器 ADC 0~4095 线性映射到 IR_TH_MIN_ADC~IR_TH_MAX_ADC。
+ * 这个阈值代表“红外脉冲幅度”阈值，不是 ADC 原始电压阈值。
  */
 static uint16_t threshold_map_from_adj(uint16_t adj);
 
 /*
- * output_apply()��
- * ���� light_ok �� SENSOR_DARK_ON �����������״̬��
- * ��ͨ���й�ʱ���������
- * ��ͨ���޹�ʱ���������
- * NO �� NC ʼ�ջ�����LED �� light_ok ָʾ��
+ * output_apply()：
+ * 根据 light_ok 和 SENSOR_DARK_ON 计算最终输出状态。
+ * 亮通：有光时输出动作。
+ * 暗通：无光时输出动作。
+ * NO 和 NC 始终互补，LED 按 light_ok 指示。
  */
 static void output_apply(uint8_t light_ok);
 /*
- * debug_window_pin()��
- * ���� P2.7 ���Դ��ڽš�
- * ���ڲ����ڼ����ߣ����ڽ������͡�
- * ��ʾ�����۲����ͽ���ģ����������λ�ã������ж�ͬ���Ƿ��ȶ���
+ * debug_window_pin()：
+ * 控制 P2.7 调试窗口脚。
+ * 窗口采样期间拉高，窗口结束拉低。
+ * 用示波器观察它和接收模拟脉冲的相对位置，可以判断同步是否稳定。
  */
 static void debug_window_pin(uint8_t level);
 
 /*======================================================================
- * �š�������
+ * 九、主函数
  *====================================================================*/
 
 /*
- * main() ����ڣ�
- * 1. ��ʼ��ϵͳ��GPIO�����ڡ�ADC��1us ��ʱ����
- * 2. ��ʼ��������״̬����
- * 3. �ر����жϣ���֤��ѭ������ɨ�� ADC�������жϴ�ϡ�
- * 4. while(1) ��ֻ���� ir_detector_poll()����Ҫ���볤��ʱ��
+ * main() 主入口：
+ * 1. 初始化系统、GPIO、串口、ADC、1us 定时器。
+ * 2. 初始化红外检测状态机。
+ * 3. 关闭总中断，保证主循环连续扫描 ADC，不被中断打断。
+ * 4. while(1) 中只运行 ir_detector_poll()，不要插入长延时。
  */
 void main(void)
 {
@@ -397,7 +397,7 @@ void main(void)
     timer0_init_1us_free_run();
     ir_detector_init();
 
-    /* ȫ�ֹر��жϣ������հ汾�������жϣ����������ж�Ӱ�� 25us ���岶׽�� */
+    /* 全局关闭中断：本接收版本不依赖中断，避免其它中断影响 25us 脉冲捕捉。 */
     EA = 0;
 
     output_apply(0U);
@@ -409,33 +409,33 @@ void main(void)
 }
 
 /*======================================================================
- * ʮ��GPIO ��ʼ��
+ * 十、GPIO 初始化
  *====================================================================*/
 
 void GPIO_Init(void)
 {
-    /* P1.0 -> NO ��������� */
+    /* P1.0 -> NO 常开输出。 */
     REG_P10_CFG = 0x00;
     gpio_init(IR_OUT_NO_PIN);
     gpio_dir_set(IR_OUT_NO_PIN, GPIO_DIR_OUT);
     gpio_dr_set(IR_OUT_NO_PIN, GPIO_SR_HIGH);
     gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
 
-    /* P1.2 -> NC ��������� */
+    /* P1.2 -> NC 常闭输出。 */
     REG_P12_CFG = 0x00;
     gpio_init(IR_OUT_NC_PIN);
     gpio_dir_set(IR_OUT_NC_PIN, GPIO_DIR_OUT);
     gpio_dr_set(IR_OUT_NC_PIN, GPIO_SR_HIGH);
     gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
 
-    /* P1.3 -> ��ɫָʾ�ơ� */
+    /* P1.3 -> 红色指示灯。 */
     REG_P13_CFG = 0x00;
     gpio_init(IR_LED_PIN);
     gpio_dir_set(IR_LED_PIN, GPIO_DIR_OUT);
     gpio_dr_set(IR_LED_PIN, GPIO_SR_HIGH);
     gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
 
-    /* P2.7 -> ���Խţ����ڴ�ʱ�� 1�� */
+    /* P2.7 -> 调试脚，窗口打开时置 1。 */
 #ifdef REG_P27_CFG
     REG_P27_CFG = 0x00;
 #endif
@@ -444,17 +444,17 @@ void GPIO_Init(void)
     gpio_dr_set(IR_DEBUG_WINDOW_PIN, GPIO_SR_HIGH);
     gpio_io_set(IR_DEBUG_WINDOW_PIN, GPIO_LOW);
 
-    /* P1.5 -> U3-1 �����źţ����� adc_io_config() ������Ϊ ADC ���ܡ� */
+    /* P1.5 -> U3-1 接收信号，后面 adc_io_config() 会配置为 ADC 功能。 */
     REG_P15_CFG = 0x00;
 
-    /* P2.0 -> ADJ ��λ�������� adc_io_config() ������Ϊ ADC ���ܡ� */
+    /* P2.0 -> ADJ 电位器，后面 adc_io_config() 会配置为 ADC 功能。 */
 #ifdef REG_P20_CFG
     REG_P20_CFG = 0x00;
 #endif
 }
 
 /*======================================================================
- * ʮһ��ADC ��ʼ��
+ * 十一、ADC 初始化
  *====================================================================*/
 
 void ADC_Init(void)
@@ -464,7 +464,7 @@ void ADC_Init(void)
                    4,
                    ADC_ENABLE);
 
-    /* ����ʱ���һЩ�����㴰���ھ���������� */
+    /* 采样时间短一些，方便窗口内尽量多采样。 */
     adc_sample_clk_config(ADC_SAMPCLK_4);
 
     adc_io_config(IR_SIGNAL_ADC_CHANNEL | IR_ADJ_ADC_CHANNEL);
@@ -474,10 +474,10 @@ void ADC_Init(void)
 }
 
 /*======================================================================
- * ʮ����Timer0 1us ��������
+ * 十二、Timer0 1us 自由运行
  *====================================================================*/
 
-/* ������ Timer0 1us ʱ���׼�ľ����ʼ��ʵ�֡� */
+/* 以下是 Timer0 1us 时间基准的具体初始化实现。 */
 static void timer0_init_1us_free_run(void)
 {
     gtimer0_count_init(IR_TIMER0_1US_RELOAD, IR_TIMER0_1US_PRESCALER);
@@ -493,7 +493,7 @@ static void timer0_init_1us_free_run(void)
     gtimer0_start();
 }
 
-/* ����ʵ�ְ�ȫ��ȡ 16 λʱ����� */
+/* 以下实现安全读取 16 位时间戳。 */
 static uint16_t time_us16(void)
 {
     uint8_t hi1;
@@ -510,23 +510,23 @@ static uint16_t time_us16(void)
     return ((uint16_t)hi1 << 8) | (uint16_t)lo;
 }
 
-/* ����ʵ������ʱ������������ uint16_t ���ơ� */
+/* 以下实现两个时间戳相减，允许 uint16_t 回绕。 */
 static uint16_t time_sub_u16(uint16_t a, uint16_t b)
 {
     return (uint16_t)(a - b);
 }
 
-/* ����ʵ�֡���ǰʱ���Ƿ񵽴�Ŀ��ʱ�䡱���жϡ� */
+/* 以下实现“当前时间是否到达目标时间”的判断。 */
 static uint8_t time_after_eq_u16(uint16_t now, uint16_t target)
 {
     return (((int16_t)(now - target)) >= 0) ? 1U : 0U;
 }
 
 /*======================================================================
- * ʮ����ADC ���ζ�ȡ
+ * 十三、ADC 单次读取
  *====================================================================*/
 
-/* ����ʵ��ָ�� ADC ͨ���ĵ������������� */
+/* 以下实现指定 ADC 通道的单次阻塞采样。 */
 static uint16_t adc_read_once(uint8_t ch)
 {
     uint16_t value;
@@ -549,10 +549,10 @@ static uint16_t adc_read_once(uint8_t ch)
 }
 
 /*======================================================================
- * ʮ�ġ����ռ���ʼ��
+ * 十四、接收检测初始化
  *====================================================================*/
 
-/* ����ʵ�ּ��״̬�����ϵ��ʼ���� */
+/* 以下实现检测状态机的上电初始化。 */
 static void ir_detector_init(void)
 {
     uint16_t sample;
@@ -592,7 +592,7 @@ static void ir_detector_init(void)
     ir_update_threshold_from_adj();
 }
 
-/* ����ʵ�ֻص�����״̬�����������ı������ */
+/* 以下实现回到搜索状态，但不立即改变输出。 */
 static void ir_set_search(void)
 {
     g_ir_state = IR_STATE_SEARCH;
@@ -605,10 +605,10 @@ static void ir_set_search(void)
 }
 
 /*======================================================================
- * ʮ�塢�������ѯ
+ * 十五、主检测轮询
  *====================================================================*/
 
-/* ������ÿ����ѭ�����õĺ���������ڡ� */
+/* 以下是每次主循环调用的红外检测总入口。 */
 static void ir_detector_poll(void)
 {
     uint16_t now;
@@ -625,10 +625,10 @@ static void ir_detector_poll(void)
     }
 
     /*
-     * �ؼ�����˸�߼���
-     * ����û�ɵ�������������ڹ⣬����ֻ��ͬ��Ư�ơ�
-     * ֻ�г��� IR_LIGHT_OFF_MISS_COUNT �� 1ms ���ڶ�û������ȷ�ϵ��⣬
-     * ����������޹⡣
+     * 关键防闪烁逻辑：
+     * 窗口没采到，不等于真的遮光，可能只是同步漂移。
+     * 只有超过 IR_LIGHT_OFF_MISS_COUNT 个 1ms 周期都没有重新确认到光，
+     * 才允许输出无光。
      */
     if(g_ir_light_ok != 0U)
     {
@@ -643,10 +643,10 @@ static void ir_detector_poll(void)
 }
 
 /*======================================================================
- * ʮ��������ͬ���׶�
+ * 十六、搜索同步阶段
  *====================================================================*/
 
-/* ����ʵ�������׶ε��������У��� 1ms ����У�顣 */
+/* 以下实现搜索阶段的脉冲宽度校验和 1ms 周期校验。 */
 static void ir_search_sample(void)
 {
     uint16_t now;
@@ -663,7 +663,7 @@ static void ir_search_sample(void)
     amp = ir_abs_amp(sample, g_ir_baseline);
     g_ir_amp = amp;
 
-    /* ��ǰ���������У��ȴ� ADC ����Խ������ֵ����Ϊ������㡣 */
+    /* 当前不在脉冲中：等待 ADC 幅度越过高阈值，作为脉冲起点。 */
     if(g_ir_in_pulse == 0U)
     {
         if(amp > g_ir_threshold_on)
@@ -682,19 +682,19 @@ static void ir_search_sample(void)
         g_ir_search_peak_us = now;
     }
 
-    /* ��ǰ�Ѿ��������У��ȷ��ȵ��ص���ֵ����Ϊ��������� */
+    /* 当前已经在脉冲中：等幅度跌回低阈值，认为脉冲结束。 */
     if(amp < g_ir_threshold_off)
     {
         g_ir_in_pulse = 0U;
         width_us = time_sub_u16(now, g_ir_search_start_us);
 
         /*
-         * ��ʵ����Լ 25us��
-         * ����̫խ�������� ADC/�˷ż��ë�̡�
-         * ����̫���������ǻ����⡢���͡����仯���š�
-         * ��һ�������Լ��١�ż���󴥷������źš���
+         * 真实脉冲约 25us。
+         * 宽度太窄：多数是 ADC/运放尖峰毛刺。
+         * 宽度太宽：多数是环境光、饱和、慢变化干扰。
+         * 这一步能明显减少“偶尔误触发几个信号”。
          */
-        /* ����У�飺������ 25us �����������ź�ֱ�Ӷ����� */
+        /* 宽度校验：不符合 25us 脉冲特征的信号直接丢弃。 */
         if((width_us < IR_SEARCH_PULSE_MIN_US) ||
            (width_us > IR_SEARCH_PULSE_MAX_US))
         {
@@ -713,7 +713,7 @@ static void ir_search_sample(void)
         dt = time_sub_u16(g_ir_search_peak_us, g_ir_last_pulse_us);
         g_ir_last_pulse_us = g_ir_search_peak_us;
 
-        /* ����У�飺��ʵ�����ź�Ӧ�ӽ� 1000us�� */
+        /* 周期校验：真实发射信号应接近 1000us。 */
         if((dt >= IR_SEARCH_PERIOD_MIN_US) && (dt <= IR_SEARCH_PERIOD_MAX_US))
         {
             if(g_ir_lock_count < 255U)
@@ -739,10 +739,10 @@ static void ir_search_sample(void)
 }
 
 /*======================================================================
- * ʮ�ߡ�ͬ�����ٽ׶Σ�ÿ 1ms �򴰿ڲ���
+ * 十七、同步跟踪阶段：每 1ms 打窗口采样
  *====================================================================*/
 
-/* ����ʵ��ͬ����Ķ�ʱ���ڲ����� */
+/* 以下实现同步后的定时窗口采样。 */
 static void ir_tracking_process(void)
 {
     uint16_t center;
@@ -759,7 +759,7 @@ static void ir_tracking_process(void)
 
     now = time_us16();
 
-    /* ��û�����ڣ������� ADC ������Ǳ���ֵ�������ڸ��� baseline�� */
+    /* 还没到窗口，读到的 ADC 大概率是背景值，可用于更新 baseline。 */
     if(!time_after_eq_u16(now, start))
     {
         sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
@@ -770,7 +770,7 @@ static void ir_tracking_process(void)
 
     if(time_after_eq_u16(now, end))
     {
-        /* ��ѭ���������ڣ���һ�ζ����崦���� */
+        /* 主循环错过窗口，按一次丢脉冲处理。 */
         ir_process_frame(g_ir_baseline, now, center);
         return;
     }
@@ -780,7 +780,7 @@ static void ir_tracking_process(void)
     best = ir_best_init_value();
     best_us = now;
 
-    /* �����ڳ�������������ֻ������ǿ��һ���� best�� */
+    /* 窗口内持续采样，最终只保留最强的一个点 best。 */
     do
     {
         now = time_us16();
@@ -799,7 +799,7 @@ static void ir_tracking_process(void)
     ir_process_frame(best, best_us, center);
 }
 
-/* ����ʵ�ֵ������ڽ������Ч���жϡ����ȷ�Ϻ���λ������ */
+/* 以下实现单个窗口结果的有效性判断、输出确认和相位修正。 */
 static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_center_us)
 {
     uint16_t amp;
@@ -815,9 +815,9 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
     g_ir_amp_display = ir_iir_u16(g_ir_amp_display, amp, IR_DISPLAY_FILTER_SHIFT);
 
     /*
-     * ע�⣺ÿһ֡�Ƿ��������壬�����ñ����ڵ�˲ʱ amp �жϡ�
-     * ������ g_ir_amp_fast �жϣ�����һ��©�ɺ��˲������Կ��ܱ�������Ч���壬
-     * �����ô���� peak_us ������λ��������������������˸��
+     * 注意：每一帧是否命中脉冲，必须用本窗口的瞬时 amp 判断。
+     * 不能用 g_ir_amp_fast 判断，否则一次漏采后，滤波残留仍可能被当成有效脉冲，
+     * 进而用错误的 peak_us 修正相位，最终造成输出周期性闪烁。
      */
     if(g_ir_light_ok != 0U)
     {
@@ -828,7 +828,7 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
         valid = (amp > g_ir_threshold_on) ? 1U : 0U;
     }
 
-    /* ��֡��Ч��������Ч���������©�ɼ����������ݷ�ֵʱ��΢����λ�� */
+    /* 本帧有效：增加有效计数，清除漏采计数，并根据峰值时间微调相位。 */
     if(valid != 0U)
     {
         if(g_ir_good_count < 255U)
@@ -856,7 +856,7 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
     }
     else
     {
-        /* ��֡��Ч������Ч����������©�ɼ����� */
+        /* 本帧无效：清有效计数，增加漏采计数。 */
         g_ir_good_count = 0U;
         if(g_ir_miss_count < 255U)
         {
@@ -866,9 +866,9 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
         g_ir_next_center_us = (uint16_t)(expected_center_us + IR_PERIOD_US);
 
         /*
-         * ��������©�ɣ�������Ϊ��ͬ��Ư�ƣ��ص������������ࡣ
-         * ���ﲻֱ�ӹ����������������� ir_detector_poll() ��
-         * IR_LIGHT_OFF_MISS_COUNT * 1ms ��ʱͳһ������
+         * 窗口连续漏采，优先认为是同步漂移，回到搜索重新锁相。
+         * 这里不直接关输出；真正关输出由 ir_detector_poll() 的
+         * IR_LIGHT_OFF_MISS_COUNT * 1ms 超时统一处理。
          */
         if(g_ir_miss_count >= IR_RELOCK_MISS_COUNT)
         {
@@ -878,10 +878,10 @@ static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_
 }
 
 /*======================================================================
- * ʮ�ˡ���ֵ�����ߡ��˲�����
+ * 十八、阈值、基线、滤波工具
  *====================================================================*/
 
-/* ���¸����źż��Լ�����ȡ� */
+/* 以下根据信号极性计算幅度。 */
 static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline)
 {
 #if RX_SIGNAL_ACTIVE_HIGH
@@ -891,7 +891,7 @@ static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline)
 #endif
 }
 
-/* ���¸����źż����ж��ĸ��������ǿ�� */
+/* 以下根据信号极性判断哪个采样点更强。 */
 static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best)
 {
 #if RX_SIGNAL_ACTIVE_HIGH
@@ -901,7 +901,7 @@ static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best)
 #endif
 }
 
-/* ���¸����ڷ�ֵ�����ṩ��ʼֵ�� */
+/* 以下给窗口峰值搜索提供初始值。 */
 static uint16_t ir_best_init_value(void)
 {
 #if RX_SIGNAL_ACTIVE_HIGH
@@ -911,7 +911,7 @@ static uint16_t ir_best_init_value(void)
 #endif
 }
 
-/* ����ʵ������ IIR �˲��� */
+/* 以下实现整数 IIR 滤波。 */
 static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift)
 {
     if(new_v >= old_v)
@@ -924,7 +924,7 @@ static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift)
     }
 }
 
-/* ����ʵ�� int16_t �޷��� */
+/* 以下实现 int16_t 限幅。 */
 static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v)
 {
     if(x < min_v)
@@ -940,21 +940,21 @@ static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v)
     return x;
 }
 
-/* ����ʵ�ֱ����������ٸ��档 */
+/* 以下实现背景基线慢速跟随。 */
 static void ir_update_baseline(uint16_t sample)
 {
     uint16_t amp;
 
     amp = ir_abs_amp(sample, g_ir_baseline);
 
-    /* ���������������������ٸ��棬����������ֵ�Խ����ߡ� */
+    /* 非脉冲区才允许基线慢速跟随，避免把脉冲峰值吃进基线。 */
     if(amp < g_ir_threshold_off)
     {
         g_ir_baseline = ir_iir_u16(g_ir_baseline, sample, IR_BASELINE_SHIFT);
     }
 }
 
-/* ����ʵ�� ADJ ��λ���������ֵ�ĸ��¡� */
+/* 以下实现 ADJ 电位器到检测阈值的更新。 */
 static void ir_update_threshold_from_adj(void)
 {
     uint16_t now;
@@ -1013,7 +1013,7 @@ static void ir_update_threshold_from_adj(void)
     g_ir_threshold_off = (g_ir_threshold_on > hys) ? (uint16_t)(g_ir_threshold_on - hys) : 0U;
 }
 
-/* ����ʵ�ֵ�λ�� ADC ����ֵ��Χ������ӳ�䡣 */
+/* 以下实现电位器 ADC 到阈值范围的线性映射。 */
 static uint16_t threshold_map_from_adj(uint16_t adj)
 {
     uint32_t span;
@@ -1031,10 +1031,10 @@ static uint16_t threshold_map_from_adj(uint16_t adj)
 }
 
 /*======================================================================
- * ʮ�š��������
+ * 十九、输出控制
  *====================================================================*/
 
-/* ����ʵ�� NO/NC/LED ���������ˢ�¡� */
+/* 以下实现 NO/NC/LED 的最终输出刷新。 */
 static void output_apply(uint8_t light_ok)
 {
     uint8_t output_active;
@@ -1068,7 +1068,7 @@ static void output_apply(uint8_t light_ok)
     }
 }
 
-/* ����ʵ�� P2.7 ���ڵ��Խſ��ơ� */
+/* 以下实现 P2.7 窗口调试脚控制。 */
 static void debug_window_pin(uint8_t level)
 {
     if(level != 0U)
