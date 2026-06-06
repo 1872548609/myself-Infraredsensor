@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 12:09:25 PAGE 1   
+C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 18:20:23 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE EFLASH
@@ -62,7 +62,7 @@ line level    source
   51   1              
   52   1              OPSET &= ~EFC_PAGE_ERASE_MODE;          //¹Ø±Õpage²Á³ýÄ£Ê½
   53   1          
-C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 12:09:25 PAGE 2   
+C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 18:20:23 PAGE 2   
 
   54   1          EA = temp;                          //»Ö¸´ÖÐ¶ÏÔ´×´Ì¬
   55   1      }
@@ -126,7 +126,7 @@ line level    source
  113   1              return value;
  114   1      
  115   1      }
-C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 12:09:25 PAGE 3   
+C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 18:20:23 PAGE 3   
 
  116          
  117          uint32_t eflash_read_bytes(uint16_t addr, uint8_t *buff, uint32_t length)
@@ -190,7 +190,7 @@ line level    source
  175          void read_Vcap(uint8_t *buff)
  176          {
  177   1          uint32_t temp = 0;
-C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 12:09:25 PAGE 4   
+C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 18:20:23 PAGE 4   
 
  178   1          temp =  (*(volatile uint32_t xdata*)(VDD25_ADDR));
  179   1          buff[0] = temp >> 24;

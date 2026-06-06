@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -10,1127 +10,1070 @@ COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2
 line level    source
 
    1          /***********************************************************************
-   2           * 文件名称：main.c（全文注释版）
-   3           * 工程用途：红外对射传感器接收端
+   2           * 文件名称：main.c
+   3           * 工程用途：工业级红外对射传感器接收端
    4           * 芯片平台：UM800Y / UM8004
    5           * 主频配置：24MHz
    6           *
-   7           * 信号条件：
-   8           * 1. 发射端红外信号周期约 1ms。
-   9           * 2. 有效脉冲宽度约 25us，占空比约 2.5%。
-  10           *
-  11           * 接收策略：
-  12           * 1. 上电先高速搜索有效脉冲。
-  13           * 2. 找到多个连续间隔约 1ms 的合格脉冲后，进入同步跟踪。
-  14           * 3. 同步后每 1ms 在预计脉冲附近打开一个约 200us 的采样窗口。
-  15           * 4. 窗口内高速读取 ADC，取峰值。
-  16           * 5. 用 峰值 - 基线 得到真实脉冲幅度，避免环境光/偏置影响。
-  17           * 6. 连续多个有效脉冲确认有光，并对搜索阶段脉冲宽度/周期做校验，减少误触发。
-  18           *
-  19           * 直接使用方法：
-  20           * 把本文件整体替换旧工程 Example/gpio/demo/source/main.c。
-  21           ***********************************************************************/
-  22          
-  23          #include "system_um800y.h"
-  24          #include "app.h"
-  25          #include "gtimer.h"
-  26          #include "pwm.h"
-  27          #include "common.h"
-  28          #include "config.h"
-  29          #include "gpio.h"
-  30          #include "adc.h"
-  31          
-  32          /*======================================================================
-  33           * 一、ADC 通道映射
-  34           *====================================================================*/
-  35          
-  36          /*
-  37           * 接收信号 ADC 通道。
-  38           * 旧版接收板：P1.5 / U3-1 为 LM358 输出，旧工程中按 ADC_CHANNEL_1 使用。
-  39           * 如果烧录后发现接收 ADC 不变，而电位器会影响接收值，请和 IR_ADJ_ADC_CHANNEL 对调。
-  40           */
-  41          #define IR_SIGNAL_ADC_CHANNEL       ADC_CHANNEL_1
-  42          
-  43          /*
-  44           * 电位器 ADJ ADC 通道。
-  45           * 原理图中 ADJ 已移动到 P2.0；UM800Y 中 P2.0 复用 AIN2。
-  46           */
-  47          #define IR_ADJ_ADC_CHANNEL          ADC_CHANNEL_2
-  48          
-  49          /*======================================================================
-  50           * 二、GPIO 引脚映射
-  51           *====================================================================*/
-  52          
-  53          #define IR_OUT_NO_PIN               P1_0    /* NO 常开输出 */
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 2   
+   7           * 本版重构目标：
+   8           *  1. 不再每读一次 ADC 就立刻判断输出。
+   9           *  2. 改成“定时采集一帧 ADC 数组 -> 停止本帧采集 -> 统一均值化处理 -> 判断输出”。
+  10           *  3. 对 1ms 周期、约 25us 宽度的窄脉冲，不能直接把整帧 ADC 做普通平均，
+  11           *     否则 25us 脉冲会被 1.2ms 窗口严重平均掉。
+  12           *  4. 本版采用：
+  13           *        接收信号均值 = 一帧中最强的若干个 ADC 点的平均值；
+  14           *        背景基线均值 = 一帧中最弱的若干个 ADC 点的平均值；
+  15           *        有效幅度     = 接收信号均值 - 背景基线均值。
+  16           *     这样既完成“均值化处理”，又不会把窄脉冲峰值抹掉。
+  17           *
+  18           * 工作流程：
+  19           *  1. Timer0 配置成 1us 自由计数。
+  20           *  2. 每一帧开始时清零 Timer0 计数器。
+  21           *  3. 在 RX_CAPTURE_WINDOW_US 时间内连续读取接收 ADC，写入 g_adc_frame_buf[]。
+  22           *  4. 到时间后结束本帧采集。
+  23           *  5. 从数组里计算：最小值、最大值、整帧平均、背景均值、信号均值、脉冲幅度。
+  24           *  6. 根据幅度阈值、有效点数、连续帧确认次数判断有光/遮光。
+  25           *  7. 处理完成后继续下一帧采集。
+  26           *
+  27           * 硬件引脚对应：
+  28           *  P1.5 / U3-1  -> LM358 输出，接收红外脉冲信号，ADC 输入
+  29           *  P2.0 / ADJ   -> 电位器阈值调节，ADC 输入
+  30           *  P1.0         -> NO 常开输出
+  31           *  P1.2         -> NC 常闭输出；当 RX_NC_WINDOW_DEBUG_ENABLE=1 时改作采集窗口调试脚
+  32           *  P1.3         -> 红色指示灯
+  33           *
+  34           * 重要说明：
+  35           *  这版是“整帧数组处理”逻辑，稳定性比单点判断更好；
+  36           *  但响应速度由 RX_CAPTURE_WINDOW_US 和确认帧数决定。
+  37           ***********************************************************************/
+  38          
+  39          #include "system_um800y.h"
+  40          #include "app.h"
+  41          #include "gtimer.h"
+  42          #include "pwm.h"
+  43          #include "common.h"
+  44          #include "config.h"
+  45          #include "gpio.h"
+  46          #include "adc.h"
+  47          
+  48          /*======================================================================
+  49           * 一、编译器存储区适配
+  50           *====================================================================*/
+  51          
+  52          /*
+  53           * UM800Y 是 8051 内核，内部 RAM 很小。
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 2   
 
-  54          #define IR_OUT_NC_PIN               P1_2    /* NC 常闭输出 */
-  55          #define IR_LED_PIN                  P1_3    /* 红色指示灯 */
-  56          #define IR_DEBUG_WINDOW_PIN         P2_7    /* 调试脚：窗口打开时翻转，用示波器看对齐 */
-  57          
-  58          /*======================================================================
-  59           * 三、输出极性配置
-  60           *====================================================================*/
-  61          
-  62          #define OUT_ACTIVE_LEVEL            GPIO_HIGH
-  63          #define OUT_INACTIVE_LEVEL          GPIO_LOW
+  54           * ADC 采样数组不要放在 idata 里，建议放到 xdata。
+  55           * 如果你的编译器不是 Keil C51，IR_XDATA 会自动为空。
+  56           */
+  57          #ifndef IR_XDATA
+  58          #if defined(__C51__) || defined(__CX51__)
+  59          #define IR_XDATA xdata
+  60          #else
+              #define IR_XDATA
+              #endif
+  63          #endif
   64          
-  65          #define LED_ACTIVE_LEVEL            GPIO_HIGH
-  66          #define LED_INACTIVE_LEVEL          GPIO_LOW
-  67          
-  68          /*
-  69           * SENSOR_DARK_ON = 0：亮通，收到光时输出动作。
-  70           * SENSOR_DARK_ON = 1：暗通，遮光时输出动作。
-  71           */
-  72          #define SENSOR_DARK_ON              0U
-  73          
-  74          /*
-  75           * RX_SIGNAL_ACTIVE_HIGH = 1：ADC 变大表示收到红外脉冲。
-  76           * RX_SIGNAL_ACTIVE_HIGH = 0：ADC 变小表示收到红外脉冲。
-  77           */
-  78          #define RX_SIGNAL_ACTIVE_HIGH       1U
-  79          
-  80          /*======================================================================
-  81           * 四、1ms/25us 脉冲同步采样参数
-  82           *====================================================================*/
-  83          
-  84          #define IR_PERIOD_US                1000U
-  85          #define IR_PULSE_WIDTH_US           25U
+  65          /*======================================================================
+  66           * 二、ADC 通道映射
+  67           *====================================================================*/
+  68          
+  69          /* 接收信号 ADC 通道：旧工程按 P1.5 / U3-1 / ADC_CHANNEL_1 使用。 */
+  70          #define IR_SIGNAL_ADC_CHANNEL           ADC_CHANNEL_1
+  71          
+  72          /* 电位器 ADJ ADC 通道：原理图中 ADJ 在 P2.0，UM800Y 中 P2.0 复用 AIN2。 */
+  73          #define IR_ADJ_ADC_CHANNEL              ADC_CHANNEL_2
+  74          
+  75          /*======================================================================
+  76           * 三、GPIO 引脚映射
+  77           *====================================================================*/
+  78          
+  79          #define IR_OUT_NO_PIN                   P1_0    /* NO 常开输出 */
+  80          #define IR_OUT_NC_PIN                   P1_2    /* NC 常闭输出 */
+  81          #define IR_LED_PIN                      P1_3    /* 红色指示灯 */
+  82          
+  83          /*======================================================================
+  84           * 四、NC 窗口调试开关
+  85           *====================================================================*/
   86          
-  87          /* 搜索阶段：两个脉冲间隔在这个范围内，认为是同一个 1ms 信号源。 */
-  88          #define IR_SEARCH_PERIOD_MIN_US     850U
-  89          #define IR_SEARCH_PERIOD_MAX_US     1150U
-  90          
-  91          /* 搜索阶段脉冲宽度校验：25us 脉冲允许一定误差，过窄多半是毛刺，过宽多半是环境干扰/饱和。 */
-  92          #define IR_SEARCH_PULSE_MIN_US      6U
-  93          #define IR_SEARCH_PULSE_MAX_US      90U
-  94          
-  95          /* 跟踪阶段：预计脉冲中心前 80us 到后 120us 开窗，总窗口 200us。 */
-  96          #define IR_WINDOW_PRE_US            80U
-  97          #define IR_WINDOW_POST_US           120U
-  98          #define IR_WINDOW_WIDTH_US          (IR_WINDOW_PRE_US + IR_WINDOW_POST_US)
-  99          
- 100          /* 响应速度：约 4ms 确认有光，约 10ms 确认遮光，连续漏采先重搜不立刻闪断。 */
- 101          #define IR_LIGHT_ON_CONFIRM_COUNT   4U
- 102          #define IR_LIGHT_OFF_MISS_COUNT     10U     /* 真遮光确认：约 10ms，约 100Hz，抗漏采更强 */
- 103          #define IR_RELOCK_MISS_COUNT        3U      /* 连续 3 个窗口未命中，先回搜索，但不立刻关输出 */
- 104          #define IR_LOST_SYNC_MISS_COUNT     20U     /* 仅用于调试统计，不再直接决定输出闪断 */
- 105          #define IR_SEARCH_LOCK_COUNT        4U      /* 搜索阶段必须连续 4 个 1ms 周期正确，才允许进入跟踪 */
- 106          
- 107          /* 单周期最大相位修正，防止被噪声拖跑。 */
- 108          #define IR_PHASE_ADJUST_LIMIT_US    12
- 109          
- 110          /*======================================================================
- 111           * 五、阈值/滤波参数
- 112           *====================================================================*/
- 113          
- 114          #define ADC_MAX_VALUE               4095U
- 115          
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 3   
+  87          /*
+  88           * RX_NC_WINDOW_DEBUG_ENABLE = 1：
+  89           *      NC 引脚不再作为正常 NC 输出，而是作为采集窗口调试脚。
+  90           *      每一帧采集窗口开始时，NC 输出 OUT_ACTIVE_LEVEL；
+  91           *      每一帧采集窗口结束时，NC 输出 OUT_INACTIVE_LEVEL。
+  92           *      这样可以用示波器观察“本帧 ADC 数组采集时间”。
+  93           *
+  94           * RX_NC_WINDOW_DEBUG_ENABLE = 0：
+  95           *      NC 引脚恢复正常 NC 输出功能。
+  96           */
+  97          #define RX_NC_WINDOW_DEBUG_ENABLE       1U
+  98          
+  99          /*======================================================================
+ 100           * 五、输出极性配置
+ 101           *====================================================================*/
+ 102          
+ 103          #define OUT_ACTIVE_LEVEL                GPIO_HIGH
+ 104          #define OUT_INACTIVE_LEVEL              GPIO_LOW
+ 105          
+ 106          #define LED_ACTIVE_LEVEL                GPIO_HIGH
+ 107          #define LED_INACTIVE_LEVEL              GPIO_LOW
+ 108          
+ 109          /* 0=亮通：有光输出动作；1=暗通：遮光输出动作。 */
+ 110          #define SENSOR_DARK_ON                  0U
+ 111          
+ 112          /* 1=ADC 变大代表红外脉冲；0=ADC 变小代表红外脉冲。 */
+ 113          #define RX_SIGNAL_ACTIVE_HIGH           1U
+ 114          
+ 115          /*======================================================================
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 3   
 
- 116          /*
- 117           * 注意：这里的阈值是“脉冲幅度阈值”，不是原始 ADC 绝对值。
- 118           * 因为程序会先做 amp = peak - baseline。
- 119           *
- 120           * 距离不够：降低 IR_TH_MIN_ADC / IR_TH_MAX_ADC。
- 121           * 误触发多：升高 IR_TH_MIN_ADC / IR_TH_MAX_ADC。
- 122           */
- 123          #define IR_TH_MIN_ADC               120U
- 124          #define IR_TH_MAX_ADC               1800U
- 125          #define IR_TH_DEFAULT_ADC           700U
- 126          #define IR_TH_HYS_MIN_ADC           80U
- 127          
- 128          #define IR_BASELINE_SHIFT           5U      /* 基线慢速跟随：1/32 */
- 129          #define IR_FAST_FILTER_SHIFT        1U      /* 输出快速幅度滤波：1/2 */
- 130          #define IR_DISPLAY_FILTER_SHIFT     3U      /* 显示慢速幅度滤波：1/8 */
- 131          #define IR_ADJ_FILTER_SHIFT         3U      /* 电位器阈值滤波：1/8 */
- 132          #define IR_ADJ_UPDATE_US            10000U  /* 10ms 更新一次电位器 */
- 133          
- 134          /*======================================================================
- 135           * 六、Timer0 1us 自由运行配置
- 136           *====================================================================*/
- 137          
- 138          /*
- 139           * 24MHz / (23 + 1) = 1MHz，所以 Timer0 每 1us 加 1。
- 140           * 自动重装 0xFFFF，自然 65.536ms 回绕；本程序所有时间差都按 uint16_t 回绕计算。
- 141           */
- 142          #define IR_TIMER0_1US_RELOAD        0xFFFFU
- 143          #define IR_TIMER0_1US_PRESCALER     23U
- 144          
- 145          /*======================================================================
- 146           * 七、状态定义和调试变量
- 147           *====================================================================*/
- 148          
- 149          typedef enum
- 150          {
- 151              IR_STATE_SEARCH = 0,
- 152              IR_STATE_TRACKING = 1
- 153          } ir_state_t;
- 154          
- 155          static volatile ir_state_t g_ir_state = IR_STATE_SEARCH;
- 156          
- 157          /* 这些变量建议保留，方便 Keil 仿真/串口调试观察。 */
- 158          /*
- 159           * 调试变量说明：
- 160           * g_ir_light_ok          当前内部判定是否有光，1=有光，0=无光。
- 161           * g_ir_synced            当前是否已经锁定 1ms 脉冲同步。
- 162           * g_ir_output_state      最终输出是否动作，受亮通/暗通影响。
- 163           * g_ir_adc_signal        最近一次读取的接收 ADC 原始值。
- 164           * g_ir_adc_adj           最近一次读取的 ADJ 电位器 ADC 原始值。
- 165           * g_ir_threshold_on      有光确认高阈值。
- 166           * g_ir_threshold_off     有光保持低阈值，也就是回差后的阈值。
- 167           * g_ir_baseline          当前接收通道背景基线。
- 168           * g_ir_peak              最近一个窗口内的峰值。
- 169           * g_ir_amp               最近一次窗口的瞬时幅度，即 peak-baseline。
- 170           * g_ir_amp_fast          快速滤波幅度，便于观察输出响应趋势。
- 171           * g_ir_amp_display       慢速滤波幅度，后续可用于显示距离/光强。
- 172           * g_ir_next_center_us    下一次预计脉冲中心时间。
- 173           * g_ir_last_light_seen_us最后一次确认看到有效红外的时间。
- 174           */
- 175          static volatile uint8_t  g_ir_light_ok = 0;
- 176          static volatile uint8_t  g_ir_synced = 0;
- 177          static volatile uint8_t  g_ir_output_state = 0;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 4   
+ 116           * 六、Timer0 1us 采集定时参数
+ 117           *====================================================================*/
+ 118          
+ 119          /* 24MHz / (23 + 1) = 1MHz，所以 Timer0 每 1us 加 1。 */
+ 120          #define TIMER0_1US_RELOAD               0xFFFFU
+ 121          #define TIMER0_1US_PRESCALER            23U
+ 122          
+ 123          /*
+ 124           * 每帧采集窗口。
+ 125           * 发射周期约 1ms，脉冲宽度约 25us。
+ 126           *
+ 127           * 如果只采 1ms，边界处可能刚好把脉冲切开。
+ 128           * 这里默认采 1.2ms，基本能覆盖至少一个完整脉冲。
+ 129           *
+ 130           * 响应速度估算：
+ 131           *  1.2ms 一帧；
+ 132           *  连续 2 帧确认有光约 2.4ms，约 416Hz；
+ 133           *  连续 5 帧确认遮光约 6ms，约 166Hz。
+ 134           */
+ 135          #define RX_CAPTURE_WINDOW_US            1200U
+ 136          
+ 137          /* 一帧最多保存多少个 ADC 点。384 点占用约 768 字节 xdata。 */
+ 138          #define RX_ADC_FRAME_MAX_SAMPLES        384U
+ 139          
+ 140          /* 如果一帧采样点数太少，说明 ADC 或定时器异常，本帧直接判无效。 */
+ 141          #define RX_FRAME_MIN_SAMPLES            16U
+ 142          
+ 143          /*======================================================================
+ 144           * 七、数组均值化处理参数
+ 145           *====================================================================*/
+ 146          
+ 147          /*
+ 148           * 信号均值使用一帧里最强的若干个点。
+ 149           * 25us 脉冲内通常能采到多个点，取最强点平均可抗单点尖峰。
+ 150           */
+ 151          #define RX_SIGNAL_TOP_AVG_COUNT         6U
+ 152          
+ 153          /*
+ 154           * 背景基线均值使用一帧里最弱的若干个点。
+ 155           * 因为一帧中绝大部分时间都没有红外脉冲，所以低端样本通常代表环境背景。
+ 156           */
+ 157          #define RX_BASELINE_AVG_COUNT           24U
+ 158          
+ 159          /* 一帧中至少要有多少个点超过幅度阈值，才认为真的有脉冲。 */
+ 160          #define RX_ACTIVE_POINT_MIN             2U
+ 161          
+ 162          /*
+ 163           * 有效点数量上限百分比。
+ 164           * 真实 25us / 1200us 约 2.1%。考虑运放拖尾和采样误差，放宽到 35%。
+ 165           * 如果一帧中超过阈值的点太多，通常不是 25us 脉冲，而是饱和、环境干扰或基线错误。
+ 166           */
+ 167          #define RX_ACTIVE_POINT_MAX_PERCENT     35U
+ 168          
+ 169          /*======================================================================
+ 170           * 八、阈值和输出确认参数
+ 171           *====================================================================*/
+ 172          
+ 173          #define ADC_MAX_VALUE                   4095U
+ 174          
+ 175          /*
+ 176           * 注意：本版 g_threshold 表示“脉冲幅度阈值”，不是原始 ADC 绝对阈值。
+ 177           * 即判断条件是：
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 4   
 
- 178          static volatile uint16_t g_ir_adc_signal = 0;
- 179          static volatile uint16_t g_ir_adc_adj = 0;
- 180          static volatile uint16_t g_ir_threshold_on = IR_TH_DEFAULT_ADC;
- 181          static volatile uint16_t g_ir_threshold_off = (IR_TH_DEFAULT_ADC - 80U);
- 182          static volatile uint16_t g_ir_baseline = 0;
- 183          static volatile uint16_t g_ir_peak = 0;
- 184          static volatile uint16_t g_ir_amp = 0;
- 185          static volatile uint16_t g_ir_amp_fast = 0;
- 186          static volatile uint16_t g_ir_amp_display = 0;
- 187          static volatile uint16_t g_ir_next_center_us = 0;
- 188          static volatile uint16_t g_ir_last_light_seen_us = 0;
- 189          
- 190          static uint8_t  g_ir_good_count = 0;
- 191          static uint8_t  g_ir_miss_count = 0;
- 192          static uint8_t  g_ir_lock_count = 0;
- 193          static uint8_t  g_ir_in_pulse = 0;
- 194          static uint8_t  g_ir_have_last_pulse = 0;
- 195          
- 196          static uint16_t g_ir_last_pulse_us = 0;
- 197          static uint16_t g_ir_search_start_us = 0;
- 198          static uint16_t g_ir_search_peak = 0;
- 199          static uint16_t g_ir_search_peak_us = 0;
- 200          static uint16_t g_ir_last_adj_update_us = 0;
- 201          static uint32_t g_ir_threshold_filter = ((uint32_t)IR_TH_DEFAULT_ADC << IR_ADJ_FILTER_SHIFT);
- 202          static uint8_t  g_ir_threshold_init = 0;
+ 178           *      g_frame_amp = 信号均值 - 背景均值
+ 179           *      g_frame_amp >= g_threshold
+ 180           *
+ 181           * 你当前工程原来把 MIN/MAX 都设为 800，相当于固定阈值 800。
+ 182           * 如果希望电位器真正调节灵敏度，可以把 MAX 改大，例如 1800 或 2500。
+ 183           */
+ 184          #define THRESHOLD_MIN_ADC               800U
+ 185          #define THRESHOLD_MAX_ADC               800U
+ 186          #define THRESHOLD_DEFAULT_ADC           800U
+ 187          
+ 188          /* 输出回差，避免临界距离附近一帧有光一帧无光。 */
+ 189          #define RX_AMP_HYS_ADC                  100U
+ 190          
+ 191          /* 连续多少帧有效后确认有光。 */
+ 192          #define RX_FRAME_ON_CONFIRM_COUNT       2U
+ 193          
+ 194          /* 连续多少帧无效后确认遮光。 */
+ 195          #define RX_FRAME_OFF_CONFIRM_COUNT      5U
+ 196          
+ 197          /* ADJ 更新周期。单位：帧。 */
+ 198          #define ADJ_UPDATE_PERIOD_MS            100U
+ 199          #define ADJ_UPDATE_FRAME_COUNT          ((uint16_t)((((uint32_t)ADJ_UPDATE_PERIOD_MS * 1000UL) + RX_CAPTUR
+             -E_WINDOW_US - 1UL) / RX_CAPTURE_WINDOW_US))
+ 200          
+ 201          /* ADJ 阈值 IIR 平滑：1/8。 */
+ 202          #define ADJ_FILTER_SHIFT                3U
  203          
  204          /*======================================================================
- 205           * 八、函数声明
+ 205           * 九、串口调试开关
  206           *====================================================================*/
  207          
- 208          /*
- 209           * GPIO_Init()：
- 210           * 配置接收端用到的所有引脚。
- 211           * P1.0：NO 常开输出。
- 212           * P1.2：NC 常闭输出。
- 213           * P1.3：红色指示灯。
- 214           * P2.7：示波器调试窗口脚。
- 215           * P1.5/P2.0：先恢复默认配置，之后由 ADC 初始化切到模拟输入。
- 216           */
- 217          void GPIO_Init(void);
- 218          /*
- 219           * ADC_Init()：
- 220           * 配置 ADC 时钟、参考电压、采样时间和通道。
- 221           * 采样时间设置较短，是为了在 200us 窗口内尽量多采样，
- 222           * 从而更容易抓到 25us 的窄脉冲峰值。
- 223           */
- 224          void ADC_Init(void);
- 225          
- 226          /*
- 227           * timer0_init_1us_free_run()：
- 228           * 把 Timer0 配置为 1us 自由运行计数器。
- 229           * 本程序不依赖 Timer0 中断，只反复读取计数值作为时间戳。
- 230           * uint16_t 计数会在 65.536ms 回绕，程序中的 time_sub_u16() 会处理回绕。
- 231           */
- 232          static void timer0_init_1us_free_run(void);
- 233          /*
- 234           * time_us16()：
- 235           * 安全读取 Timer0 的 16 位计数值。
- 236           * 由于高/低字节分开读取，所以采用“高-低-高”方式，
- 237           * 两次高字节一致才认为读取稳定，避免低字节溢出时读错。
- 238           */
- 239          static uint16_t time_us16(void);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 5   
+ 208          #define UART_ADC_DEBUG_ENABLE           0U
+ 209          #define UART_ADC_DEBUG_PERIOD_MS        100U
+ 210          #define UART_ADC_DEBUG_FRAME_COUNT      ((uint16_t)((((uint32_t)UART_ADC_DEBUG_PERIOD_MS * 1000UL) + RX_CA
+             -PTURE_WINDOW_US - 1UL) / RX_CAPTURE_WINDOW_US))
+ 211          
+ 212          /*======================================================================
+ 213           * 十、全局变量
+ 214           *====================================================================*/
+ 215          
+ 216          /* ADC 原始采样数组。 */
+ 217          static uint16_t IR_XDATA g_adc_frame_buf[RX_ADC_FRAME_MAX_SAMPLES];
+ 218          
+ 219          /* 用于均值化处理的小数组。 */
+ 220          static uint16_t g_proc_signal_buf[RX_SIGNAL_TOP_AVG_COUNT];
+ 221          static uint16_t g_proc_base_buf[RX_BASELINE_AVG_COUNT];
+ 222          
+ 223          /* 调试观察变量。 */
+ 224          static volatile uint16_t g_adc_signal = 0;
+ 225          static volatile uint16_t g_adc_adj = 0;
+ 226          static volatile uint16_t g_threshold = THRESHOLD_DEFAULT_ADC;
+ 227          
+ 228          static volatile uint16_t g_frame_sample_count = 0;
+ 229          static volatile uint8_t  g_frame_overflow = 0;
+ 230          static volatile uint16_t g_frame_min = 0;
+ 231          static volatile uint16_t g_frame_max = 0;
+ 232          static volatile uint16_t g_frame_mean = 0;
+ 233          static volatile uint16_t g_frame_baseline_mean = 0;
+ 234          static volatile uint16_t g_frame_signal_mean = 0;
+ 235          static volatile uint16_t g_frame_amp = 0;
+ 236          static volatile uint16_t g_frame_active_points = 0;
+ 237          static volatile uint8_t  g_frame_valid = 0;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 5   
 
- 240          /*
- 241           * time_after_eq_u16()：
- 242           * 判断 now 是否已经到达或超过 target。
- 243           * 用 int16_t 差值比较，可以兼容 uint16_t 时间回绕。
- 244           */
- 245          static uint8_t time_after_eq_u16(uint16_t now, uint16_t target);
- 246          /*
- 247           * time_sub_u16()：
- 248           * 计算两个 16 位时间戳的差值。
- 249           * 利用无符号整数自然回绕，只要时间差小于 32768us~65535us 量级，
- 250           * 对本程序 1ms/10ms 的判断是安全的。
- 251           */
- 252          static uint16_t time_sub_u16(uint16_t a, uint16_t b);
+ 238          
+ 239          /* 当前是否确认收到光。 */
+ 240          static uint8_t g_light_ok = 0;
+ 241          
+ 242          /* 当前输出动作状态，方便调试。 */
+ 243          static uint8_t g_output_state = 0;
+ 244          
+ 245          /* 连续有效/无效帧计数。 */
+ 246          static uint8_t g_valid_frame_count = 0;
+ 247          static uint8_t g_invalid_frame_count = 0;
+ 248          
+ 249          /* 阈值滤波变量。 */
+ 250          static uint32_t g_threshold_filter = ((uint32_t)THRESHOLD_DEFAULT_ADC << ADJ_FILTER_SHIFT);
+ 251          static uint8_t  g_threshold_init = 0;
+ 252          static uint16_t g_adj_update_frame_count = 0;
  253          
- 254          /*
- 255           * adc_read_once()：
- 256           * 对指定 ADC 通道做一次阻塞式采样。
- 257           * 阻塞等待转换完成，返回 0~4095 的 12 位 ADC 值。
- 258           * 由于脉冲很窄，本函数要尽量短，不建议在里面加入滤波或打印。
- 259           */
- 260          static uint16_t adc_read_once(uint8_t ch);
- 261          /*
- 262           * ir_detector_init()：
- 263           * 初始化红外检测状态机和所有运行变量。
- 264           * 上电时不知道发射脉冲相位，所以默认进入 SEARCH。
- 265           * 初始 baseline 用当前 ADC 值，后续在非脉冲区慢速跟随。
- 266           */
- 267          static void ir_detector_init(void);
- 268          /*
- 269           * ir_detector_poll()：
- 270           * 接收算法的主轮询函数。
- 271           * 每次调用都先根据 ADJ 电位器更新阈值，
- 272           * 然后根据当前状态执行“搜索”或“跟踪”。
- 273           * 最后用 last_light_seen 超时判断真正遮光。
- 274           */
- 275          static void ir_detector_poll(void);
- 276          /*
- 277           * ir_set_search()：
- 278           * 重新回到搜索状态。
- 279           * 注意：这里不直接关闭输出。
- 280           * 因为连续漏采可能只是窗口漂移，不一定是真遮光，
- 281           * 真正关闭输出由 ir_detector_poll() 中的超时逻辑决定。
- 282           */
- 283          static void ir_set_search(void);
- 284          /*
- 285           * ir_search_sample()：
- 286           * 搜索同步阶段。
- 287           * 逻辑是连续高速读 ADC，寻找超过阈值的疑似脉冲；
- 288           * 脉冲结束后检查宽度是否像 25us 脉冲；
- 289           * 再检查连续脉冲间隔是否约 1ms；
- 290           * 连续多个周期都正确后，才进入 TRACKING。
- 291           */
- 292          static void ir_search_sample(void);
- 293          /*
- 294           * ir_tracking_process()：
- 295           * 同步跟踪阶段。
- 296           * 根据 g_ir_next_center_us 计算窗口起点和终点；
- 297           * 窗口外只更新 baseline；窗口内拉高 P2.7 并高速采样；
- 298           * 窗口结束后把窗口峰值交给 ir_process_frame()。
- 299           */
- 300          static void ir_tracking_process(void);
- 301          /*
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 6   
+ 254          #if UART_ADC_DEBUG_ENABLE
+              static uint16_t g_uart_debug_frame_count = 0;
+              #endif
+ 257          
+ 258          /*======================================================================
+ 259           * 十一、函数声明
+ 260           *====================================================================*/
+ 261          
+ 262          void GPIO_Init(void);
+ 263          void ADC_Init(void);
+ 264          
+ 265          static void timer0_init_1us_capture(void);
+ 266          static void capture_timer_start(void);
+ 267          static void capture_timer_close(void);
+ 268          static uint16_t capture_timer_us(void);
+ 269          
+ 270          static uint16_t adc_read_once(uint8_t ch);
+ 271          
+ 272          static void rx_capture_frame(void);
+ 273          static void rx_process_frame(void);
+ 274          static void rx_update_output_state(void);
+ 275          
+ 276          static void threshold_update_process(void);
+ 277          static uint16_t threshold_map_from_adj(uint16_t adj);
+ 278          
+ 279          static uint16_t mean_top_high_samples(uint16_t *buf, uint16_t count, uint8_t top_n);
+ 280          static uint16_t mean_low_samples(uint16_t *buf, uint16_t count, uint8_t low_n);
+ 281          static uint16_t mean_top_low_samples(uint16_t *buf, uint16_t count, uint8_t low_n);
+ 282          static uint16_t mean_high_baseline_samples(uint16_t *buf, uint16_t count, uint8_t high_n);
+ 283          static uint16_t count_active_points(uint16_t *buf, uint16_t count, uint16_t baseline, uint16_t threshold);
+ 284          static uint16_t calc_threshold_off(void);
+ 285          
+ 286          static void output_apply(uint8_t light_ok);
+ 287          static void nc_window_debug_set(uint8_t on);
+ 288          
+ 289          #if UART_ADC_DEBUG_ENABLE
+              static void uart_adc_debug_process(void);
+              #endif
+ 292          
+ 293          /*======================================================================
+ 294           * 十二、主函数
+ 295           *====================================================================*/
+ 296          
+ 297          void main(void)
+ 298          {
+ 299   1          system_init();
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 6   
 
- 302           * ir_process_frame()：
- 303           * 对一个 1ms 周期的窗口结果做判断。
- 304           * 输入 peak 是窗口最强值，peak_us 是峰值出现时间，expected_center_us 是预计中心。
- 305           * 函数完成：幅度计算、有效/无效判断、连续计数、输出更新、相位微调。
- 306           */
- 307          static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_center_us);
- 308          
- 309          /*
- 310           * ir_abs_amp()：
- 311           * 根据接收信号极性，计算 sample 相对 baseline 的有效幅度。
- 312           * 正脉冲：sample - baseline。
- 313           * 负脉冲：baseline - sample。
- 314           */
- 315          static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline);
- 316          /*
- 317           * ir_sample_stronger()：
- 318           * 判断当前 sample 是否比窗口内已有 best 更“强”。
- 319           * 正脉冲找最大 ADC，负脉冲找最小 ADC。
- 320           */
- 321          static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best);
- 322          /*
- 323           * ir_best_init_value()：
- 324           * 返回窗口峰值搜索的初始值。
- 325           * 正脉冲从 0 开始找最大值；负脉冲从 0xFFFF 开始找最小值。
- 326           */
- 327          static uint16_t ir_best_init_value(void);
- 328          /*
- 329           * ir_iir_u16()：
- 330           * 无符号 16 位一阶 IIR 滤波。
- 331           * shift=1 表示每次变化 1/2，shift=3 表示每次变化 1/8。
- 332           * 用移位实现，避免 8051 上使用浮点。
- 333           */
- 334          static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift);
- 335          /*
- 336           * ir_limit_i16()：
- 337           * int16_t 限幅函数。
- 338           * 这里主要用于限制每个周期的相位修正量，防止噪声把窗口拉偏。
- 339           */
- 340          static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v);
- 341          /*
- 342           * ir_update_baseline()：
- 343           * 更新背景基线。
- 344           * 只有当前幅度低于 threshold_off，说明大概率不是红外脉冲，
- 345           * 才允许 baseline 慢速跟随 sample，避免把脉冲峰值吃进基线。
- 346           */
- 347          static void ir_update_baseline(uint16_t sample);
- 348          /*
- 349           * ir_update_threshold_from_adj()：
- 350           * 周期性读取 ADJ 电位器，并映射成检测阈值。
- 351           * 更新周期是 10ms，不会每次循环都读 ADJ，避免干扰接收采样。
- 352           * 阈值本身也做 IIR 平滑，防止电位器抖动导致输出抖动。
- 353           */
- 354          static void ir_update_threshold_from_adj(void);
- 355          /*
- 356           * threshold_map_from_adj()：
- 357           * 把电位器 ADC 0~4095 线性映射到 IR_TH_MIN_ADC~IR_TH_MAX_ADC。
- 358           * 这个阈值代表“红外脉冲幅度”阈值，不是 ADC 原始电压阈值。
- 359           */
- 360          static uint16_t threshold_map_from_adj(uint16_t adj);
- 361          
- 362          /*
- 363           * output_apply()：
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 7   
+ 300   1      
+ 301   1          GPIO_Init();
+ 302   1      
+ 303   1      #if UART_ADC_DEBUG_ENABLE
+                  uart_init();
+              #endif
+ 306   1      
+ 307   1          ADC_Init();
+ 308   1          timer0_init_1us_capture();
+ 309   1      
+ 310   1          threshold_update_process();
+ 311   1      
+ 312   1          /* 本版不使用中断，Timer0 只做轮询计时。 */
+ 313   1          EA = 0;
+ 314   1      
+ 315   1          output_apply(0U);
+ 316   1      
+ 317   1          while(1)
+ 318   1          {
+ 319   2              /*
+ 320   2               * 1. 打开一帧采集。
+ 321   2               * 2. 在固定时间内连续读取 ADC 并写入数组。
+ 322   2               * 3. 到时间后结束本帧采集。
+ 323   2               */
+ 324   2              rx_capture_frame();
+ 325   2      
+ 326   2              /*
+ 327   2               * 4. 对数组里的 ADC 值做均值化处理。
+ 328   2               * 5. 根据处理结果判断有光/遮光。
+ 329   2               */
+ 330   2              rx_process_frame();
+ 331   2              rx_update_output_state();
+ 332   2      
+ 333   2              /*
+ 334   2               * ADJ 不在采集窗口中读取，避免抢占接收 ADC 时间。
+ 335   2               * 每若干帧更新一次即可。
+ 336   2               */
+ 337   2              g_adj_update_frame_count++;
+ 338   2              if(g_adj_update_frame_count >= ADJ_UPDATE_FRAME_COUNT)
+ 339   2              {
+ 340   3                  g_adj_update_frame_count = 0U;
+ 341   3                  threshold_update_process();
+ 342   3              }
+ 343   2      
+ 344   2      #if UART_ADC_DEBUG_ENABLE
+                      uart_adc_debug_process();
+              #endif
+ 347   2          }
+ 348   1      }
+ 349          
+ 350          /*======================================================================
+ 351           * 十三、GPIO 初始化
+ 352           *====================================================================*/
+ 353          
+ 354          void GPIO_Init(void)
+ 355          {
+ 356   1          REG_P10_CFG = 0x00;
+ 357   1          gpio_init(IR_OUT_NO_PIN);
+ 358   1          gpio_dir_set(IR_OUT_NO_PIN, GPIO_DIR_OUT);
+ 359   1          gpio_dr_set(IR_OUT_NO_PIN, GPIO_SR_HIGH);
+ 360   1          gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
+ 361   1      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 7   
 
- 364           * 根据 light_ok 和 SENSOR_DARK_ON 计算最终输出状态。
- 365           * 亮通：有光时输出动作。
- 366           * 暗通：无光时输出动作。
- 367           * NO 和 NC 始终互补，LED 按 light_ok 指示。
- 368           */
- 369          static void output_apply(uint8_t light_ok);
- 370          /*
- 371           * debug_window_pin()：
- 372           * 控制 P2.7 调试窗口脚。
- 373           * 窗口采样期间拉高，窗口结束拉低。
- 374           * 用示波器观察它和接收模拟脉冲的相对位置，可以判断同步是否稳定。
- 375           */
- 376          static void debug_window_pin(uint8_t level);
- 377          
- 378          /*======================================================================
- 379           * 九、主函数
- 380           *====================================================================*/
- 381          
- 382          /*
- 383           * main() 主入口：
- 384           * 1. 初始化系统、GPIO、串口、ADC、1us 定时器。
- 385           * 2. 初始化红外检测状态机。
- 386           * 3. 关闭总中断，保证主循环连续扫描 ADC，不被中断打断。
- 387           * 4. while(1) 中只运行 ir_detector_poll()，不要插入长延时。
- 388           */
- 389          void main(void)
- 390          {
- 391   1          system_init();
- 392   1      
- 393   1          GPIO_Init();
- 394   1          uart_init();
- 395   1          ADC_Init();
- 396   1      
- 397   1          timer0_init_1us_free_run();
- 398   1          ir_detector_init();
+ 362   1          REG_P12_CFG = 0x00;
+ 363   1          gpio_init(IR_OUT_NC_PIN);
+ 364   1          gpio_dir_set(IR_OUT_NC_PIN, GPIO_DIR_OUT);
+ 365   1          gpio_dr_set(IR_OUT_NC_PIN, GPIO_SR_HIGH);
+ 366   1      #if RX_NC_WINDOW_DEBUG_ENABLE
+ 367   1          /* 调试模式下，NC 先保持关闭，采集窗口开始时再打开。 */
+ 368   1          gpio_io_set(IR_OUT_NC_PIN, OUT_INACTIVE_LEVEL);
+ 369   1      #else
+                  /* 正常模式下，NC 作为常闭输出，初始为闭合/动作状态。 */
+                  gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
+              #endif
+ 373   1      
+ 374   1          REG_P13_CFG = 0x00;
+ 375   1          gpio_init(IR_LED_PIN);
+ 376   1          gpio_dir_set(IR_LED_PIN, GPIO_DIR_OUT);
+ 377   1          gpio_dr_set(IR_LED_PIN, GPIO_SR_HIGH);
+ 378   1          gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
+ 379   1      
+ 380   1          /* P1.5 接收信号，后续 adc_io_config() 配置为 ADC。 */
+ 381   1          REG_P15_CFG = 0x00;
+ 382   1      
+ 383   1      #ifdef REG_P20_CFG
+ 384   1          /* P2.0 ADJ，后续 adc_io_config() 配置为 ADC。 */
+ 385   1          REG_P20_CFG = 0x00;
+ 386   1      #endif
+ 387   1      }
+ 388          
+ 389          /*======================================================================
+ 390           * 十四、ADC 初始化
+ 391           *====================================================================*/
+ 392          
+ 393          void ADC_Init(void)
+ 394          {
+ 395   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK,
+ 396   1                         ADC_VREFSOURCE_AVDD33,
+ 397   1                         4,
+ 398   1                         ADC_ENABLE);
  399   1      
- 400   1          /* 全局关闭中断：本接收版本不依赖中断，避免其它中断影响 25us 脉冲捕捉。 */
- 401   1          EA = 0;
+ 400   1          /* 保持较短采样时间，保证一帧内能采到足够多的点。 */
+ 401   1          adc_sample_clk_config(ADC_SAMPCLK_6);
  402   1      
- 403   1          output_apply(0U);
- 404   1      
- 405   1          while(1)
- 406   1          {
- 407   2              ir_detector_poll();
- 408   2          }
- 409   1      }
- 410          
- 411          /*======================================================================
- 412           * 十、GPIO 初始化
- 413           *====================================================================*/
- 414          
- 415          void GPIO_Init(void)
- 416          {
- 417   1          /* P1.0 -> NO 常开输出。 */
- 418   1          REG_P10_CFG = 0x00;
- 419   1          gpio_init(IR_OUT_NO_PIN);
- 420   1          gpio_dir_set(IR_OUT_NO_PIN, GPIO_DIR_OUT);
- 421   1          gpio_dr_set(IR_OUT_NO_PIN, GPIO_SR_HIGH);
- 422   1          gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
- 423   1      
- 424   1          /* P1.2 -> NC 常闭输出。 */
- 425   1          REG_P12_CFG = 0x00;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 8   
+ 403   1          adc_io_config(IR_SIGNAL_ADC_CHANNEL | IR_ADJ_ADC_CHANNEL);
+ 404   1          adc_scan_mode_config(ADC_MODE_SINGLE);
+ 405   1          adc_power_config(ADC_ENABLE);
+ 406   1          adc_controller_config(ADC_ENABLE);
+ 407   1      }
+ 408          
+ 409          /*======================================================================
+ 410           * 十五、Timer0 1us 采集计时
+ 411           *====================================================================*/
+ 412          
+ 413          static void timer0_init_1us_capture(void)
+ 414          {
+ 415   1          gtimer0_count_init(TIMER0_1US_RELOAD, TIMER0_1US_PRESCALER);
+ 416   1      
+ 417   1      #ifdef REG_GTIM0_IER
+ 418   1          REG_GTIM0_IER = 0x00;
+ 419   1      #endif
+ 420   1      
+ 421   1          REG_GTIM0_SR = 0x07;
+ 422   1          REG_GTIM0_CNT0 = 0x00;
+ 423   1          REG_GTIM0_CNT1 = 0x00;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 8   
 
- 426   1          gpio_init(IR_OUT_NC_PIN);
- 427   1          gpio_dir_set(IR_OUT_NC_PIN, GPIO_DIR_OUT);
- 428   1          gpio_dr_set(IR_OUT_NC_PIN, GPIO_SR_HIGH);
- 429   1          gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
- 430   1      
- 431   1          /* P1.3 -> 红色指示灯。 */
- 432   1          REG_P13_CFG = 0x00;
- 433   1          gpio_init(IR_LED_PIN);
- 434   1          gpio_dir_set(IR_LED_PIN, GPIO_DIR_OUT);
- 435   1          gpio_dr_set(IR_LED_PIN, GPIO_SR_HIGH);
- 436   1          gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
- 437   1      
- 438   1          /* P2.7 -> 调试脚，窗口打开时置 1。 */
- 439   1      #ifdef REG_P27_CFG
- 440   1          REG_P27_CFG = 0x00;
- 441   1      #endif
- 442   1          gpio_init(IR_DEBUG_WINDOW_PIN);
- 443   1          gpio_dir_set(IR_DEBUG_WINDOW_PIN, GPIO_DIR_OUT);
- 444   1          gpio_dr_set(IR_DEBUG_WINDOW_PIN, GPIO_SR_HIGH);
- 445   1          gpio_io_set(IR_DEBUG_WINDOW_PIN, GPIO_LOW);
- 446   1      
- 447   1          /* P1.5 -> U3-1 接收信号，后面 adc_io_config() 会配置为 ADC 功能。 */
- 448   1          REG_P15_CFG = 0x00;
- 449   1      
- 450   1          /* P2.0 -> ADJ 电位器，后面 adc_io_config() 会配置为 ADC 功能。 */
- 451   1      #ifdef REG_P20_CFG
- 452   1          REG_P20_CFG = 0x00;
- 453   1      #endif
- 454   1      }
- 455          
- 456          /*======================================================================
- 457           * 十一、ADC 初始化
- 458           *====================================================================*/
- 459          
- 460          void ADC_Init(void)
- 461          {
- 462   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK,
- 463   1                         ADC_VREFSOURCE_AVDD33,
- 464   1                         4,
- 465   1                         ADC_ENABLE);
- 466   1      
- 467   1          /* 采样时间短一些，方便窗口内尽量多采样。 */
- 468   1          adc_sample_clk_config(ADC_SAMPCLK_4);
- 469   1      
- 470   1          adc_io_config(IR_SIGNAL_ADC_CHANNEL | IR_ADJ_ADC_CHANNEL);
- 471   1          adc_scan_mode_config(ADC_MODE_SINGLE);
- 472   1          adc_power_config(ADC_ENABLE);
- 473   1          adc_controller_config(ADC_ENABLE);
- 474   1      }
- 475          
- 476          /*======================================================================
- 477           * 十二、Timer0 1us 自由运行
- 478           *====================================================================*/
- 479          
- 480          /* 以下是 Timer0 1us 时间基准的具体初始化实现。 */
- 481          static void timer0_init_1us_free_run(void)
- 482          {
- 483   1          gtimer0_count_init(IR_TIMER0_1US_RELOAD, IR_TIMER0_1US_PRESCALER);
- 484   1      
- 485   1      #ifdef REG_GTIM0_IER
- 486   1          REG_GTIM0_IER = 0x00;
- 487   1      #endif
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 9   
+ 424   1      
+ 425   1          gtimer0_start();
+ 426   1      }
+ 427          
+ 428          static void capture_timer_start(void)
+ 429          {
+ 430   1          /*
+ 431   1           * 每一帧重新从 0 开始计时。
+ 432   1           * 这里相当于打开本帧采集定时。
+ 433   1           */
+ 434   1          REG_GTIM0_SR = 0x07;
+ 435   1          REG_GTIM0_CNT0 = 0x00;
+ 436   1          REG_GTIM0_CNT1 = 0x00;
+ 437   1          gtimer0_start();
+ 438   1      }
+ 439          
+ 440          static void capture_timer_close(void)
+ 441          {
+ 442   1          /*
+ 443   1           * 旧工程库里只使用 gtimer0_start()，没有统一暴露 stop 接口。
+ 444   1           * 所以这里做“逻辑关闭”：本帧结束后不再读取 Timer0 判断采集时间，
+ 445   1           * 下一帧开始时重新清零计数器。
+ 446   1           */
+ 447   1          REG_GTIM0_SR = 0x07;
+ 448   1      }
+ 449          
+ 450          static uint16_t capture_timer_us(void)
+ 451          {
+ 452   1          uint8_t hi1;
+ 453   1          uint8_t hi2;
+ 454   1          uint8_t lo;
+ 455   1      
+ 456   1          do
+ 457   1          {
+ 458   2              hi1 = REG_GTIM0_CNT1;
+ 459   2              lo  = REG_GTIM0_CNT0;
+ 460   2              hi2 = REG_GTIM0_CNT1;
+ 461   2          } while(hi1 != hi2);
+ 462   1      
+ 463   1          return ((uint16_t)hi1 << 8) | (uint16_t)lo;
+ 464   1      }
+ 465          
+ 466          /*======================================================================
+ 467           * 十六、ADC 单次读取
+ 468           *====================================================================*/
+ 469          
+ 470          static uint16_t adc_read_once(uint8_t ch)
+ 471          {
+ 472   1          uint16_t value;
+ 473   1      
+ 474   1          adc_convert_start(ch);
+ 475   1      
+ 476   1          while((ADCGCR1 & 0x04) != 0);
+ 477   1          while(!(ADCCSTAT & 0x01));
+ 478   1      
+ 479   1          ADCCSTAT = 0x01;
+ 480   1      
+ 481   1          value = (((uint16_t)(ADCDR1 & 0x0F)) << 8) | ADCDR0;
+ 482   1      
+ 483   1          if(value > ADC_MAX_VALUE)
+ 484   1          {
+ 485   2              value = ADC_MAX_VALUE;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 9   
 
- 488   1      
- 489   1          REG_GTIM0_SR = 0x07;
- 490   1          REG_GTIM0_CNT0 = 0x00;
- 491   1          REG_GTIM0_CNT1 = 0x00;
- 492   1      
- 493   1          gtimer0_start();
- 494   1      }
- 495          
- 496          /* 以下实现安全读取 16 位时间戳。 */
- 497          static uint16_t time_us16(void)
- 498          {
- 499   1          uint8_t hi1;
- 500   1          uint8_t hi2;
- 501   1          uint8_t lo;
+ 486   2          }
+ 487   1      
+ 488   1          return value;
+ 489   1      }
+ 490          
+ 491          /*======================================================================
+ 492           * 十七、采集一帧 ADC 数组
+ 493           *====================================================================*/
+ 494          
+ 495          static void rx_capture_frame(void)
+ 496          {
+ 497   1          uint16_t sample;
+ 498   1          uint16_t count;
+ 499   1      
+ 500   1          count = 0U;
+ 501   1          g_frame_overflow = 0U;
  502   1      
- 503   1          do
- 504   1          {
- 505   2              hi1 = REG_GTIM0_CNT1;
- 506   2              lo  = REG_GTIM0_CNT0;
- 507   2              hi2 = REG_GTIM0_CNT1;
- 508   2          } while(hi1 != hi2);
- 509   1      
- 510   1          return ((uint16_t)hi1 << 8) | (uint16_t)lo;
- 511   1      }
- 512          
- 513          /* 以下实现两个时间戳相减，允许 uint16_t 回绕。 */
- 514          static uint16_t time_sub_u16(uint16_t a, uint16_t b)
- 515          {
- 516   1          return (uint16_t)(a - b);
- 517   1      }
- 518          
- 519          /* 以下实现“当前时间是否到达目标时间”的判断。 */
- 520          static uint8_t time_after_eq_u16(uint16_t now, uint16_t target)
- 521          {
- 522   1          return (((int16_t)(now - target)) >= 0) ? 1U : 0U;
- 523   1      }
- 524          
- 525          /*======================================================================
- 526           * 十三、ADC 单次读取
- 527           *====================================================================*/
- 528          
- 529          /* 以下实现指定 ADC 通道的单次阻塞采样。 */
- 530          static uint16_t adc_read_once(uint8_t ch)
- 531          {
- 532   1          uint16_t value;
- 533   1      
- 534   1          adc_convert_start(ch);
- 535   1      
- 536   1          while((ADCGCR1 & 0x04) != 0);
- 537   1          while(!(ADCCSTAT & 0x01));
- 538   1      
- 539   1          ADCCSTAT = 0x01;
- 540   1      
- 541   1          value = adc_get_value();
- 542   1      
- 543   1          if(value > ADC_MAX_VALUE)
- 544   1          {
- 545   2              value = ADC_MAX_VALUE;
- 546   2          }
- 547   1      
- 548   1          return value;
- 549   1      }
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 10  
+ 503   1          capture_timer_start();
+ 504   1      
+ 505   1          /*
+ 506   1           * 调试模式下：从采集窗口真正开始时打开 NC。
+ 507   1           * 示波器看到的 NC 高/低电平宽度，就是本帧 ADC 数组采集时间。
+ 508   1           */
+ 509   1          nc_window_debug_set(1U);
+ 510   1      
+ 511   1          while(capture_timer_us() < RX_CAPTURE_WINDOW_US)
+ 512   1          {
+ 513   2              sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
+ 514   2              g_adc_signal = sample;
+ 515   2      
+ 516   2              if(count < RX_ADC_FRAME_MAX_SAMPLES)
+ 517   2              {
+ 518   3                  g_adc_frame_buf[count] = sample;
+ 519   3                  count++;
+ 520   3              }
+ 521   2              else
+ 522   2              {
+ 523   3                  /* 数组满了仍然等到本帧时间结束，但后续样本不再写入，避免越界。 */
+ 524   3                  g_frame_overflow = 1U;
+ 525   3              }
+ 526   2          }
+ 527   1      
+ 528   1          capture_timer_close();
+ 529   1      
+ 530   1          /* 调试模式下：窗口读取结束，立刻关闭 NC。 */
+ 531   1          nc_window_debug_set(0U);
+ 532   1      
+ 533   1          g_frame_sample_count = count;
+ 534   1      }
+ 535          
+ 536          /*======================================================================
+ 537           * 十八、处理一帧 ADC 数组
+ 538           *====================================================================*/
+ 539          
+ 540          static void rx_process_frame(void)
+ 541          {
+ 542   1          uint32_t sum;
+ 543   1          uint16_t i;
+ 544   1          uint16_t count;
+ 545   1          uint16_t baseline;
+ 546   1          uint16_t signal_mean;
+ 547   1          uint16_t threshold_on;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 10  
 
- 550          
- 551          /*======================================================================
- 552           * 十四、接收检测初始化
- 553           *====================================================================*/
- 554          
- 555          /* 以下实现检测状态机的上电初始化。 */
- 556          static void ir_detector_init(void)
- 557          {
- 558   1          uint16_t sample;
- 559   1      
- 560   1          sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
- 561   1      
- 562   1          g_ir_state = IR_STATE_SEARCH;
- 563   1          g_ir_light_ok = 0U;
- 564   1          g_ir_synced = 0U;
- 565   1          g_ir_output_state = 0U;
+ 548   1          uint16_t threshold_off;
+ 549   1          uint16_t active_points;
+ 550   1          uint16_t active_max;
+ 551   1          uint8_t valid;
+ 552   1      
+ 553   1          count = g_frame_sample_count;
+ 554   1          valid = 0U;
+ 555   1      
+ 556   1          if(count < RX_FRAME_MIN_SAMPLES)
+ 557   1          {
+ 558   2              g_frame_valid = 0U;
+ 559   2              g_frame_amp = 0U;
+ 560   2              return;
+ 561   2          }
+ 562   1      
+ 563   1          g_frame_min = g_adc_frame_buf[0];
+ 564   1          g_frame_max = g_adc_frame_buf[0];
+ 565   1          sum = 0UL;
  566   1      
- 567   1          g_ir_adc_signal = sample;
- 568   1          g_ir_adc_adj = 0U;
- 569   1          g_ir_threshold_on = IR_TH_DEFAULT_ADC;
- 570   1          g_ir_threshold_off = (IR_TH_DEFAULT_ADC - 80U);
- 571   1          g_ir_baseline = sample;
- 572   1          g_ir_peak = sample;
- 573   1          g_ir_amp = 0U;
- 574   1          g_ir_amp_fast = 0U;
- 575   1          g_ir_amp_display = 0U;
- 576   1          g_ir_next_center_us = 0U;
- 577   1          g_ir_last_light_seen_us = time_us16();
- 578   1      
- 579   1          g_ir_good_count = 0U;
- 580   1          g_ir_miss_count = 0U;
- 581   1          g_ir_lock_count = 0U;
- 582   1          g_ir_in_pulse = 0U;
- 583   1          g_ir_have_last_pulse = 0U;
- 584   1          g_ir_last_pulse_us = 0U;
- 585   1          g_ir_search_start_us = 0U;
- 586   1          g_ir_search_peak = sample;
- 587   1          g_ir_search_peak_us = 0U;
- 588   1          g_ir_last_adj_update_us = time_us16();
- 589   1          g_ir_threshold_filter = ((uint32_t)IR_TH_DEFAULT_ADC << IR_ADJ_FILTER_SHIFT);
- 590   1          g_ir_threshold_init = 0U;
- 591   1      
- 592   1          ir_update_threshold_from_adj();
- 593   1      }
- 594          
- 595          /* 以下实现回到搜索状态，但不立即改变输出。 */
- 596          static void ir_set_search(void)
- 597          {
- 598   1          g_ir_state = IR_STATE_SEARCH;
- 599   1          g_ir_synced = 0U;
- 600   1          g_ir_good_count = 0U;
- 601   1          g_ir_miss_count = 0U;
- 602   1          g_ir_lock_count = 0U;
- 603   1          g_ir_in_pulse = 0U;
- 604   1          g_ir_have_last_pulse = 0U;
- 605   1      }
- 606          
- 607          /*======================================================================
- 608           * 十五、主检测轮询
- 609           *====================================================================*/
- 610          
- 611          /* 以下是每次主循环调用的红外检测总入口。 */
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 11  
+ 567   1          for(i = 0U; i < count; i++)
+ 568   1          {
+ 569   2              if(g_adc_frame_buf[i] < g_frame_min)
+ 570   2              {
+ 571   3                  g_frame_min = g_adc_frame_buf[i];
+ 572   3              }
+ 573   2      
+ 574   2              if(g_adc_frame_buf[i] > g_frame_max)
+ 575   2              {
+ 576   3                  g_frame_max = g_adc_frame_buf[i];
+ 577   3              }
+ 578   2      
+ 579   2              sum += g_adc_frame_buf[i];
+ 580   2          }
+ 581   1      
+ 582   1          g_frame_mean = (uint16_t)(sum / count);
+ 583   1      
+ 584   1      #if RX_SIGNAL_ACTIVE_HIGH
+ 585   1          /* 高脉冲有效：强信号取高端均值，背景取低端均值。 */
+ 586   1          signal_mean = mean_top_high_samples(g_adc_frame_buf, count, RX_SIGNAL_TOP_AVG_COUNT);
+ 587   1          baseline = mean_low_samples(g_adc_frame_buf, count, RX_BASELINE_AVG_COUNT);
+ 588   1      
+ 589   1          if(signal_mean > baseline)
+ 590   1          {
+ 591   2              g_frame_amp = (uint16_t)(signal_mean - baseline);
+ 592   2          }
+ 593   1          else
+ 594   1          {
+ 595   2              g_frame_amp = 0U;
+ 596   2          }
+ 597   1      #else
+                  /* 低脉冲有效：强信号取低端均值，背景取高端均值。 */
+                  signal_mean = mean_top_low_samples(g_adc_frame_buf, count, RX_SIGNAL_TOP_AVG_COUNT);
+                  baseline = mean_high_baseline_samples(g_adc_frame_buf, count, RX_BASELINE_AVG_COUNT);
+              
+                  if(baseline > signal_mean)
+                  {
+                      g_frame_amp = (uint16_t)(baseline - signal_mean);
+                  }
+                  else
+                  {
+                      g_frame_amp = 0U;
+                  }
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 11  
 
- 612          static void ir_detector_poll(void)
- 613          {
- 614   1          uint16_t now;
- 615   1      
- 616   1          ir_update_threshold_from_adj();
+              #endif
+ 611   1      
+ 612   1          g_frame_baseline_mean = baseline;
+ 613   1          g_frame_signal_mean = signal_mean;
+ 614   1      
+ 615   1          threshold_on = g_threshold;
+ 616   1          threshold_off = calc_threshold_off();
  617   1      
- 618   1          if(g_ir_state == IR_STATE_SEARCH)
+ 618   1          if(g_light_ok != 0U)
  619   1          {
- 620   2              ir_search_sample();
- 621   2          }
- 622   1          else
- 623   1          {
- 624   2              ir_tracking_process();
+ 620   2              active_points = count_active_points(g_adc_frame_buf, count, baseline, threshold_off);
+ 621   2              if(g_frame_amp >= threshold_off)
+ 622   2              {
+ 623   3                  valid = 1U;
+ 624   3              }
  625   2          }
- 626   1      
- 627   1          /*
- 628   1           * 关键防闪烁逻辑：
- 629   1           * 窗口没采到，不等于真的遮光，可能只是同步漂移。
- 630   1           * 只有超过 IR_LIGHT_OFF_MISS_COUNT 个 1ms 周期都没有重新确认到光，
- 631   1           * 才允许输出无光。
- 632   1           */
- 633   1          if(g_ir_light_ok != 0U)
- 634   1          {
- 635   2              now = time_us16();
- 636   2              if(time_sub_u16(now, g_ir_last_light_seen_us) >=
- 637   2                 (uint16_t)(IR_LIGHT_OFF_MISS_COUNT * IR_PERIOD_US))
- 638   2              {
- 639   3                  g_ir_light_ok = 0U;
- 640   3                  output_apply(0U);
- 641   3              }
- 642   2          }
- 643   1      }
- 644          
- 645          /*======================================================================
- 646           * 十六、搜索同步阶段
- 647           *====================================================================*/
- 648          
- 649          /* 以下实现搜索阶段的脉冲宽度校验和 1ms 周期校验。 */
- 650          static void ir_search_sample(void)
- 651          {
- 652   1          uint16_t now;
- 653   1          uint16_t sample;
- 654   1          uint16_t amp;
- 655   1          uint16_t width_us;
- 656   1          uint16_t dt;
- 657   1      
- 658   1          now = time_us16();
- 659   1          sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
- 660   1          g_ir_adc_signal = sample;
- 661   1      
- 662   1          ir_update_baseline(sample);
- 663   1          amp = ir_abs_amp(sample, g_ir_baseline);
- 664   1          g_ir_amp = amp;
- 665   1      
- 666   1          /* 当前不在脉冲中：等待 ADC 幅度越过高阈值，作为脉冲起点。 */
- 667   1          if(g_ir_in_pulse == 0U)
- 668   1          {
- 669   2              if(amp > g_ir_threshold_on)
- 670   2              {
- 671   3                  g_ir_in_pulse = 1U;
- 672   3                  g_ir_search_start_us = now;
- 673   3                  g_ir_search_peak = sample;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 12  
+ 626   1          else
+ 627   1          {
+ 628   2              active_points = count_active_points(g_adc_frame_buf, count, baseline, threshold_on);
+ 629   2              if(g_frame_amp >= threshold_on)
+ 630   2              {
+ 631   3                  valid = 1U;
+ 632   3              }
+ 633   2          }
+ 634   1      
+ 635   1          g_frame_active_points = active_points;
+ 636   1      
+ 637   1          active_max = (uint16_t)(((uint32_t)count * RX_ACTIVE_POINT_MAX_PERCENT) / 100UL);
+ 638   1          if(active_max < RX_ACTIVE_POINT_MIN)
+ 639   1          {
+ 640   2              active_max = RX_ACTIVE_POINT_MIN;
+ 641   2          }
+ 642   1      
+ 643   1          /* 幅度满足，但有效点太少，可能是单点毛刺。 */
+ 644   1          if(active_points < RX_ACTIVE_POINT_MIN)
+ 645   1          {
+ 646   2              valid = 0U;
+ 647   2          }
+ 648   1      
+ 649   1          /* 有效点太多，不像 25us 窄脉冲，可能是饱和或环境干扰。 */
+ 650   1          if(active_points > active_max)
+ 651   1          {
+ 652   2              valid = 0U;
+ 653   2          }
+ 654   1      
+ 655   1          g_frame_valid = valid;
+ 656   1      }
+ 657          
+ 658          /*======================================================================
+ 659           * 十九、根据连续帧结果更新输出
+ 660           *====================================================================*/
+ 661          
+ 662          static void rx_update_output_state(void)
+ 663          {
+ 664   1          if(g_frame_valid != 0U)
+ 665   1          {
+ 666   2              g_invalid_frame_count = 0U;
+ 667   2              if(g_valid_frame_count < 255U)
+ 668   2              {
+ 669   3                  g_valid_frame_count++;
+ 670   3              }
+ 671   2      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 12  
 
- 674   3                  g_ir_search_peak_us = now;
- 675   3              }
- 676   2              return;
- 677   2          }
- 678   1      
- 679   1          if(ir_sample_stronger(sample, g_ir_search_peak))
- 680   1          {
- 681   2              g_ir_search_peak = sample;
- 682   2              g_ir_search_peak_us = now;
- 683   2          }
- 684   1      
- 685   1          /* 当前已经在脉冲中：等幅度跌回低阈值，认为脉冲结束。 */
- 686   1          if(amp < g_ir_threshold_off)
- 687   1          {
- 688   2              g_ir_in_pulse = 0U;
- 689   2              width_us = time_sub_u16(now, g_ir_search_start_us);
- 690   2      
- 691   2              /*
- 692   2               * 真实脉冲约 25us。
- 693   2               * 宽度太窄：多数是 ADC/运放尖峰毛刺。
- 694   2               * 宽度太宽：多数是环境光、饱和、慢变化干扰。
- 695   2               * 这一步能明显减少“偶尔误触发几个信号”。
- 696   2               */
- 697   2              /* 宽度校验：不符合 25us 脉冲特征的信号直接丢弃。 */
- 698   2              if((width_us < IR_SEARCH_PULSE_MIN_US) ||
- 699   2                 (width_us > IR_SEARCH_PULSE_MAX_US))
- 700   2              {
- 701   3                  g_ir_lock_count = 0U;
- 702   3                  g_ir_have_last_pulse = 0U;
- 703   3                  return;
- 704   3              }
- 705   2      
- 706   2              if(g_ir_have_last_pulse == 0U)
- 707   2              {
- 708   3                  g_ir_have_last_pulse = 1U;
- 709   3                  g_ir_last_pulse_us = g_ir_search_peak_us;
- 710   3                  return;
- 711   3              }
- 712   2      
- 713   2              dt = time_sub_u16(g_ir_search_peak_us, g_ir_last_pulse_us);
- 714   2              g_ir_last_pulse_us = g_ir_search_peak_us;
- 715   2      
- 716   2              /* 周期校验：真实发射信号应接近 1000us。 */
- 717   2              if((dt >= IR_SEARCH_PERIOD_MIN_US) && (dt <= IR_SEARCH_PERIOD_MAX_US))
- 718   2              {
- 719   3                  if(g_ir_lock_count < 255U)
- 720   3                  {
- 721   4                      g_ir_lock_count++;
- 722   4                  }
- 723   3              }
- 724   2              else
- 725   2              {
- 726   3                  g_ir_lock_count = 0U;
- 727   3              }
- 728   2      
- 729   2              if(g_ir_lock_count >= IR_SEARCH_LOCK_COUNT)
- 730   2              {
- 731   3                  g_ir_state = IR_STATE_TRACKING;
- 732   3                  g_ir_synced = 1U;
- 733   3                  g_ir_good_count = 0U;
- 734   3                  g_ir_miss_count = 0U;
- 735   3                  g_ir_next_center_us = (uint16_t)(g_ir_search_peak_us + IR_PERIOD_US);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 13  
+ 672   2              if(g_valid_frame_count >= RX_FRAME_ON_CONFIRM_COUNT)
+ 673   2              {
+ 674   3                  if(g_light_ok == 0U)
+ 675   3                  {
+ 676   4                      g_light_ok = 1U;
+ 677   4                      output_apply(1U);
+ 678   4                  }
+ 679   3              }
+ 680   2          }
+ 681   1          else
+ 682   1          {
+ 683   2              g_valid_frame_count = 0U;
+ 684   2              if(g_invalid_frame_count < 255U)
+ 685   2              {
+ 686   3                  g_invalid_frame_count++;
+ 687   3              }
+ 688   2      
+ 689   2              if(g_invalid_frame_count >= RX_FRAME_OFF_CONFIRM_COUNT)
+ 690   2              {
+ 691   3                  if(g_light_ok != 0U)
+ 692   3                  {
+ 693   4                      g_light_ok = 0U;
+ 694   4                      output_apply(0U);
+ 695   4                  }
+ 696   3              }
+ 697   2          }
+ 698   1      }
+ 699          
+ 700          /*======================================================================
+ 701           * 二十、均值化工具函数
+ 702           *====================================================================*/
+ 703          
+ 704          static uint16_t mean_top_high_samples(uint16_t *buf, uint16_t count, uint8_t top_n)
+ 705          {
+ 706   1          uint16_t i;
+ 707   1          uint8_t j;
+ 708   1          uint8_t used;
+ 709   1          uint8_t min_index;
+ 710   1          uint32_t sum;
+ 711   1      
+ 712   1          used = 0U;
+ 713   1      
+ 714   1          for(i = 0U; i < count; i++)
+ 715   1          {
+ 716   2              if(used < top_n)
+ 717   2              {
+ 718   3                  g_proc_signal_buf[used] = buf[i];
+ 719   3                  used++;
+ 720   3              }
+ 721   2              else
+ 722   2              {
+ 723   3                  min_index = 0U;
+ 724   3                  for(j = 1U; j < top_n; j++)
+ 725   3                  {
+ 726   4                      if(g_proc_signal_buf[j] < g_proc_signal_buf[min_index])
+ 727   4                      {
+ 728   5                          min_index = j;
+ 729   5                      }
+ 730   4                  }
+ 731   3      
+ 732   3                  if(buf[i] > g_proc_signal_buf[min_index])
+ 733   3                  {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 13  
 
- 736   3                  g_ir_last_light_seen_us = g_ir_search_peak_us;
- 737   3              }
- 738   2          }
- 739   1      }
- 740          
- 741          /*======================================================================
- 742           * 十七、同步跟踪阶段：每 1ms 打窗口采样
- 743           *====================================================================*/
- 744          
- 745          /* 以下实现同步后的定时窗口采样。 */
- 746          static void ir_tracking_process(void)
- 747          {
- 748   1          uint16_t center;
- 749   1          uint16_t start;
- 750   1          uint16_t end;
- 751   1          uint16_t now;
- 752   1          uint16_t sample;
- 753   1          uint16_t best;
- 754   1          uint16_t best_us;
- 755   1      
- 756   1          center = g_ir_next_center_us;
- 757   1          start = (uint16_t)(center - IR_WINDOW_PRE_US);
- 758   1          end = (uint16_t)(center + IR_WINDOW_POST_US);
- 759   1      
- 760   1          now = time_us16();
- 761   1      
- 762   1          /* 还没到窗口，读到的 ADC 大概率是背景值，可用于更新 baseline。 */
- 763   1          if(!time_after_eq_u16(now, start))
+ 734   4                      g_proc_signal_buf[min_index] = buf[i];
+ 735   4                  }
+ 736   3              }
+ 737   2          }
+ 738   1      
+ 739   1          if(used == 0U)
+ 740   1          {
+ 741   2              return 0U;
+ 742   2          }
+ 743   1      
+ 744   1          sum = 0UL;
+ 745   1          for(j = 0U; j < used; j++)
+ 746   1          {
+ 747   2              sum += g_proc_signal_buf[j];
+ 748   2          }
+ 749   1      
+ 750   1          return (uint16_t)(sum / used);
+ 751   1      }
+ 752          
+ 753          static uint16_t mean_low_samples(uint16_t *buf, uint16_t count, uint8_t low_n)
+ 754          {
+ 755   1          uint16_t i;
+ 756   1          uint8_t j;
+ 757   1          uint8_t used;
+ 758   1          uint8_t max_index;
+ 759   1          uint32_t sum;
+ 760   1      
+ 761   1          used = 0U;
+ 762   1      
+ 763   1          for(i = 0U; i < count; i++)
  764   1          {
- 765   2              sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
- 766   2              g_ir_adc_signal = sample;
- 767   2              ir_update_baseline(sample);
- 768   2              return;
- 769   2          }
- 770   1      
- 771   1          if(time_after_eq_u16(now, end))
- 772   1          {
- 773   2              /* 主循环错过窗口，按一次丢脉冲处理。 */
- 774   2              ir_process_frame(g_ir_baseline, now, center);
- 775   2              return;
- 776   2          }
- 777   1      
- 778   1          debug_window_pin(1U);
- 779   1      
- 780   1          best = ir_best_init_value();
- 781   1          best_us = now;
- 782   1      
- 783   1          /* 窗口内持续采样，最终只保留最强的一个点 best。 */
- 784   1          do
- 785   1          {
- 786   2              now = time_us16();
- 787   2              sample = adc_read_once(IR_SIGNAL_ADC_CHANNEL);
- 788   2              g_ir_adc_signal = sample;
- 789   2      
- 790   2              if(ir_sample_stronger(sample, best))
- 791   2              {
- 792   3                  best = sample;
- 793   3                  best_us = now;
- 794   3              }
- 795   2          } while(!time_after_eq_u16(now, end));
- 796   1      
- 797   1          debug_window_pin(0U);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 14  
+ 765   2              if(used < low_n)
+ 766   2              {
+ 767   3                  g_proc_base_buf[used] = buf[i];
+ 768   3                  used++;
+ 769   3              }
+ 770   2              else
+ 771   2              {
+ 772   3                  max_index = 0U;
+ 773   3                  for(j = 1U; j < low_n; j++)
+ 774   3                  {
+ 775   4                      if(g_proc_base_buf[j] > g_proc_base_buf[max_index])
+ 776   4                      {
+ 777   5                          max_index = j;
+ 778   5                      }
+ 779   4                  }
+ 780   3      
+ 781   3                  if(buf[i] < g_proc_base_buf[max_index])
+ 782   3                  {
+ 783   4                      g_proc_base_buf[max_index] = buf[i];
+ 784   4                  }
+ 785   3              }
+ 786   2          }
+ 787   1      
+ 788   1          if(used == 0U)
+ 789   1          {
+ 790   2              return 0U;
+ 791   2          }
+ 792   1      
+ 793   1          sum = 0UL;
+ 794   1          for(j = 0U; j < used; j++)
+ 795   1          {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 14  
 
+ 796   2              sum += g_proc_base_buf[j];
+ 797   2          }
  798   1      
- 799   1          ir_process_frame(best, best_us, center);
+ 799   1          return (uint16_t)(sum / used);
  800   1      }
  801          
- 802          /* 以下实现单个窗口结果的有效性判断、输出确认和相位修正。 */
- 803          static void ir_process_frame(uint16_t peak, uint16_t peak_us, uint16_t expected_center_us)
- 804          {
- 805   1          uint16_t amp;
- 806   1          uint8_t valid;
- 807   1          int16_t phase_error;
- 808   1          int16_t adjust;
- 809   1      
- 810   1          g_ir_peak = peak;
- 811   1          amp = ir_abs_amp(peak, g_ir_baseline);
- 812   1          g_ir_amp = amp;
- 813   1      
- 814   1          g_ir_amp_fast = ir_iir_u16(g_ir_amp_fast, amp, IR_FAST_FILTER_SHIFT);
- 815   1          g_ir_amp_display = ir_iir_u16(g_ir_amp_display, amp, IR_DISPLAY_FILTER_SHIFT);
- 816   1      
- 817   1          /*
- 818   1           * 注意：每一帧是否命中脉冲，必须用本窗口的瞬时 amp 判断。
- 819   1           * 不能用 g_ir_amp_fast 判断，否则一次漏采后，滤波残留仍可能被当成有效脉冲，
- 820   1           * 进而用错误的 peak_us 修正相位，最终造成输出周期性闪烁。
- 821   1           */
- 822   1          if(g_ir_light_ok != 0U)
- 823   1          {
- 824   2              valid = (amp > g_ir_threshold_off) ? 1U : 0U;
- 825   2          }
- 826   1          else
- 827   1          {
- 828   2              valid = (amp > g_ir_threshold_on) ? 1U : 0U;
- 829   2          }
- 830   1      
- 831   1          /* 本帧有效：增加有效计数，清除漏采计数，并根据峰值时间微调相位。 */
- 832   1          if(valid != 0U)
+ 802          static uint16_t mean_top_low_samples(uint16_t *buf, uint16_t count, uint8_t low_n)
+ 803          {
+ 804   1          /* 低脉冲有效时，最强信号就是最低的若干个点。 */
+ 805   1          return mean_low_samples(buf, count, low_n);
+ 806   1      }
+ 807          
+ 808          static uint16_t mean_high_baseline_samples(uint16_t *buf, uint16_t count, uint8_t high_n)
+ 809          {
+ 810   1          /* 低脉冲有效时，背景基线就是最高的若干个点。 */
+ 811   1          return mean_top_high_samples(buf, count, high_n);
+ 812   1      }
+ 813          
+ 814          static uint16_t count_active_points(uint16_t *buf, uint16_t count, uint16_t baseline, uint16_t threshold)
+ 815          {
+ 816   1          uint16_t i;
+ 817   1          uint16_t cnt;
+ 818   1          uint16_t th;
+ 819   1      
+ 820   1          cnt = 0U;
+ 821   1      
+ 822   1      #if RX_SIGNAL_ACTIVE_HIGH
+ 823   1          if((uint32_t)baseline + threshold > ADC_MAX_VALUE)
+ 824   1          {
+ 825   2              th = ADC_MAX_VALUE;
+ 826   2          }
+ 827   1          else
+ 828   1          {
+ 829   2              th = (uint16_t)(baseline + threshold);
+ 830   2          }
+ 831   1      
+ 832   1          for(i = 0U; i < count; i++)
  833   1          {
- 834   2              if(g_ir_good_count < 255U)
+ 834   2              if(buf[i] >= th)
  835   2              {
- 836   3                  g_ir_good_count++;
+ 836   3                  cnt++;
  837   3              }
- 838   2              g_ir_miss_count = 0U;
- 839   2              g_ir_last_light_seen_us = peak_us;
- 840   2      
- 841   2              if(g_ir_good_count >= IR_LIGHT_ON_CONFIRM_COUNT)
- 842   2              {
- 843   3                  if(g_ir_light_ok == 0U)
- 844   3                  {
- 845   4                      g_ir_light_ok = 1U;
- 846   4                      output_apply(1U);
- 847   4                  }
- 848   3              }
- 849   2      
- 850   2              phase_error = (int16_t)((int16_t)peak_us - (int16_t)expected_center_us);
- 851   2              adjust = ir_limit_i16((int16_t)(phase_error / 4),
- 852   2                                    (int16_t)-IR_PHASE_ADJUST_LIMIT_US,
- 853   2                                    (int16_t) IR_PHASE_ADJUST_LIMIT_US);
- 854   2      
- 855   2              g_ir_next_center_us = (uint16_t)(expected_center_us + IR_PERIOD_US + adjust);
- 856   2          }
- 857   1          else
- 858   1          {
- 859   2              /* 本帧无效：清有效计数，增加漏采计数。 */
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 15  
+ 838   2          }
+ 839   1      #else
+                  if(baseline > threshold)
+                  {
+                      th = (uint16_t)(baseline - threshold);
+                  }
+                  else
+                  {
+                      th = 0U;
+                  }
+              
+                  for(i = 0U; i < count; i++)
+                  {
+                      if(buf[i] <= th)
+                      {
+                          cnt++;
+                      }
+                  }
+              #endif
+ 857   1      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 15  
 
- 860   2              g_ir_good_count = 0U;
- 861   2              if(g_ir_miss_count < 255U)
- 862   2              {
- 863   3                  g_ir_miss_count++;
- 864   3              }
- 865   2      
- 866   2              g_ir_next_center_us = (uint16_t)(expected_center_us + IR_PERIOD_US);
- 867   2      
- 868   2              /*
- 869   2               * 窗口连续漏采，优先认为是同步漂移，回到搜索重新锁相。
- 870   2               * 这里不直接关输出；真正关输出由 ir_detector_poll() 的
- 871   2               * IR_LIGHT_OFF_MISS_COUNT * 1ms 超时统一处理。
- 872   2               */
- 873   2              if(g_ir_miss_count >= IR_RELOCK_MISS_COUNT)
- 874   2              {
- 875   3                  ir_set_search();
- 876   3              }
- 877   2          }
- 878   1      }
- 879          
- 880          /*======================================================================
- 881           * 十八、阈值、基线、滤波工具
- 882           *====================================================================*/
- 883          
- 884          /* 以下根据信号极性计算幅度。 */
- 885          static uint16_t ir_abs_amp(uint16_t sample, uint16_t baseline)
- 886          {
- 887   1      #if RX_SIGNAL_ACTIVE_HIGH
- 888   1          return (sample > baseline) ? (uint16_t)(sample - baseline) : 0U;
- 889   1      #else
-                  return (baseline > sample) ? (uint16_t)(baseline - sample) : 0U;
-              #endif
- 892   1      }
- 893          
- 894          /* 以下根据信号极性判断哪个采样点更强。 */
- 895          static uint8_t ir_sample_stronger(uint16_t sample, uint16_t old_best)
- 896          {
- 897   1      #if RX_SIGNAL_ACTIVE_HIGH
- 898   1          return (sample > old_best) ? 1U : 0U;
- 899   1      #else
-                  return (sample < old_best) ? 1U : 0U;
-              #endif
- 902   1      }
- 903          
- 904          /* 以下给窗口峰值搜索提供初始值。 */
- 905          static uint16_t ir_best_init_value(void)
- 906          {
- 907   1      #if RX_SIGNAL_ACTIVE_HIGH
- 908   1          return 0U;
- 909   1      #else
-                  return 0xFFFFU;
-              #endif
- 912   1      }
- 913          
- 914          /* 以下实现整数 IIR 滤波。 */
- 915          static uint16_t ir_iir_u16(uint16_t old_v, uint16_t new_v, uint8_t shift)
- 916          {
- 917   1          if(new_v >= old_v)
+ 858   1          return cnt;
+ 859   1      }
+ 860          
+ 861          static uint16_t calc_threshold_off(void)
+ 862          {
+ 863   1          if(g_threshold > RX_AMP_HYS_ADC)
+ 864   1          {
+ 865   2              return (uint16_t)(g_threshold - RX_AMP_HYS_ADC);
+ 866   2          }
+ 867   1      
+ 868   1          return 0U;
+ 869   1      }
+ 870          
+ 871          /*======================================================================
+ 872           * 二十一、ADJ 阈值更新
+ 873           *====================================================================*/
+ 874          
+ 875          static void threshold_update_process(void)
+ 876          {
+ 877   1          uint16_t adj;
+ 878   1          uint16_t new_threshold;
+ 879   1      
+ 880   1          adj = adc_read_once(IR_ADJ_ADC_CHANNEL);
+ 881   1          if(adj > ADC_MAX_VALUE)
+ 882   1          {
+ 883   2              adj = ADC_MAX_VALUE;
+ 884   2          }
+ 885   1      
+ 886   1          g_adc_adj = adj;
+ 887   1          new_threshold = threshold_map_from_adj(adj);
+ 888   1      
+ 889   1          if(g_threshold_init == 0U)
+ 890   1          {
+ 891   2              g_threshold_init = 1U;
+ 892   2              g_threshold_filter = ((uint32_t)new_threshold << ADJ_FILTER_SHIFT);
+ 893   2              g_threshold = new_threshold;
+ 894   2              return;
+ 895   2          }
+ 896   1      
+ 897   1          g_threshold_filter -= (g_threshold_filter >> ADJ_FILTER_SHIFT);
+ 898   1          g_threshold_filter += new_threshold;
+ 899   1      
+ 900   1          g_threshold = (uint16_t)(g_threshold_filter >> ADJ_FILTER_SHIFT);
+ 901   1      
+ 902   1          if(g_threshold < THRESHOLD_MIN_ADC)
+ 903   1          {
+ 904   2              g_threshold = THRESHOLD_MIN_ADC;
+ 905   2          }
+ 906   1          else if(g_threshold > THRESHOLD_MAX_ADC)
+ 907   1          {
+ 908   2              g_threshold = THRESHOLD_MAX_ADC;
+ 909   2          }
+ 910   1      }
+ 911          
+ 912          static uint16_t threshold_map_from_adj(uint16_t adj)
+ 913          {
+ 914   1          uint32_t span;
+ 915   1          uint16_t threshold;
+ 916   1      
+ 917   1          if(adj > ADC_MAX_VALUE)
  918   1          {
- 919   2              return (uint16_t)(old_v + ((new_v - old_v) >> shift));
+ 919   2              adj = ADC_MAX_VALUE;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 16  
+
  920   2          }
- 921   1          else
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 16  
-
- 922   1          {
- 923   2              return (uint16_t)(old_v - ((old_v - new_v) >> shift));
- 924   2          }
- 925   1      }
- 926          
- 927          /* 以下实现 int16_t 限幅。 */
- 928          static int16_t ir_limit_i16(int16_t x, int16_t min_v, int16_t max_v)
- 929          {
- 930   1          if(x < min_v)
- 931   1          {
- 932   2              return min_v;
- 933   2          }
- 934   1      
- 935   1          if(x > max_v)
- 936   1          {
- 937   2              return max_v;
- 938   2          }
- 939   1      
- 940   1          return x;
- 941   1      }
- 942          
- 943          /* 以下实现背景基线慢速跟随。 */
- 944          static void ir_update_baseline(uint16_t sample)
- 945          {
- 946   1          uint16_t amp;
- 947   1      
- 948   1          amp = ir_abs_amp(sample, g_ir_baseline);
- 949   1      
- 950   1          /* 非脉冲区才允许基线慢速跟随，避免把脉冲峰值吃进基线。 */
- 951   1          if(amp < g_ir_threshold_off)
- 952   1          {
- 953   2              g_ir_baseline = ir_iir_u16(g_ir_baseline, sample, IR_BASELINE_SHIFT);
- 954   2          }
- 955   1      }
- 956          
- 957          /* 以下实现 ADJ 电位器到检测阈值的更新。 */
- 958          static void ir_update_threshold_from_adj(void)
- 959          {
- 960   1          uint16_t now;
- 961   1          uint16_t dt;
- 962   1          uint16_t adj;
- 963   1          uint16_t new_threshold;
- 964   1          uint16_t hys;
- 965   1      
- 966   1          now = time_us16();
- 967   1          dt = time_sub_u16(now, g_ir_last_adj_update_us);
- 968   1      
- 969   1          if((g_ir_threshold_init != 0U) && (dt < IR_ADJ_UPDATE_US))
- 970   1          {
- 971   2              return;
- 972   2          }
- 973   1      
- 974   1          g_ir_last_adj_update_us = now;
- 975   1      
- 976   1          adj = adc_read_once(IR_ADJ_ADC_CHANNEL);
- 977   1          if(adj > ADC_MAX_VALUE)
- 978   1          {
- 979   2              adj = ADC_MAX_VALUE;
- 980   2          }
- 981   1          g_ir_adc_adj = adj;
- 982   1      
- 983   1          new_threshold = threshold_map_from_adj(adj);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 17  
-
- 984   1      
- 985   1          if(g_ir_threshold_init == 0U)
- 986   1          {
- 987   2              g_ir_threshold_init = 1U;
- 988   2              g_ir_threshold_filter = ((uint32_t)new_threshold << IR_ADJ_FILTER_SHIFT);
- 989   2          }
- 990   1          else
- 991   1          {
- 992   2              g_ir_threshold_filter -= (g_ir_threshold_filter >> IR_ADJ_FILTER_SHIFT);
- 993   2              g_ir_threshold_filter += new_threshold;
- 994   2          }
- 995   1      
- 996   1          g_ir_threshold_on = (uint16_t)(g_ir_threshold_filter >> IR_ADJ_FILTER_SHIFT);
- 997   1      
- 998   1          if(g_ir_threshold_on < IR_TH_MIN_ADC)
- 999   1          {
-1000   2              g_ir_threshold_on = IR_TH_MIN_ADC;
-1001   2          }
-1002   1          else if(g_ir_threshold_on > IR_TH_MAX_ADC)
-1003   1          {
-1004   2              g_ir_threshold_on = IR_TH_MAX_ADC;
-1005   2          }
-1006   1      
-1007   1          hys = (uint16_t)(g_ir_threshold_on >> 3);
-1008   1          if(hys < IR_TH_HYS_MIN_ADC)
-1009   1          {
-1010   2              hys = IR_TH_HYS_MIN_ADC;
-1011   2          }
-1012   1      
-1013   1          g_ir_threshold_off = (g_ir_threshold_on > hys) ? (uint16_t)(g_ir_threshold_on - hys) : 0U;
-1014   1      }
-1015          
-1016          /* 以下实现电位器 ADC 到阈值范围的线性映射。 */
-1017          static uint16_t threshold_map_from_adj(uint16_t adj)
-1018          {
-1019   1          uint32_t span;
-1020   1          uint16_t threshold;
-1021   1      
-1022   1          if(adj > ADC_MAX_VALUE)
-1023   1          {
-1024   2              adj = ADC_MAX_VALUE;
-1025   2          }
-1026   1      
-1027   1          span = (uint32_t)(IR_TH_MAX_ADC - IR_TH_MIN_ADC);
-1028   1          threshold = (uint16_t)(IR_TH_MIN_ADC + (((uint32_t)adj * span) / ADC_MAX_VALUE));
-1029   1      
-1030   1          return threshold;
-1031   1      }
-1032          
-1033          /*======================================================================
-1034           * 十九、输出控制
-1035           *====================================================================*/
-1036          
-1037          /* 以下实现 NO/NC/LED 的最终输出刷新。 */
-1038          static void output_apply(uint8_t light_ok)
-1039          {
-1040   1          uint8_t output_active;
-1041   1      
-1042   1      #if SENSOR_DARK_ON
-                  output_active = (light_ok == 0U) ? 1U : 0U;
+ 921   1      
+ 922   1          span = (uint32_t)(THRESHOLD_MAX_ADC - THRESHOLD_MIN_ADC);
+ 923   1          threshold = (uint16_t)(THRESHOLD_MIN_ADC + (((uint32_t)adj * span) / ADC_MAX_VALUE));
+ 924   1      
+ 925   1          return threshold;
+ 926   1      }
+ 927          
+ 928          /*======================================================================
+ 929           * 二十二、串口调试输出
+ 930           *====================================================================*/
+ 931          
+ 932          #if UART_ADC_DEBUG_ENABLE
+              static void uart_adc_debug_process(void)
+              {
+                  g_uart_debug_frame_count++;
+              
+                  if(g_uart_debug_frame_count < UART_ADC_DEBUG_FRAME_COUNT)
+                  {
+                      return;
+                  }
+              
+                  g_uart_debug_frame_count = 0U;
+              
+                  printfS("S=%u,A=%u,TH=%u,N=%u,MIN=%u,MAX=%u,MEAN=%u,BASE=%u,SIG=%u,AMP=%u,AP=%u,V=%u,ON=%u,OFF=%u,L=%u
+             -,O=%u,OV=%u\r\n",
+                          g_adc_signal,
+                          g_adc_adj,
+                          g_threshold,
+                          g_frame_sample_count,
+                          g_frame_min,
+                          g_frame_max,
+                          g_frame_mean,
+                          g_frame_baseline_mean,
+                          g_frame_signal_mean,
+                          g_frame_amp,
+                          g_frame_active_points,
+                          (uint16_t)g_frame_valid,
+                          (uint16_t)g_valid_frame_count,
+                          (uint16_t)g_invalid_frame_count,
+                          (uint16_t)g_light_ok,
+                          (uint16_t)g_output_state,
+                          (uint16_t)g_frame_overflow);
+              }
+              #endif
+ 964          
+ 965          /*======================================================================
+ 966           * 二十三、输出控制
+ 967           *====================================================================*/
+ 968          
+ 969          static void output_apply(uint8_t light_ok)
+ 970          {
+ 971   1          uint8_t output_active;
+ 972   1      
+ 973   1      #if SENSOR_DARK_ON
+                  output_active = (light_ok != 0U) ? 0U : 1U;
               #else
-1045   1          output_active = (light_ok != 0U) ? 1U : 0U;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 15:41:46 PAGE 18  
+ 976   1          output_active = (light_ok != 0U) ? 1U : 0U;
+ 977   1      #endif
+ 978   1      
+ 979   1          if(output_active != 0U)
+ 980   1          {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 17  
 
-1046   1      #endif
-1047   1      
-1048   1          g_ir_output_state = output_active;
-1049   1      
-1050   1          if(output_active != 0U)
-1051   1          {
-1052   2              gpio_io_set(IR_OUT_NO_PIN, OUT_ACTIVE_LEVEL);
-1053   2              gpio_io_set(IR_OUT_NC_PIN, OUT_INACTIVE_LEVEL);
-1054   2          }
-1055   1          else
-1056   1          {
-1057   2              gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
-1058   2              gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
-1059   2          }
-1060   1      
-1061   1          if(light_ok != 0U)
-1062   1          {
-1063   2              gpio_io_set(IR_LED_PIN, LED_ACTIVE_LEVEL);
-1064   2          }
-1065   1          else
-1066   1          {
-1067   2              gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
-1068   2          }
-1069   1      }
-1070          
-1071          /* 以下实现 P2.7 窗口调试脚控制。 */
-1072          static void debug_window_pin(uint8_t level)
-1073          {
-1074   1          if(level != 0U)
-1075   1          {
-1076   2              gpio_io_set(IR_DEBUG_WINDOW_PIN, GPIO_HIGH);
-1077   2          }
-1078   1          else
-1079   1          {
-1080   2              gpio_io_set(IR_DEBUG_WINDOW_PIN, GPIO_LOW);
-1081   2          }
-1082   1      }
+ 981   2              gpio_io_set(IR_OUT_NO_PIN, OUT_ACTIVE_LEVEL);
+ 982   2      #if !RX_NC_WINDOW_DEBUG_ENABLE
+                      gpio_io_set(IR_OUT_NC_PIN, OUT_INACTIVE_LEVEL);
+              #endif
+ 985   2          }
+ 986   1          else
+ 987   1          {
+ 988   2              gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
+ 989   2      #if !RX_NC_WINDOW_DEBUG_ENABLE
+                      gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
+              #endif
+ 992   2          }
+ 993   1      
+ 994   1          if(light_ok != 0U)
+ 995   1          {
+ 996   2              gpio_io_set(IR_LED_PIN, LED_ACTIVE_LEVEL);
+ 997   2          }
+ 998   1          else
+ 999   1          {
+1000   2              gpio_io_set(IR_LED_PIN, LED_INACTIVE_LEVEL);
+1001   2          }
+1002   1      
+1003   1          g_output_state = output_active;
+1004   1      }
+1005          
+1006          /*======================================================================
+1007           * 二十四、NC 采集窗口调试输出
+1008           *====================================================================*/
+1009          
+1010          static void nc_window_debug_set(uint8_t on)
+1011          {
+1012   1      #if RX_NC_WINDOW_DEBUG_ENABLE
+1013   1          if(on != 0U)
+1014   1          {
+1015   2              gpio_io_set(IR_OUT_NC_PIN, OUT_ACTIVE_LEVEL);
+1016   2          }
+1017   1          else
+1018   1          {
+1019   2              gpio_io_set(IR_OUT_NC_PIN, OUT_INACTIVE_LEVEL);
+1020   2          }
+1021   1      #else
+                  (void)on;
+              #endif
+1024   1      }
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =   2344    ----
+   CODE SIZE        =   2604    ----
    CONSTANT SIZE    =   ----    ----
-   XDATA SIZE       =     46      40
+   XDATA SIZE       =    863      88
    PDATA SIZE       =   ----    ----
    DATA SIZE        =   ----    ----
    IDATA SIZE       =   ----    ----

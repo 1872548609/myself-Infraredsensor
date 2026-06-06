@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 12:09:27 PAGE 1   
+C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 18:20:25 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE APP
@@ -62,7 +62,7 @@ line level    source
   51           * Function     : uart_init
   52           * Description  : uart_init ´®¿Ú³õÊ¼»¯
   53           * Input                : none
-C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 12:09:27 PAGE 2   
+C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 18:20:25 PAGE 2   
 
   54           * Output               : none
   55           * Return               : none
@@ -126,7 +126,7 @@ line level    source
  113          
  114           /************************************************************************
  115           * function     : adc_continuous_mode_test
-C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 12:09:27 PAGE 3   
+C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 18:20:25 PAGE 3   
 
  116           * Description  : adc_continuous_mode_test 
  117           * input                : none
