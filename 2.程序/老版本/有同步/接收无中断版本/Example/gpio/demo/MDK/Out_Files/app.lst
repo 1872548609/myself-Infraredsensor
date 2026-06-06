@@ -1,0 +1,184 @@
+C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 10:48:36 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE APP
+OBJECT MODULE PLACED IN .\Out_Files\app.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\app.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..\
+                    -..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\app.lst) OBJ
+                    -ECT(.\Out_Files\app.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : app.c
+   5           * Description : app driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "system_um800y.h"
+  11          #include "app.h"
+  12          #include "common.h"
+  13          #include "uart0.h"
+  14          #include "adc.h"
+  15          #include "gpio.h"
+  16          #include "gtimer.h"
+  17          
+  18          #define adtime 3
+  19          
+  20          uint8_t adc_irq_flag = 0;
+  21          uint8_t adc_count = 0;
+  22          uint16_t adc_data_buf[10];
+  23          uint32_t adc_datav = 0;
+  24                  uint16_t temp=0;
+  25          uint16_t i=2;
+  26          volatile uint8_t rx_flag ;
+  27          volatile uint8_t uart0_rx_buf[32];
+  28          volatile uint8_t uart0_tx_buf[32];
+  29          volatile uint16_t rx_count = 0;
+  30          volatile uint16_t tx_count = 0;
+  31          
+  32          bit adcget = 0;
+  33          bit cleanadctime =0;
+  34          bit jici = 0;
+  35          
+  36          
+  37          /************************************************************************
+  38           * Function     : uart0_rec_pro
+  39           * Description  : uart0_rec_pro 串口接收处理回调函数
+  40           * Input                : none
+  41           * Output               : none
+  42           * Return               : none
+  43           ************************************************************************/
+  44          void uart0_rec_pro(void)
+  45          {
+  46   1              uart0_rx_buf[rx_count++]= uart0_recv_byte();
+  47   1              rx_flag = 1;    
+  48   1      }
+  49          
+  50          /************************************************************************
+  51           * Function     : uart_init
+  52           * Description  : uart_init 串口初始化
+  53           * Input                : none
+C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 10:48:36 PAGE 2   
+
+  54           * Output               : none
+  55           * Return               : none
+  56           ************************************************************************/
+  57          void uart_init(void)
+  58          {
+  59   1          rx_flag = 0;
+  60   1          uart0_init(UART0_BAUD_RATE);
+  61   1      
+  62   1          /*
+  63   1           * 工业轮询版不启用 UART 接收中断。
+  64   1           * printfS 调试发送仍然可以用。
+  65   1           */
+  66   1          /* uart0_irq_init(UART0_IRQ_ENABLE, uart0_rec_pro); */
+  67   1      }
+  68          
+  69           /************************************************************************
+  70           * function     : adc_continuous_pro
+  71           * Description  : adc call back function of continuous mode
+  72           * input                : none
+  73           * return               : none
+  74           ************************************************************************/
+  75          void adc_continuous_pro(void)
+  76          {
+  77   1      //       temp = adc_get_value()>1000? adc_count++:1;
+  78   1      //      if(adc_count==adtime)
+  79   1      //      {
+  80   1      //              adc_count=0;
+  81   1      //              gpio_io_set(P1_3, GPIO_LOW);
+  82   1      //              cleanadctime=1;
+  83   1      //      }
+  84   1              
+  85   1                      REG_GTIM1_CR0 &= ~(1<<0);                                       //不使能计数器
+  86   1                      temp=0;
+  87   1                      temp = REG_GTIM1_CNT0;
+  88   1                      temp |= REG_GTIM1_CNT1<<8;
+  89   1                      REG_GTIM1_CNT0=0;
+  90   1                      REG_GTIM1_CNT1=0;
+  91   1                      printfS("%u\r\n", temp);
+  92   1                      REG_GTIM1_CR0 |= (1<<0);                                                //使能计数器    
+  93   1      
+  94   1      //      temp = adc_get_value();                 //获取ad值
+  95   1      //      adc_datav += temp;                                      //累加
+  96   1      //      adc_count++;                                                            //计数
+  97   1      //      if(adc_count==adtime)                           //十次ad获取
+  98   1      //      {
+  99   1      //              adcget=1;                                                                       //主循环处理
+ 100   1      //              adc_controller_config(ADC_DISABLE);                                                                             //ADC控制器关闭
+ 101   1      //      }
+ 102   1      //      
+ 103   1      //temp = adc_get_value();
+ 104   1      //      if(temp >1000)
+ 105   1      //      {
+ 106   1      //              gpio_io_set(P1_3, GPIO_LOW);
+ 107   1      //              printfS("%d\r\n", temp);        
+ 108   1      //              cleanadctime=1;
+ 109   1      //      }
+ 110   1      //      
+ 111   1              
+ 112   1      }
+ 113          
+ 114           /************************************************************************
+ 115           * function     : adc_continuous_mode_test
+C51 COMPILER V9.57.0.0   APP                                                               06/06/2026 10:48:36 PAGE 3   
+
+ 116           * Description  : adc_continuous_mode_test 
+ 117           * input                : none
+ 118           * return               : none
+ 119           ************************************************************************/
+ 120          void adc_continuous_mode_test(void)
+ 121          {
+ 122   1              if(adcget)
+ 123   1              {
+ 124   2                      adcget=0;
+ 125   2                      adc_datav/=adtime;              //求平均
+ 126   2                      if(adc_datav >500)              //大于阈值
+ 127   2                      {
+ 128   3                              gpio_io_set(P1_3, GPIO_LOW);            //拉低信号
+ 129   3                              cleanadctime=1;                                                                 //延时拉高
+ 130   3                      }
+ 131   2                      adc_datav=0;                                    //清除十次计数
+ 132   2                      adc_count=0;                                    //清除ad值
+ 133   2                              adc_controller_config(ADC_ENABLE);                                                                      //ADC控制器启动 
+ 134   2                              adc_convert_start(ADC_CHANNEL_1);                                                                       //启动转换      
+ 135   2              }
+ 136   1                      
+ 137   1      }
+ 138          
+ 139          /************************************************************************
+ 140           * Function     : soc_test
+ 141           * Description  : soc_test
+ 142           * Input                : none
+ 143           * Output               : none
+ 144           * Return               : none
+ 145           ************************************************************************/
+ 146          void soc_test(void)
+ 147          {
+ 148   1              
+ 149   1      }
+ 150          
+ 151          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    209    ----
+   CONSTANT SIZE    =      5    ----
+   XDATA SIZE       =     99    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      3    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

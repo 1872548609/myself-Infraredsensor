@@ -1,0 +1,223 @@
+C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 10:48:35 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE EFLASH
+OBJECT MODULE PLACED IN .\Out_Files\eflash.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\eflash.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE 
+                    -INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Fi
+                    -les\eflash.lst) OBJECT(.\Out_Files\eflash.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : eflash.c
+   5           * Description : eflash driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-29
+   9           ***********************************************************************/
+  10          #include  "eflash.h"
+  11          
+  12          #include "config.h"
+  13          
+  14          
+  15          void eflash_init(uint32_t system_clk_hz)  
+  16          {       
+  17   1              uint8_t system_clk_mhz;
+  18   1              
+  19   1              if(system_clk_hz < 2000000)
+  20   1              {
+  21   2                      return;
+  22   2              }
+  23   1              
+  24   1              system_clk_mhz = system_clk_hz/1000000;
+  25   1              
+  26   1              OPSET |= (0<<3);                                 //RD_WAIT = 0
+  27   1          
+  28   1              //OUS = (system_clk_mhz/2)-1;                    //系统时钟频率(MHz)/2-1
+  29   1          OUS = 0x0f; 
+  30   1              OINTUS = 0x3f;                                   //清除所有中断标志位
+  31   1              OINTEN = 0x00;                                   //关闭所有中断功能
+  32   1                      
+  33   1      }
+  34          
+  35          void eflash_erase_page(uint16_t page_addr)      
+  36          {
+  37   1          bit temp;
+  38   1          temp = EA;    
+  39   1          EA = 0;                             //关闭总中断
+  40   1          
+  41   1              OPSET &= ~(7<<0);
+  42   1              OPSET |= EFC_PAGE_ERASE_MODE;           //开启page擦除模式
+  43   1              
+  44   1              OADR = page_addr;
+  45   1              OCTRL |= (0x1<<3);                                      //PUMP_SEL = 6.75v
+  46   1              OCTRL |= (1<<6);                                        //PUMP_EN=1
+  47   1              while(!(OCTRL & (1<<1)));                       //wait for PUMP OK
+  48   1              OCTRL |= (1<<7);                                        //VPPO_EN = 1
+  49   1              while((OCTRL & (1<<7)));                        //wait for VPPO_EN = 0
+  50   1              OCTRL &= ~(1<<6);                                       //PUMP_EN=0
+  51   1              
+  52   1              OPSET &= ~EFC_PAGE_ERASE_MODE;          //关闭page擦除模式
+  53   1          
+C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 10:48:35 PAGE 2   
+
+  54   1          EA = temp;                          //恢复中断源状态
+  55   1      }
+  56          
+  57          void eflash_write_byte(uint16_t addr,uint8_t value)      
+  58          {
+  59   1          bit temp;
+  60   1          temp = EA;    
+  61   1          EA = 0;                             //关闭总中断
+  62   1          
+  63   1              OPSET &= ~(7<<0);
+  64   1              OPSET |= EFC_WRITE_MODE;                        //使能写模式
+  65   1              
+  66   1              OADR = addr;
+  67   1              ODATA = value;
+  68   1              OCTRL |= (0x1<<3);                                      //PUMP_SEL = 6.75v
+  69   1              OCTRL |= (1<<6);                                        //PUMP_EN=1
+  70   1              while(!(OCTRL & (1<<1)));                       //wait for PUMP OK;
+  71   1              OCTRL |= (1<<7);                                        //VPPO_EN = 1
+  72   1              while((OCTRL & (1<<7)));                        //wait for VPPO_EN = 0
+  73   1              OCTRL &= ~(1<<6);                                       //PUMP_EN=0
+  74   1      
+  75   1              OPSET &= ~EFC_WRITE_MODE;                       //关闭写模式
+  76   1          
+  77   1          EA = temp;                          //恢复中断源状态
+  78   1              
+  79   1      }
+  80          
+  81          void eflash_write_bytes(uint16_t addr, uint8_t *buff, uint32_t length)   
+  82          {     
+  83   1          bit temp;
+  84   1          temp = EA;    
+  85   1          EA = 0;                             //关闭总中断
+  86   1          
+  87   1              OPSET &= ~(7<<0);
+  88   1              OPSET |= EFC_WRITE_MODE;                        //使能写模式
+  89   1          
+  90   1          while(length--)
+  91   1          {
+  92   2              OADR = addr++;
+  93   2              ODATA = *buff++;
+  94   2              OCTRL |= (0x1<<3);                              //PUMP_SEL = 6.75v
+  95   2              OCTRL |= (1<<6);                                //PUMP_EN=1
+  96   2              while(!(OCTRL & (1<<1)));           //wait for PUMP OK;
+  97   2              OCTRL |= (1<<7);                                //VPPO_EN = 1
+  98   2              while((OCTRL & (1<<7)));            //wait for VPPO_EN = 0
+  99   2              OCTRL &= ~(1<<6);                               //PUMP_EN=0     
+ 100   2          }
+ 101   1      
+ 102   1              OPSET &= ~EFC_WRITE_MODE;                       //关闭写模式
+ 103   1            
+ 104   1          EA = temp;                          //恢复中断源状态
+ 105   1      }
+ 106          
+ 107          uint8_t eflash_read_byte(uint16_t addr)
+ 108          {
+ 109   1              uint8_t value;
+ 110   1      
+ 111   1              value = (*(volatile uint8_t code *)(addr));
+ 112   1            
+ 113   1              return value;
+ 114   1      
+ 115   1      }
+C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 10:48:35 PAGE 3   
+
+ 116          
+ 117          uint32_t eflash_read_bytes(uint16_t addr, uint8_t *buff, uint32_t length)
+ 118          {
+ 119   1              uint32_t index;
+ 120   1          
+ 121   1          for(index = 0; index<length; index++)
+ 122   1          {
+ 123   2              buff[index] = (*(volatile uint8_t code *)(addr+index));        
+ 124   2          }
+ 125   1              
+ 126   1              return index;
+ 127   1      }
+ 128          
+ 129          
+ 130          
+ 131          
+ 132          /*----------------------------SN--------------------------------*/
+ 133          
+ 134          #define SN_ADDR                                                 (NVR2_BASE_ADDR+0x48)  //SN addr
+ 135          #define SN_CRC_ADDR                                             (NVR2_BASE_ADDR+0x58)  //SN CRC value
+ 136          #define VDD25_ADDR                          (NVR1_BASE_ADDR+0x19C) 
+ 137          
+ 138          
+ 139          void read_sequence(uint8_t *buff)
+ 140          {
+ 141   1          uint8_t i = 0;
+ 142   1         
+ 143   1          for(i = 0; i < 16; i++)
+ 144   1          {
+ 145   2              *buff++ = (*(volatile uint8_t xdata*)(SN_ADDR+i));
+ 146   2          }
+ 147   1      
+ 148   1      }
+ 149          
+ 150          
+ 151          void read_UID(uint8_t *buff)
+ 152          {
+ 153   1          uint32_t temp = 0;
+ 154   1          temp =  (*(volatile uint32_t xdata*)(SN_ADDR));
+ 155   1           
+ 156   1          buff[0] = temp >> 24;
+ 157   1          buff[1] = temp >> 16;
+ 158   1          buff[2] = temp >> 8;
+ 159   1          buff[3] = temp;
+ 160   1          
+ 161   1          temp =  (*(volatile uint8_t xdata*)(SN_ADDR+4));
+ 162   1          buff[4] = temp;
+ 163   1      
+ 164   1          temp =  (*(volatile uint8_t xdata*)(SN_ADDR+8));
+ 165   1          buff[5] = temp;
+ 166   1          temp =  (*(volatile uint8_t xdata*)(SN_ADDR+10));
+ 167   1          buff[6] = temp;
+ 168   1      
+ 169   1          temp =  (*(volatile uint8_t xdata*)(SN_ADDR+14));
+ 170   1          buff[7] = temp;
+ 171   1      
+ 172   1      }
+ 173          
+ 174          
+ 175          void read_Vcap(uint8_t *buff)
+ 176          {
+ 177   1          uint32_t temp = 0;
+C51 COMPILER V9.57.0.0   EFLASH                                                            06/06/2026 10:48:35 PAGE 4   
+
+ 178   1          temp =  (*(volatile uint32_t xdata*)(VDD25_ADDR));
+ 179   1          buff[0] = temp >> 24;
+ 180   1          buff[1] = temp >> 16;
+ 181   1          buff[2] = temp >> 8;
+ 182   1          buff[3] = temp;
+ 183   1      
+ 184   1      
+ 185   1      }
+ 186          
+ 187          
+ 188          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    708    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----      38
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----       3
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
