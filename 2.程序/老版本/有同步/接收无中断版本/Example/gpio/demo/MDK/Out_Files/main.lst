@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -62,7 +62,7 @@ line level    source
   51          
   52          /*
   53           * UM800Y 是 8051 内核，内部 RAM 很小。
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 2   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 2   
 
   54           * ADC 采样数组不要放在 idata 里，建议放到 xdata。
   55           * 如果你的编译器不是 Keil C51，IR_XDATA 会自动为空。
@@ -126,7 +126,7 @@ line level    source
  113          #define RX_SIGNAL_ACTIVE_HIGH           1U
  114          
  115          /*======================================================================
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 3   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 3   
 
  116           * 六、Timer0 1us 采集定时参数
  117           *====================================================================*/
@@ -190,7 +190,7 @@ line level    source
  175          /*
  176           * 注意：本版 g_threshold 表示“脉冲幅度阈值”，不是原始 ADC 绝对阈值。
  177           * 即判断条件是：
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 4   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 4   
 
  178           *      g_frame_amp = 信号均值 - 背景均值
  179           *      g_frame_amp >= g_threshold
@@ -254,7 +254,7 @@ line level    source
  235          static volatile uint16_t g_frame_amp = 0;
  236          static volatile uint16_t g_frame_active_points = 0;
  237          static volatile uint8_t  g_frame_valid = 0;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 5   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 5   
 
  238          
  239          /* 当前是否确认收到光。 */
@@ -318,7 +318,7 @@ line level    source
  297          void main(void)
  298          {
  299   1          system_init();
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 6   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 6   
 
  300   1      
  301   1          GPIO_Init();
@@ -382,7 +382,7 @@ line level    source
  359   1          gpio_dr_set(IR_OUT_NO_PIN, GPIO_SR_HIGH);
  360   1          gpio_io_set(IR_OUT_NO_PIN, OUT_INACTIVE_LEVEL);
  361   1      
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 7   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 7   
 
  362   1          REG_P12_CFG = 0x00;
  363   1          gpio_init(IR_OUT_NC_PIN);
@@ -446,7 +446,7 @@ line level    source
  421   1          REG_GTIM0_SR = 0x07;
  422   1          REG_GTIM0_CNT0 = 0x00;
  423   1          REG_GTIM0_CNT1 = 0x00;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 8   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 8   
 
  424   1      
  425   1          gtimer0_start();
@@ -510,7 +510,7 @@ line level    source
  483   1          if(value > ADC_MAX_VALUE)
  484   1          {
  485   2              value = ADC_MAX_VALUE;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 9   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 9   
 
  486   2          }
  487   1      
@@ -574,7 +574,7 @@ line level    source
  545   1          uint16_t baseline;
  546   1          uint16_t signal_mean;
  547   1          uint16_t threshold_on;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 10  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 10  
 
  548   1          uint16_t threshold_off;
  549   1          uint16_t active_points;
@@ -638,7 +638,7 @@ line level    source
                   {
                       g_frame_amp = 0U;
                   }
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 11  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 11  
 
               #endif
  611   1      
@@ -702,7 +702,7 @@ line level    source
  669   3                  g_valid_frame_count++;
  670   3              }
  671   2      
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 12  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 12  
 
  672   2              if(g_valid_frame_count >= RX_FRAME_ON_CONFIRM_COUNT)
  673   2              {
@@ -766,7 +766,7 @@ line level    source
  731   3      
  732   3                  if(buf[i] > g_proc_signal_buf[min_index])
  733   3                  {
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 13  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 13  
 
  734   4                      g_proc_signal_buf[min_index] = buf[i];
  735   4                  }
@@ -830,7 +830,7 @@ line level    source
  793   1          sum = 0UL;
  794   1          for(j = 0U; j < used; j++)
  795   1          {
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 14  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 14  
 
  796   2              sum += g_proc_base_buf[j];
  797   2          }
@@ -894,7 +894,7 @@ line level    source
                   }
               #endif
  857   1      
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 15  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 15  
 
  858   1          return cnt;
  859   1      }
@@ -958,7 +958,7 @@ line level    source
  917   1          if(adj > ADC_MAX_VALUE)
  918   1          {
  919   2              adj = ADC_MAX_VALUE;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 16  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 16  
 
  920   2          }
  921   1      
@@ -1022,7 +1022,7 @@ line level    source
  978   1      
  979   1          if(output_active != 0U)
  980   1          {
-C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:20:22 PAGE 17  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/06/2026 18:47:38 PAGE 17  
 
  981   2              gpio_io_set(IR_OUT_NO_PIN, OUT_ACTIVE_LEVEL);
  982   2      #if !RX_NC_WINDOW_DEBUG_ENABLE
