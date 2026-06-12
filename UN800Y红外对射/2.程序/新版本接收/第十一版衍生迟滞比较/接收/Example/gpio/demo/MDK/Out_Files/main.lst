@@ -1,0 +1,600 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Out_Files\main.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..
+                    -\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\main.lst) O
+                    -BJECT(.\Out_Files\main.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * UM800Y 红外对射接收端
+   3           *
+   4           * 功能：
+   5           * 1. P1_4 捕获比较器输出脉冲。
+   6           * 2. 发射周期 1ms，占空比 0.025，有效脉宽约 25us。
+   7           * 3. 软件过滤 600us 内的比较器毛刺。
+   8           * 4. ADC 增加迟滞判断：
+   9           *      ADC >= adc_set               ：确认 ADC 有效
+  10           *      ADC <= adc_set - RX_ADC_HYS  ：确认 ADC 无效
+  11           *      中间区域保持上一次 ADC 判断状态
+  12           * 5. 连续 2 个有效脉冲确认有光，约 2ms 响应。
+  13           * 6. 4.2ms 无有效脉冲判定遮光，约 238Hz 响应。
+  14           ***********************************************************************/
+  15          
+  16          #include "system_um800y.h"
+  17          #include "app.h"
+  18          #include "gtimer.h"
+  19          #include "pwm.h"
+  20          #include "common.h"
+  21          #include "config.h"
+  22          #include "gpio.h"
+  23          #include "adc.h"
+  24          
+  25          
+  26          /*
+  27           * =========================
+  28           * 接收参数
+  29           * =========================
+  30           *
+  31           * 假设系统主频 24MHz，GTIMER0 使用 24 分频：
+  32           *
+  33           * 定时器频率 = 24MHz / 24 = 1MHz
+  34           * 1 tick ≈ 1us
+  35           *
+  36           * 发射周期 = 1ms
+  37           * 有效脉宽 = 25us
+  38           */
+  39          
+  40          #define RX_CONFIRM_COUNT          2U
+  41          
+  42          #define RX_MIN_PERIOD_TICK        600U     /* 600us  * 1 = 600 tick */
+  43          #define RX_MAX_PERIOD_TICK        1600U    /* 1600us * 1 = 1600 tick */
+  44          #define RX_LOST_TIMEOUT_TICK      2100U    /* 4200us * 1 = 4200 tick */
+  45          
+  46          
+  47          /*
+  48           * =========================
+  49           * ADC 迟滞参数
+  50           * =========================
+  51           *
+  52           * adc_set 是 ADC 有效阈值。
+  53           *
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 2   
+
+  54           * 举例：
+  55           *      adc_set = 200
+  56           *      RX_ADC_HYS_VALUE = 60
+  57           *
+  58           * 则：
+  59           *      ADC >= 200 ：ADC 判断为有效
+  60           *      ADC <= 140 ：ADC 判断为无效
+  61           *      140 ~ 200 ：保持上一次状态
+  62           *
+  63           * 如果输出仍然抖动，可以把 60 改成 80 或 120。
+  64           * 如果弱光容易不触发，可以把 60 改成 30 或 40。
+  65           */
+  66          
+  67          #define RX_ADC_HYS_ENABLE         1U
+  68          #define RX_ADC_HYS_VALUE          60U
+  69          
+  70          #ifndef ADC_INVALID
+              #define ADC_INVALID               4095U
+              #endif
+  73          
+  74          #define RX_ADC_MAX_VALID          (ADC_INVALID - 2U)
+  75          
+  76          
+  77          volatile uint16_t adc_data  = 0;
+  78          volatile uint16_t adc_data1 = 0;
+  79          
+  80          /*
+  81           * 原代码里的阈值。
+  82           * 现在作为 ADC 迟滞的上阈值使用。
+  83           *
+  84           * 如果后续要接 ADJ 电位器，可以在主循环里读取 ADC_CHANNEL_2 更新 adc_set。
+  85           */
+  86          volatile uint16_t adc_set = 200;
+  87          
+  88          
+  89          uint16_t status   = 0;
+  90          uint16_t adcount  = 0;
+  91          uint16_t adcount1 = 0;
+  92          
+  93          
+  94          /*
+  95           * 接收状态
+  96           */
+  97          static volatile uint8_t rx_valid_count = 0;     /* 连续有效光脉冲计数 */
+  98          static volatile uint8_t rx_light_state = 0;     /* 0 = 遮光/无光，1 = 有光 */
+  99          static volatile uint8_t rx_seen_once   = 0;     /* 是否已经捕获过有效同步脉冲 */
+ 100          
+ 101          /*
+ 102           * ADC 迟滞状态
+ 103           *
+ 104           * 0 = ADC 当前认为无效
+ 105           * 1 = ADC 当前认为有效
+ 106           */
+ 107          static volatile uint8_t rx_adc_valid_state = 0;
+ 108          
+ 109          
+ 110          void gtimer0_UECallBack(void);
+ 111          void gtimer1_UECallBack(void);
+ 112          void GPIO_Init(void);
+ 113          void ADC_Init(void);
+ 114          void gpio_int_pro(void);
+ 115          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 3   
+
+ 116          
+ 117          /*
+ 118           * 读取 GTIMER0 当前计数值。
+ 119           */
+ 120          static uint16_t rx_timer_get_count(void)
+ 121          {
+ 122   1          uint16_t cnt;
+ 123   1      
+ 124   1          cnt  = REG_GTIM0_CNT0;
+ 125   1          cnt |= ((uint16_t)REG_GTIM0_CNT1 << 8);
+ 126   1      
+ 127   1          return cnt;
+ 128   1      }
+ 129          
+ 130          
+ 131          /*
+ 132           * 停止并清零 GTIMER0。
+ 133           */
+ 134          static void rx_timer_stop_clear(void)
+ 135          {
+ 136   1          REG_GTIM0_CR0 &= ~(1 << 0);
+ 137   1      
+ 138   1          REG_GTIM0_CNT0 = 0x00;
+ 139   1          REG_GTIM0_CNT1 = 0x00;
+ 140   1      }
+ 141          
+ 142          
+ 143          /*
+ 144           * 从 0 重新开始 GTIMER0。
+ 145           */
+ 146          static void rx_timer_restart(void)
+ 147          {
+ 148   1          REG_GTIM0_CR0 &= ~(1 << 0);
+ 149   1      
+ 150   1          REG_GTIM0_CNT0 = 0x00;
+ 151   1          REG_GTIM0_CNT1 = 0x00;
+ 152   1      
+ 153   1          REG_GTIM0_CR0 |= (1 << 0);
+ 154   1      }
+ 155          
+ 156          
+ 157          /*
+ 158           * 输出：有光状态
+ 159           *
+ 160           * 保持你原来的输出逻辑：
+ 161           * P1_2 = HIGH
+ 162           * P1_3 = HIGH
+ 163           * P1_0 = LOW
+ 164           */
+ 165          static void rx_output_light(void)
+ 166          {
+ 167   1          gpio_io_set(P1_2, GPIO_HIGH);
+ 168   1          gpio_io_set(P1_3, GPIO_HIGH);
+ 169   1          gpio_io_set(P1_0, GPIO_LOW);
+ 170   1      }
+ 171          
+ 172          
+ 173          /*
+ 174           * 输出：遮光 / 无光状态
+ 175           *
+ 176           * 保持你原来的输出逻辑：
+ 177           * P1_2 = LOW
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 4   
+
+ 178           * P1_3 = LOW
+ 179           * P1_0 = HIGH
+ 180           */
+ 181          static void rx_output_block(void)
+ 182          {
+ 183   1          gpio_io_set(P1_2, GPIO_LOW);
+ 184   1          gpio_io_set(P1_3, GPIO_LOW);
+ 185   1          gpio_io_set(P1_0, GPIO_HIGH);
+ 186   1      }
+ 187          
+ 188          
+ 189          /*
+ 190           * 单次读取 ADC。
+ 191           *
+ 192           * 注意：
+ 193           * 这里只在 P1_4 通过 1ms 周期过滤之后才读取 ADC。
+ 194           * 也就是说，比较器毛刺不会频繁触发 ADC 读取。
+ 195           */
+ 196          static uint16_t rx_adc_read_ch1_once(void)
+ 197          {
+ 198   1          uint16_t value;
+ 199   1      
+ 200   1          adc_convert_start(ADC_CHANNEL_1);
+ 201   1      
+ 202   1          while ((ADCGCR1 & 0x04) != 0);
+ 203   1          while (!(ADCCSTAT & 0x01));
+ 204   1      
+ 205   1          ADCCSTAT = 0x1;
+ 206   1      
+ 207   1          value = adc_get_value();
+ 208   1      
+ 209   1          return value;
+ 210   1      }
+ 211          
+ 212          
+ 213          /*
+ 214           * ADC 迟滞判断。
+ 215           *
+ 216           * 返回值：
+ 217           *      0 = ADC 幅度不满足
+ 218           *      1 = ADC 幅度满足
+ 219           *
+ 220           * 判断逻辑：
+ 221           *
+ 222           * rx_adc_valid_state == 0 时：
+ 223           *      必须 adc >= adc_set，才切换为有效。
+ 224           *
+ 225           * rx_adc_valid_state == 1 时：
+ 226           *      只有 adc <= adc_set - RX_ADC_HYS_VALUE，才切换为无效。
+ 227           *
+ 228           * 中间区域保持原状态，防止 ADC 在阈值附近来回抖。
+ 229           */
+ 230          static uint8_t rx_adc_hysteresis_check(uint16_t adc)
+ 231          {
+ 232   1          uint16_t adc_on_th;
+ 233   1          uint16_t adc_off_th;
+ 234   1      
+ 235   1          /*
+ 236   1           * 保护异常值。
+ 237   1           */
+ 238   1          if (adc >= RX_ADC_MAX_VALID)
+ 239   1          {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 5   
+
+ 240   2              rx_adc_valid_state = 0;
+ 241   2              return 0;
+ 242   2          }
+ 243   1      
+ 244   1          adc_on_th = adc_set;
+ 245   1      
+ 246   1          if (adc_set > RX_ADC_HYS_VALUE)
+ 247   1          {
+ 248   2              adc_off_th = adc_set - RX_ADC_HYS_VALUE;
+ 249   2          }
+ 250   1          else
+ 251   1          {
+ 252   2              adc_off_th = 0;
+ 253   2          }
+ 254   1      
+ 255   1          if (rx_adc_valid_state == 0)
+ 256   1          {
+ 257   2              /*
+ 258   2               * 当前 ADC 状态为无效。
+ 259   2               * 只有超过上阈值，才确认有效。
+ 260   2               */
+ 261   2              if (adc >= adc_on_th)
+ 262   2              {
+ 263   3                  rx_adc_valid_state = 1;
+ 264   3              }
+ 265   2          }
+ 266   1          else
+ 267   1          {
+ 268   2              /*
+ 269   2               * 当前 ADC 状态为有效。
+ 270   2               * 只有跌破下阈值，才确认无效。
+ 271   2               */
+ 272   2              if (adc <= adc_off_th)
+ 273   2              {
+ 274   3                  rx_adc_valid_state = 0;
+ 275   3              }
+ 276   2          }
+ 277   1      
+ 278   1          return rx_adc_valid_state;
+ 279   1      }
+ 280          
+ 281          
+ 282          void main(void)
+ 283          {
+ 284   1          system_init();
+ 285   1      
+ 286   1          GPIO_Init();
+ 287   1      
+ 288   1          uart_init();
+ 289   1      
+ 290   1          /*
+ 291   1           * 4.2ms 丢光超时。
+ 292   1           * 响应速度约 1 / 4.2ms = 238Hz。
+ 293   1           */
+ 294   1          gtimer0_count_init(RX_LOST_TIMEOUT_TICK, 24 - 1);
+ 295   1          gtimer0_irq_init(GTIMER_IRQ_ENABLE, GTIMER0_UIE_IRQ, gtimer0_UECallBack);
+ 296   1      
+ 297   1          /*
+ 298   1           * 上电先不启动定时器。
+ 299   1           * 等第一次有效 P1_4 脉冲来了再启动。
+ 300   1           */
+ 301   1          rx_timer_stop_clear();
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 6   
+
+ 302   1      
+ 303   1          /*
+ 304   1           * ADC 初始化。
+ 305   1           * ADC_CHANNEL_1 用于接收信号 ADC。
+ 306   1           * ADC_CHANNEL_2 预留给 ADJ 电位器。
+ 307   1           */
+ 308   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 4, ADC_ENABLE);
+ 309   1          adc_sample_clk_config(ADC_SAMPCLK_4);
+ 310   1          adc_io_config(ADC_CHANNEL_1 | ADC_CHANNEL_2);
+ 311   1          adc_scan_mode_config(ADC_MODE_SINGLE);
+ 312   1          adc_power_config(ADC_ENABLE);
+ 313   1          adc_controller_config(ADC_ENABLE);
+ 314   1      
+ 315   1          /*
+ 316   1           * 上电默认遮光 / 无光输出。
+ 317   1           */
+ 318   1          rx_output_block();
+ 319   1      
+ 320   1          while (1)
+ 321   1          {
+ 322   2              /*
+ 323   2               * 主循环暂时不处理接收逻辑。
+ 324   2               *
+ 325   2               * 接收逻辑由：
+ 326   2               *      P1_4 比较器中断
+ 327   2               *      ADC 迟滞判断
+ 328   2               *      GTIMER0 丢光超时
+ 329   2               * 完成。
+ 330   2               */
+ 331   2          }
+ 332   1      }
+ 333          
+ 334          
+ 335          /*
+ 336           * GTIMER0 超时：
+ 337           *
+ 338           * 超过 4.2ms 没有新的有效脉冲，判定遮光 / 无光。
+ 339           */
+ 340          void gtimer0_UECallBack(void)
+ 341          {
+ 342   1          rx_valid_count = 0;
+ 343   1          rx_seen_once   = 0;
+ 344   1      
+ 345   1          /*
+ 346   1           * 丢光后 ADC 迟滞状态也清零。
+ 347   1           *
+ 348   1           * 这样再次来光时，ADC 必须重新超过 adc_set，
+ 349   1           * 不会因为上一次的迟滞状态残留导致误触发。
+ 350   1           */
+ 351   1          rx_adc_valid_state = 0;
+ 352   1      
+ 353   1          if (rx_light_state)
+ 354   1          {
+ 355   2              rx_light_state = 0;
+ 356   2              rx_output_block();
+ 357   2          }
+ 358   1          else
+ 359   1          {
+ 360   2              rx_output_block();
+ 361   2          }
+ 362   1      
+ 363   1          /*
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 7   
+
+ 364   1           * 无光后停止定时器。
+ 365   1           * 下一次有效 P1_4 脉冲来了再开启。
+ 366   1           */
+ 367   1          rx_timer_stop_clear();
+ 368   1      }
+ 369          
+ 370          
+ 371          /*
+ 372           * P1_4 比较器输出中断。
+ 373           *
+ 374           * 完整判断顺序：
+ 375           *
+ 376           * 1. P1_4 产生中断；
+ 377           * 2. 判断距离上一次有效脉冲的间隔；
+ 378           * 3. 小于 600us，认为是毛刺，直接丢弃；
+ 379           * 4. 读取 ADC；
+ 380           * 5. ADC 通过迟滞判断后，才算一次有效光脉冲；
+ 381           * 6. 连续 2 次有效光脉冲，确认有光；
+ 382           * 7. 每次有效光脉冲刷新 4.2ms 丢光定时器。
+ 383           */
+ 384          void GPIO_IRQHandler(void) interrupt 0
+ 385          {
+ 386   1          uint16_t elapsed;
+ 387   1          uint8_t adc_ok;
+ 388   1      
+ 389   1          if (gpio_irq_get(P1_4))
+ 390   1          {
+ 391   2              /*
+ 392   2               * 先清中断标志。
+ 393   2               */
+ 394   2              gpio_irq_clr(P1_4);
+ 395   2      
+ 396   2              elapsed = rx_timer_get_count();
+ 397   2      
+ 398   2              /*
+ 399   2               * 过滤比较器快速毛刺。
+ 400   2               *
+ 401   2               * 发射周期是 1ms。
+ 402   2               * 如果两次边沿间隔小于 600us，
+ 403   2               * 不可能是下一次真实发射脉冲。
+ 404   2               */
+ 405   2              if (rx_seen_once && (elapsed < RX_MIN_PERIOD_TICK))
+ 406   2              {
+ 407   3                  return;
+ 408   3              }
+ 409   2      
+ 410   2      #if RX_ADC_HYS_ENABLE
+ 411   2              /*
+ 412   2               * 读取 ADC 幅值。
+ 413   2               */
+ 414   2              adc_data = rx_adc_read_ch1_once();
+ 415   2      
+ 416   2              /*
+ 417   2               * ADC 迟滞判断。
+ 418   2               */
+ 419   2              adc_ok = rx_adc_hysteresis_check(adc_data);
+ 420   2      
+ 421   2              /*
+ 422   2               * ADC 不满足时，不刷新丢光定时器，不增加有效计数。
+ 423   2               */
+ 424   2              if (!adc_ok)
+ 425   2              {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 8   
+
+ 426   3                  return;
+ 427   3              }
+ 428   2      #else
+                      adc_ok = 1;
+              #endif
+ 431   2      
+ 432   2              /*
+ 433   2               * 到这里，说明：
+ 434   2               * 1. P1_4 有比较器脉冲；
+ 435   2               * 2. 不是 600us 内毛刺；
+ 436   2               * 3. ADC 幅值通过迟滞判断。
+ 437   2               *
+ 438   2               * 这才算一次真正有效光脉冲。
+ 439   2               */
+ 440   2      
+ 441   2              if (rx_seen_once && (elapsed > RX_MAX_PERIOD_TICK))
+ 442   2              {
+ 443   3                  /*
+ 444   3                   * 间隔超过 1.6ms。
+ 445   3                   *
+ 446   3                   * 未确认有光时，重新同步。
+ 447   3                   * 已确认有光时，允许偶发漏一个周期，避免输出抖动。
+ 448   3                   */
+ 449   3                  if (rx_light_state)
+ 450   3                  {
+ 451   4                      rx_valid_count = RX_CONFIRM_COUNT;
+ 452   4                  }
+ 453   3                  else
+ 454   3                  {
+ 455   4                      rx_valid_count = 1;
+ 456   4                  }
+ 457   3              }
+ 458   2              else
+ 459   2              {
+ 460   3                  if (rx_valid_count < RX_CONFIRM_COUNT)
+ 461   3                  {
+ 462   4                      rx_valid_count++;
+ 463   4                  }
+ 464   3              }
+ 465   2      
+ 466   2              rx_seen_once = 1;
+ 467   2      
+ 468   2              /*
+ 469   2               * 只有真正有效光脉冲才刷新丢光定时器。
+ 470   2               */
+ 471   2              rx_timer_restart();
+ 472   2      
+ 473   2              /*
+ 474   2               * 连续 2 个有效 1ms 周期确认有光。
+ 475   2               * 响应时间约 2ms。
+ 476   2               */
+ 477   2              if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))
+ 478   2              {
+ 479   3                  rx_light_state = 1;
+ 480   3                  rx_output_light();
+ 481   3              }
+ 482   2          }
+ 483   1      }
+ 484          
+ 485          
+ 486          void gpio_UECallBack(void)
+ 487          {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 9   
+
+ 488   1          /*
+ 489   1           * 不用二次回调。
+ 490   1           */
+ 491   1      }
+ 492          
+ 493          
+ 494          void GPIO_Init(void)
+ 495          {
+ 496   1          /*
+ 497   1           * P1_0 输出
+ 498   1           */
+ 499   1          REG_P10_CFG = 0x00;
+ 500   1      
+ 501   1          gpio_init(P1_0);
+ 502   1          gpio_dir_set(P1_0, GPIO_DIR_OUT);
+ 503   1          gpio_dr_set(P1_0, GPIO_SR_HIGH);
+ 504   1          gpio_io_set(P1_0, GPIO_HIGH);
+ 505   1      
+ 506   1          /*
+ 507   1           * P1_2 输出
+ 508   1           */
+ 509   1          REG_P12_CFG = 0x00;
+ 510   1      
+ 511   1          gpio_init(P1_2);
+ 512   1          gpio_dir_set(P1_2, GPIO_DIR_OUT);
+ 513   1          gpio_dr_set(P1_2, GPIO_SR_HIGH);
+ 514   1          gpio_io_set(P1_2, GPIO_LOW);
+ 515   1      
+ 516   1          /*
+ 517   1           * P1_3 输出
+ 518   1           */
+ 519   1          REG_P13_CFG = 0x00;
+ 520   1      
+ 521   1          gpio_init(P1_3);
+ 522   1          gpio_dir_set(P1_3, GPIO_DIR_OUT);
+ 523   1          gpio_dr_set(P1_3, GPIO_SR_HIGH);
+ 524   1          gpio_io_set(P1_3, GPIO_LOW);
+ 525   1      
+ 526   1          /*
+ 527   1           * P1_4 输入中断。
+ 528   1           *
+ 529   1           * P1_4 接比较器输出 ITIN。
+ 530   1           */
+ 531   1          gpio_init(P1_4);
+ 532   1          gpio_dir_set(P1_4, GPIO_DIR_IN);
+ 533   1          gpio_dr_set(P1_4, GPIO_SR_HIGH);
+ 534   1          gpio_in_enable(P1_4, IN_ENABLE);
+ 535   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
+ 536   1      
+ 537   1          /*
+ 538   1           * 保留你原来的 P1_4 特殊配置。
+ 539   1           */
+ 540   1          P1AH &= ~(0x02);
+ 541   1          P1AH |=  (0x01);
+ 542   1      
+ 543   1          REG_P14_CFG = 0x20;
+ 544   1      
+ 545   1          /*
+ 546   1           * P1_5 输入，保留原配置。
+ 547   1           */
+ 548   1          REG_P15_CFG = 0x00;
+ 549   1      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 15:44:41 PAGE 10  
+
+ 550   1          gpio_init(P1_5);
+ 551   1          gpio_dir_set(P1_5, GPIO_DIR_IN);
+ 552   1          gpio_in_enable(P1_5, IN_ENABLE);
+ 553   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    716    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     16       4
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
