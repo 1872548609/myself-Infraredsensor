@@ -1,4 +1,4 @@
-LX51 LINKER/LOCATER V4.66.87.0                                                          06/12/2026  16:28:01  PAGE 1
+LX51 LINKER/LOCATER V4.66.87.0                                                          06/12/2026  17:58:40  PAGE 1
 
 
 LX51 LINKER/LOCATER V4.66.87.0, INVOKED BY:
@@ -67,7 +67,7 @@ INPUT MODULES INCLUDED:
          COMMENT TYPE 1: A51 / ASM51 Assembler
   D:\KEIL\KEIL_V5\C51\LIB\C51L.LIB (?C?LADD)
          COMMENT TYPE 1: A51 / ASM51 Assembler
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 2
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 2
 
 
   D:\KEIL\KEIL_V5\C51\LIB\C51L.LIB (?C?LMUL)
@@ -135,7 +135,7 @@ MEMORY MAP OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
 
 
 START     STOP      LENGTH    ALIGN  RELOC    MEMORY CLASS   SEGMENT NAME
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 3
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 3
 
 
 =========================================================================
@@ -203,7 +203,7 @@ START     STOP      LENGTH    ALIGN  RELOC    MEMORY CLASS   SEGMENT NAME
 0012BDH   0012D5H   000019H   BYTE   UNIT     CODE           ?PR?UART_INIT?APP
 0012D6H   0012EBH   000016H   BYTE   UNIT     CODE           ?PR?RX_TIMER_RESTART?MAIN
 0012ECH   001300H   000015H   BYTE   UNIT     CODE           ?PR?RX_OUTPUT_LIGHT?MAIN
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 4
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 4
 
 
 001301H   001315H   000015H   BYTE   UNIT     CODE           ?PR?RX_OUTPUT_BLOCK?MAIN
@@ -271,7 +271,7 @@ START     STOP      LENGTH    ALIGN  RELOC    MEMORY CLASS   SEGMENT NAME
    *DEL*:           00003AH   BYTE   UNIT     CODE           ?PR?_EFLASH_INIT?EFLASH
    *DEL*:           000005H   BYTE   UNIT     XDATA          ?XD?_EFLASH_INIT?EFLASH
    *DEL*:           00002EH   BYTE   UNIT     CODE           ?PR?_EFLASH_ERASE_PAGE?EFLASH
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 5
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 5
 
 
    *DEL*:           000000H.1 BIT    UNIT     BIT            ?BI?_EFLASH_ERASE_PAGE?EFLASH
@@ -339,7 +339,7 @@ START     STOP      LENGTH    ALIGN  RELOC    MEMORY CLASS   SEGMENT NAME
    *DEL*:           000004H   BYTE   UNIT     CODE           ?PR?PWM0_START?PWM
    *DEL*:           000004H   BYTE   UNIT     CODE           ?PR?PWM0_STOP?PWM
    *DEL*:           00002FH   BYTE   UNIT     CODE           ?PR?_PWM1_INIT?PWM
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 6
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 6
 
 
    *DEL*:           000002H   BYTE   UNIT     XDATA          ?XD?_PWM1_INIT?PWM
@@ -407,7 +407,7 @@ GPIO_INIT/MAIN                           ----- -----
   +--> _GPIO_IRQ_SET/GPIO
 
 _GPIO_INIT/GPIO                          00ABH 00ABH
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 7
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 7
 
 
 
@@ -475,7 +475,7 @@ _ADC_CONTROLLER_CONFIG/ADC               ----- -----
 GPIO_IRQHANDLER/MAIN                     00BBH 00BCH
   +--> _GPIO_IRQ_GET/GPIO
   +--> _GPIO_IRQ_CLR/GPIO
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 8
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 8
 
 
   +--> RX_TIMER_GET_COUNT/MAIN
@@ -543,7 +543,7 @@ PUBLIC SYMBOLS OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       VALUE       CLASS    TYPE      PUBLIC SYMBOL NAME
       =================================================
       020000ABH   XDATA    BYTE      ?_adc_clk_config?BYTE
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 9
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 9
 
 
 *DEL*:00000000H   XDATA    BYTE      ?_eeprom_read_bytes?BYTE
@@ -611,7 +611,7 @@ PUBLIC SYMBOLS OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
 *DEL*:00000000H   CODE     ---       _eeprom_write_byte
 *DEL*:00000000H   CODE     ---       _eeprom_write_bytes
 *DEL*:00000000H   CODE     ---       _eflash_erase_page
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 10
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 10
 
 
 *DEL*:00000000H   CODE     ---       _eflash_init
@@ -679,7 +679,7 @@ PUBLIC SYMBOLS OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
 *DEL*:00000000H   CODE     ---       _wdt_feed
 *DEL*:00000000H   CODE     ---       _wdt_load
 *SFR* 000000D0H.6 DATA     BIT       AC
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 11
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 11
 
 
 *SFR* 000000E0H   DATA     BYTE      ACC
@@ -747,7 +747,7 @@ PUBLIC SYMBOLS OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01001284H   CODE     ---       EFC_IRQHandler
 *SFR* 000000B8H.3 DATA     BIT       EFCINTEN
 *SFR* 000000A8H.5 DATA     BIT       EPWM
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 12
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 12
 
 
 *SFR* 000000D8H.3 DATA     BIT       ERSTF
@@ -815,7 +815,7 @@ PUBLIC SYMBOLS OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
 *SFR* 000000A5H   DATA     BYTE      OSEC
 *SFR* 000000A6H   DATA     BYTE      OSTATUS
 *SFR* 000000A1H   DATA     BYTE      OUS
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 13
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 13
 
 
 *SFR* 000000D0H.0 DATA     BIT       P
@@ -883,7 +883,7 @@ PUBLIC SYMBOLS OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
 *DEL*:00000000H   CODE     ---       pwm0_stop
 *SFR* 000000C8H   DATA     BYTE      PWM0CON
 *SFR* 000000C4H   DATA     BYTE      PWM0DH
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 14
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 14
 
 
 *SFR* 000000C3H   DATA     BYTE      PWM0DL
@@ -951,7 +951,7 @@ PUBLIC SYMBOLS OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01001388H   CODE     ---       system_init
 *SFR* 00000098H.3 DATA     BIT       TB80
       02000005H   XDATA    WORD      temp
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 15
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 15
 
 
 *SFR* 00000098H.1 DATA     BIT       TI0
@@ -1019,7 +1019,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       0100041DH   PUBLIC    CODE     ---       _clock_init
       00000098H.3 SFRSYM    DATA     BIT       TB80
       000000E0H.7 SFRSYM    DATA     BIT       ACC7
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 16
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 16
 
 
       00000080H   SFRSYM    DATA     BYTE      P0
@@ -1087,7 +1087,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000080H.0 SFRSYM    DATA     BIT       P00
       000000D8H.7 SFRSYM    DATA     BIT       WDOF
       000000BBH   SFRSYM    DATA     BYTE      S1RELH
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 17
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 17
 
 
       00000090H.0 SFRSYM    DATA     BIT       P10
@@ -1155,7 +1155,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000098H.7 SFRSYM    DATA     BIT       SM0
       00000098H.6 SFRSYM    DATA     BIT       SM1
       000000FEH   SFRSYM    DATA     BYTE      ADCCDR0
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 18
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 18
 
 
       000000FFH   SFRSYM    DATA     BYTE      ADCCDR1
@@ -1223,7 +1223,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000F8H.4 SFRSYM    DATA     BIT       XCLKF
       000000E0H.2 SFRSYM    DATA     BIT       ACC2
       0000008EH   SFRSYM    DATA     BYTE      PDSEL
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 19
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 19
 
 
       000000E0H.3 SFRSYM    DATA     BIT       ACC3
@@ -1291,7 +1291,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       020000C4H   PUBLIC    XDATA    WORD      status
       020000C2H   PUBLIC    XDATA    WORD      adc_data
       020000C0H   PUBLIC    XDATA    WORD      adcount1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 20
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 20
 
 
       01000BE4H   PUBLIC    CODE     ---       GPIO_Init
@@ -1359,7 +1359,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000F2H   SFRSYM    DATA     BYTE      P1PU
       000000D1H   SFRSYM    DATA     WORD      OADR
       000000F3H   SFRSYM    DATA     BYTE      P2PU
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 21
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 21
 
 
       00000093H   SFRSYM    DATA     BYTE      ADCIER
@@ -1427,7 +1427,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000098H.0 SFRSYM    DATA     BIT       RI0
       000000C8H.0 SFRSYM    DATA     BIT       PWM0SS
       00000098H.1 SFRSYM    DATA     BIT       TI0
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 22
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 22
 
 
       000000A8H.0 SFRSYM    DATA     BIT       EX0
@@ -1495,7 +1495,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000AFH   SFRSYM    DATA     BYTE      REMAP
       000000F0H.6 SFRSYM    DATA     BIT       B6
       000000E0H.0 SFRSYM    DATA     BIT       ACC0
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 23
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 23
 
 
       000000A1H   SFRSYM    DATA     BYTE      OUS
@@ -1563,7 +1563,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       010012FAH   LINE      CODE     ---       #169
       ---         BLOCKEND  ---      ---       LVL=0
 
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 24
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 24
 
 
       01001301H   BLOCK     CODE     ---       LVL=0
@@ -1631,7 +1631,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01001055H   LINE      CODE     ---       #284
       01001058H   LINE      CODE     ---       #286
       0100105BH   LINE      CODE     ---       #288
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 25
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 25
 
 
       0100105EH   LINE      CODE     ---       #294
@@ -1699,7 +1699,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       010006E5H   LINE      CODE     ---       #461
       010006E5H   LINE      CODE     ---       #462
       010006E8H   LINE      CODE     ---       #463
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 26
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 26
 
 
       010006E8H   LINE      CODE     ---       #464
@@ -1767,7 +1767,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D4H   SFRSYM    DATA     BYTE      OCTRL
       000000A8H.7 SFRSYM    DATA     BIT       EA
       0000008FH   SFRSYM    DATA     BYTE      POREN
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 27
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 27
 
 
       000000C8H   SFRSYM    DATA     BYTE      PWM0CON
@@ -1835,7 +1835,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000080H.3 SFRSYM    DATA     BIT       P03
       000000C7H   SFRSYM    DATA     BYTE      PWM2DH
       000000C8H.2 SFRSYM    DATA     BIT       PWM0IE
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 28
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 28
 
 
       000000AAH   SFRSYM    DATA     BYTE      S0RELL
@@ -1903,7 +1903,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000DFH   SFRSYM    DATA     BYTE      PCLK1
       00000083H   SFRSYM    DATA     BYTE      DPH
       000000E9H   SFRSYM    DATA     BYTE      P0IEN
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 29
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 29
 
 
       000000F5H   SFRSYM    DATA     BYTE      ADCHL
@@ -1971,7 +1971,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
 
       ---         MODULE    ---      ---       GPIO
       02000063H   PUBLIC    XDATA    ---       gpiofunc
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 30
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 30
 
 
       01001181H   PUBLIC    CODE     ---       _gpio_irq_get
@@ -2039,7 +2039,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D8H.2 SFRSYM    DATA     BIT       WDT2
       00000081H   SFRSYM    DATA     BYTE      SP
       000000F1H   SFRSYM    DATA     BYTE      P0PU
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 31
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 31
 
 
       000000F2H   SFRSYM    DATA     BYTE      P1PU
@@ -2107,7 +2107,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000F6H   SFRSYM    DATA     BYTE      ADCCSTAT
       000000B9H   SFRSYM    DATA     BYTE      IP1
       000000A8H.3 SFRSYM    DATA     BIT       ET1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 32
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 32
 
 
       00000098H.0 SFRSYM    DATA     BIT       RI0
@@ -2175,7 +2175,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D0H.5 SFRSYM    DATA     BIT       F0
       000000F0H.5 SFRSYM    DATA     BIT       B5
       000000D0H.1 SFRSYM    DATA     BIT       F1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 33
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 33
 
 
       000000AFH   SFRSYM    DATA     BYTE      REMAP
@@ -2243,7 +2243,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000DADH   LINE      CODE     ---       #82
       01000DAEH   LINE      CODE     ---       #83
       01000DB2H   LINE      CODE     ---       #84
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 34
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 34
 
 
       01000DB2H   LINE      CODE     ---       #85
@@ -2311,7 +2311,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000895H   LINE      CODE     ---       #150
       01000895H   LINE      CODE     ---       #152
       01000895H   LINE      CODE     ---       #153
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 35
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 35
 
 
       ---         BLOCKEND  ---      ---       LVL=0
@@ -2379,7 +2379,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000006H   SYMBOL    DATA     BYTE      gpio_pin
       00000007H   SYMBOL    DATA     BYTE      gpio_num
       00000007H   SYMBOL    DATA     BYTE      pin
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 36
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 36
 
 
       00000006H   SYMBOL    DATA     BYTE      gpio_pin
@@ -2447,7 +2447,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000749H   LINE      CODE     ---       #511
       0100074BH   LINE      CODE     ---       #512
       0100074EH   LINE      CODE     ---       #513
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 37
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 37
 
 
       01000755H   LINE      CODE     ---       #514
@@ -2515,7 +2515,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01001181H   LINE      CODE     ---       #582
       01001181H   LINE      CODE     ---       #583
       01001188H   LINE      CODE     ---       #584
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 38
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 38
 
 
       0100118CH   LINE      CODE     ---       #586
@@ -2583,7 +2583,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000ECH   SFRSYM    DATA     BYTE      P2OD
       000000DAH   SFRSYM    DATA     BYTE      P1PD
       000000E4H   SFRSYM    DATA     BYTE      P2PD
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 39
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 39
 
 
       000000D7H   SFRSYM    DATA     BYTE      P0CS
@@ -2651,7 +2651,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000F0H   SFRSYM    DATA     BYTE      B
       000000EEH   SFRSYM    DATA     BYTE      RCHDIV
       000000CBH   SFRSYM    DATA     BYTE      PWM0PL
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 40
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 40
 
 
       000000CDH   SFRSYM    DATA     BYTE      PWM1PL
@@ -2719,7 +2719,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000BCH   SFRSYM    DATA     BYTE      RCLTRIML
       000000E1H   SFRSYM    DATA     BYTE      P0IRQ
       000000B8H.1 SFRSYM    DATA     BIT       SPIINTEN
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 41
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 41
 
 
       000000E2H   SFRSYM    DATA     BYTE      P1IRQ
@@ -2787,7 +2787,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000F71H   LINE      CODE     ---       #69
       ---         BLOCKEND  ---      ---       LVL=0
 
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 42
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 42
 
 
       010011F5H   BLOCK     CODE     ---       LVL=0
@@ -2855,7 +2855,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000098H.5 SFRSYM    DATA     BIT       SM20
       000000B2H   SFRSYM    DATA     BYTE      ESTCR
       000000B1H   SFRSYM    DATA     BYTE      CLKST
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 43
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 43
 
 
       000000D0H.6 SFRSYM    DATA     BIT       AC
@@ -2923,7 +2923,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000C4H   SFRSYM    DATA     BYTE      PWM0DH
       000000A0H.0 SFRSYM    DATA     BIT       P20
       00000090H.1 SFRSYM    DATA     BIT       P11
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 44
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 44
 
 
       00000080H.2 SFRSYM    DATA     BIT       P02
@@ -2991,7 +2991,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D0H.4 SFRSYM    DATA     BIT       RS1
       000000ADH   SFRSYM    DATA     BYTE      ADCGCR1
       000000B4H   SFRSYM    DATA     BYTE      ADCGCR2
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 45
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 45
 
 
       000000B5H   SFRSYM    DATA     BYTE      ADCGCR3
@@ -3059,7 +3059,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000098H.2 SFRSYM    DATA     BIT       RB80
       000000E0H.5 SFRSYM    DATA     BIT       ACC5
       000000FDH   SFRSYM    DATA     BYTE      ADCVREF
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 46
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 46
 
 
       000000E0H.6 SFRSYM    DATA     BIT       ACC6
@@ -3127,7 +3127,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000094H   BLOCK     CODE     ---       LVL=0
       00000007H   SYMBOL    DATA     BYTE      ch
       01000094H   LINE      CODE     ---       #99
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 47
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 47
 
 
       01000094H   LINE      CODE     ---       #100
@@ -3195,7 +3195,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000D66H   LINE      CODE     ---       #179
       01000D68H   LINE      CODE     ---       #180
       01000D68H   LINE      CODE     ---       #181
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 48
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 48
 
 
       01000D70H   LINE      CODE     ---       #182
@@ -3263,7 +3263,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000A0H   SFRSYM    DATA     BYTE      P2
       00000098H.5 SFRSYM    DATA     BIT       SM20
       000000B2H   SFRSYM    DATA     BYTE      ESTCR
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 49
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 49
 
 
       000000B1H   SFRSYM    DATA     BYTE      CLKST
@@ -3331,7 +3331,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000087H   SFRSYM    DATA     BYTE      PCON
       000000C4H   SFRSYM    DATA     BYTE      PWM0DH
       000000A0H.0 SFRSYM    DATA     BIT       P20
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 50
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 50
 
 
       00000090H.1 SFRSYM    DATA     BIT       P11
@@ -3399,7 +3399,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000ACH   SFRSYM    DATA     BYTE      ADCGCR0
       000000D0H.4 SFRSYM    DATA     BIT       RS1
       000000ADH   SFRSYM    DATA     BYTE      ADCGCR1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 51
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 51
 
 
       000000B4H   SFRSYM    DATA     BYTE      ADCGCR2
@@ -3467,7 +3467,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000E0H.4 SFRSYM    DATA     BIT       ACC4
       00000098H.2 SFRSYM    DATA     BIT       RB80
       000000E0H.5 SFRSYM    DATA     BIT       ACC5
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 52
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 52
 
 
       000000FDH   SFRSYM    DATA     BYTE      ADCVREF
@@ -3535,7 +3535,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000F1H   SFRSYM    DATA     BYTE      P0PU
       000000F2H   SFRSYM    DATA     BYTE      P1PU
       000000D1H   SFRSYM    DATA     WORD      OADR
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 53
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 53
 
 
       000000F3H   SFRSYM    DATA     BYTE      P2PU
@@ -3603,7 +3603,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000A8H.3 SFRSYM    DATA     BIT       ET1
       00000098H.0 SFRSYM    DATA     BIT       RI0
       000000C8H.0 SFRSYM    DATA     BIT       PWM0SS
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 54
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 54
 
 
       00000098H.1 SFRSYM    DATA     BIT       TI0
@@ -3671,7 +3671,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D0H.1 SFRSYM    DATA     BIT       F1
       000000AFH   SFRSYM    DATA     BYTE      REMAP
       000000F0H.6 SFRSYM    DATA     BIT       B6
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 55
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 55
 
 
       000000E0H.0 SFRSYM    DATA     BIT       ACC0
@@ -3739,7 +3739,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000098H.4 SFRSYM    DATA     BIT       REN0
       000000ECH   SFRSYM    DATA     BYTE      P2OD
       000000DAH   SFRSYM    DATA     BYTE      P1PD
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 56
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 56
 
 
       000000E4H   SFRSYM    DATA     BYTE      P2PD
@@ -3807,7 +3807,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000C2H   SFRSYM    DATA     BYTE      PWM2PH
       000000F0H   SFRSYM    DATA     BYTE      B
       000000EEH   SFRSYM    DATA     BYTE      RCHDIV
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 57
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 57
 
 
       000000CBH   SFRSYM    DATA     BYTE      PWM0PL
@@ -3875,7 +3875,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000091H   SFRSYM    DATA     BYTE      LDOTRIML
       000000BCH   SFRSYM    DATA     BYTE      RCLTRIML
       000000E1H   SFRSYM    DATA     BYTE      P0IRQ
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 58
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 58
 
 
       000000B8H.1 SFRSYM    DATA     BIT       SPIINTEN
@@ -3943,7 +3943,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000086H   SFRSYM    DATA     BYTE      BEEPCTR
       000000CAH   SFRSYM    DATA     BYTE      PWM2CON
       000000B8H.4 SFRSYM    DATA     BIT       LPTIMINTEN
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 59
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 59
 
 
       000000ABH   SFRSYM    DATA     BYTE      P0AH
@@ -4011,7 +4011,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000080H.4 SFRSYM    DATA     BIT       P04
       000000C8H.1 SFRSYM    DATA     BIT       PWM0IF
       0000009DH   SFRSYM    DATA     BYTE      S1RELL
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 60
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 60
 
 
       000000A0H.3 SFRSYM    DATA     BIT       P23
@@ -4079,7 +4079,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000EBH   SFRSYM    DATA     BYTE      P2IEN
       000000B6H   SFRSYM    DATA     WORD      ADCDR
       000000B3H   SFRSYM    DATA     BYTE      XTHCTR
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 61
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 61
 
 
       00000082H   SFRSYM    DATA     BYTE      DPL
@@ -4147,7 +4147,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000A27H   LINE      CODE     ---       #30
       01000A27H   LINE      CODE     ---       #31
       01000A2DH   LINE      CODE     ---       #32
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 62
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 62
 
 
       01000A2FH   LINE      CODE     ---       #33
@@ -4215,7 +4215,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       0100098EH   LINE      CODE     ---       #212
       0100098EH   LINE      CODE     ---       #213
       0100099AH   LINE      CODE     ---       #214
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 63
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 63
 
 
       010009A1H   LINE      CODE     ---       #215
@@ -4283,7 +4283,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000AEH   SFRSYM    DATA     BYTE      P1AL
       0000009AH   SFRSYM    DATA     BYTE      IEN2
       000000C0H   SFRSYM    DATA     BYTE      P2AL
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 64
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 64
 
 
       000000B6H   SFRSYM    DATA     BYTE      ADCDR0
@@ -4351,7 +4351,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000CFH   SFRSYM    DATA     BYTE      PWM2DL
       000000A0H.6 SFRSYM    DATA     BIT       P26
       000000C8H.7 SFRSYM    DATA     BIT       PWM0EN
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 65
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 65
 
 
       000000A0H.7 SFRSYM    DATA     BIT       P27
@@ -4419,7 +4419,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000BEH   SFRSYM    DATA     BYTE      RCHTRIMH
       000000F8H.0 SFRSYM    DATA     BIT       SYSSEL
       0000009BH   SFRSYM    DATA     BYTE      S1CON
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 66
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 66
 
 
       000000FBH   SFRSYM    DATA     BYTE      P2OEN
@@ -4487,7 +4487,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000B07H   LINE      CODE     ---       #41
       01000B11H   LINE      CODE     ---       #42
       01000B11H   LINE      CODE     ---       #43
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 67
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 67
 
 
       01000B14H   LINE      CODE     ---       #44
@@ -4555,7 +4555,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000DAH   SFRSYM    DATA     BYTE      P1PD
       000000E4H   SFRSYM    DATA     BYTE      P2PD
       000000D7H   SFRSYM    DATA     BYTE      P0CS
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 68
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 68
 
 
       00000097H   SFRSYM    DATA     BYTE      P0DR
@@ -4623,7 +4623,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000EEH   SFRSYM    DATA     BYTE      RCHDIV
       000000CBH   SFRSYM    DATA     BYTE      PWM0PL
       000000CDH   SFRSYM    DATA     BYTE      PWM1PL
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 69
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 69
 
 
       000000C1H   SFRSYM    DATA     BYTE      PWM2PL
@@ -4691,7 +4691,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000E1H   SFRSYM    DATA     BYTE      P0IRQ
       000000B8H.1 SFRSYM    DATA     BIT       SPIINTEN
       000000E2H   SFRSYM    DATA     BYTE      P1IRQ
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 70
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 70
 
 
       000000E3H   SFRSYM    DATA     BYTE      P2IRQ
@@ -4759,7 +4759,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000004H   SYMBOL    DATA     WORD      psc
       00000004H   SYMBOL    DATA     WORD      psc
       00000002H   SYMBOL    DATA     WORD      ccr
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 71
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 71
 
 
       00000005H   SYMBOL    DATA     BYTE      capture_div
@@ -4827,7 +4827,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D8H.2 SFRSYM    DATA     BIT       WDT2
       00000081H   SFRSYM    DATA     BYTE      SP
       000000F1H   SFRSYM    DATA     BYTE      P0PU
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 72
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 72
 
 
       000000F2H   SFRSYM    DATA     BYTE      P1PU
@@ -4895,7 +4895,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000F6H   SFRSYM    DATA     BYTE      ADCCSTAT
       000000B9H   SFRSYM    DATA     BYTE      IP1
       000000A8H.3 SFRSYM    DATA     BIT       ET1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 73
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 73
 
 
       00000098H.0 SFRSYM    DATA     BIT       RI0
@@ -4963,7 +4963,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D0H.5 SFRSYM    DATA     BIT       F0
       000000F0H.5 SFRSYM    DATA     BIT       B5
       000000D0H.1 SFRSYM    DATA     BIT       F1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 74
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 74
 
 
       000000AFH   SFRSYM    DATA     BYTE      REMAP
@@ -5031,7 +5031,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000005H   SYMBOL    DATA     BYTE      polar
       00000006H   SYMBOL    DATA     WORD      target
       00000007H   SYMBOL    DATA     BYTE      channel
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 75
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 75
 
 
       00000005H   SYMBOL    DATA     BYTE      edge
@@ -5099,7 +5099,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D8H.1 SFRSYM    DATA     BIT       WDT1
       000000D8H.2 SFRSYM    DATA     BIT       WDT2
       00000081H   SFRSYM    DATA     BYTE      SP
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 76
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 76
 
 
       000000F1H   SFRSYM    DATA     BYTE      P0PU
@@ -5167,7 +5167,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000A8H.2 SFRSYM    DATA     BIT       ES1
       000000F6H   SFRSYM    DATA     BYTE      ADCCSTAT
       000000B9H   SFRSYM    DATA     BYTE      IP1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 77
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 77
 
 
       000000A8H.3 SFRSYM    DATA     BIT       ET1
@@ -5235,7 +5235,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000F0H.4 SFRSYM    DATA     BIT       B4
       000000D0H.5 SFRSYM    DATA     BIT       F0
       000000F0H.5 SFRSYM    DATA     BIT       B5
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 78
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 78
 
 
       000000D0H.1 SFRSYM    DATA     BIT       F1
@@ -5303,7 +5303,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       00000085H   SFRSYM    DATA     BYTE      DPH1
       000000AEH   SFRSYM    DATA     BYTE      P1AL
       0000009AH   SFRSYM    DATA     BYTE      IEN2
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 79
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 79
 
 
       000000C0H   SFRSYM    DATA     BYTE      P2AL
@@ -5371,7 +5371,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D8H   SFRSYM    DATA     BYTE      RSTSTAT
       000000CFH   SFRSYM    DATA     BYTE      PWM2DL
       000000A0H.6 SFRSYM    DATA     BIT       P26
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 80
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 80
 
 
       000000C8H.7 SFRSYM    DATA     BIT       PWM0EN
@@ -5439,7 +5439,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000A3H   SFRSYM    DATA     BYTE      OINTUS
       000000BEH   SFRSYM    DATA     BYTE      RCHTRIMH
       000000F8H.0 SFRSYM    DATA     BIT       SYSSEL
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 81
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 81
 
 
       0000009BH   SFRSYM    DATA     BYTE      S1CON
@@ -5507,7 +5507,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01000FBEH   LINE      CODE     ---       #41
       01000FBEH   LINE      CODE     ---       #42
       01000FC1H   LINE      CODE     ---       #43
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 82
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 82
 
 
       01000FCBH   LINE      CODE     ---       #44
@@ -5575,7 +5575,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000DAH   SFRSYM    DATA     BYTE      P1PD
       000000E4H   SFRSYM    DATA     BYTE      P2PD
       000000D7H   SFRSYM    DATA     BYTE      P0CS
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 83
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 83
 
 
       00000097H   SFRSYM    DATA     BYTE      P0DR
@@ -5643,7 +5643,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000EEH   SFRSYM    DATA     BYTE      RCHDIV
       000000CBH   SFRSYM    DATA     BYTE      PWM0PL
       000000CDH   SFRSYM    DATA     BYTE      PWM1PL
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 84
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 84
 
 
       000000C1H   SFRSYM    DATA     BYTE      PWM2PL
@@ -5711,7 +5711,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000E1H   SFRSYM    DATA     BYTE      P0IRQ
       000000B8H.1 SFRSYM    DATA     BIT       SPIINTEN
       000000E2H   SFRSYM    DATA     BYTE      P1IRQ
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 85
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 85
 
 
       000000E3H   SFRSYM    DATA     BYTE      P2IRQ
@@ -5779,7 +5779,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       0000008FH   SFRSYM    DATA     BYTE      POREN
       000000C8H   SFRSYM    DATA     BYTE      PWM0CON
       000000E7H   SFRSYM    DATA     BYTE      PRESET1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 86
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 86
 
 
       000000C9H   SFRSYM    DATA     BYTE      PWM1CON
@@ -5847,7 +5847,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000C8H.2 SFRSYM    DATA     BIT       PWM0IE
       000000AAH   SFRSYM    DATA     BYTE      S0RELL
       000000A0H.2 SFRSYM    DATA     BIT       P22
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 87
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 87
 
 
       00000090H.3 SFRSYM    DATA     BIT       P13
@@ -5915,7 +5915,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000E9H   SFRSYM    DATA     BYTE      P0IEN
       000000F5H   SFRSYM    DATA     BYTE      ADCHL
       000000F8H.2 SFRSYM    DATA     BIT       RC16MEN
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 88
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 88
 
 
       000000EAH   SFRSYM    DATA     BYTE      P1IEN
@@ -5983,7 +5983,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       01001262H   LINE      CODE     ---       #46
       0100127DH   LINE      CODE     ---       #47
       01001283H   LINE      CODE     ---       #48
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 89
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 89
 
 
       ---         BLOCKEND  ---      ---       LVL=0
@@ -6051,7 +6051,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D0H.7 SFRSYM    DATA     BIT       CY
       000000D8H.0 SFRSYM    DATA     BIT       WDT0
       000000D8H.1 SFRSYM    DATA     BIT       WDT1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 90
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 90
 
 
       000000D8H.2 SFRSYM    DATA     BIT       WDT2
@@ -6119,7 +6119,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000A9H   SFRSYM    DATA     BYTE      IP0
       000000A8H.1 SFRSYM    DATA     BIT       ET0
       000000A8H.2 SFRSYM    DATA     BIT       ES1
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 91
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 91
 
 
       000000F6H   SFRSYM    DATA     BYTE      ADCCSTAT
@@ -6187,7 +6187,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
       000000D1H   SFRSYM    DATA     BYTE      OADRL
       000000F0H.3 SFRSYM    DATA     BIT       B3
       000000F0H.4 SFRSYM    DATA     BIT       B4
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 92
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 92
 
 
       000000D0H.5 SFRSYM    DATA     BIT       F0
@@ -6255,7 +6255,7 @@ SYMBOL TABLE OF MODULE:  .\Out_Files\um800y (?C_STARTUP)
 
       ---         MODULE    ---      ---       ?C?LLDXDATA
       010002DCH   PUBLIC    CODE     ---       ?C?LLDXDATA
-LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  16:28:01  PAGE 93
+LX51 LINKER/LOCATER V4.66.87.0                                                        06/12/2026  17:58:40  PAGE 93
 
 
 

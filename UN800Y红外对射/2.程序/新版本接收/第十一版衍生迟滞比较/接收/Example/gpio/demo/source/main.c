@@ -37,11 +37,11 @@
  * ÓÐÐ§Âö¿í = 25us
  */
 
-#define RX_CONFIRM_COUNT          2U
+#define RX_CONFIRM_COUNT          3U
 
 #define RX_MIN_PERIOD_TICK        600U     /* 600us  * 1 = 600 tick */
 #define RX_MAX_PERIOD_TICK        1600U    /* 1600us * 1 = 1600 tick */
-#define RX_LOST_TIMEOUT_TICK      2100U    /* 4200us * 1 = 4200 tick */
+#define RX_LOST_TIMEOUT_TICK      1500U    /* 4200us * 1 = 4200 tick */
 
 
 /*
@@ -65,7 +65,7 @@
  */
 
 #define RX_ADC_HYS_ENABLE         1U
-#define RX_ADC_HYS_VALUE          60U
+#define RX_ADC_HYS_VALUE          120U
 
 #ifndef ADC_INVALID
 #define ADC_INVALID               4095U
