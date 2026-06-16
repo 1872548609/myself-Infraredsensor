@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -62,7 +62,7 @@ line level    source
   51           * 3. 连续 3 个合格脉冲确认有光。
   52           * 4. 1.5ms 内没有新的合格脉冲，判定遮光。
   53           *
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 2   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 2   
 
   54           * 注意：
   55           * RX_LOST_TIMEOUT_TICK = 1500U 比较激进。
@@ -126,7 +126,7 @@ line level    source
  113           * 3. S 在 TH 附近抖：可以适当增大 HYS。
  114           */
  115          
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 3   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 3   
 
  116          #define RX_ADC_HYS_ENABLE         1U
  117          #define RX_ADC_HYS_VALUE          120U
@@ -155,7 +155,7 @@ line level    source
  140           * 中断里只设置打印请求，主循环里打印。
  141           */
  142          
- 143          #define UART_ADC_DEBUG_ENABLE              1U
+ 143          #define UART_ADC_DEBUG_ENABLE              0U
  144          
  145          /*
  146           * 每多少个 P1_4 中断事件打印一次。
@@ -190,7 +190,7 @@ line level    source
  175           *
  176           * 后续如果要用 ADJ 电位器控制阈值，可以在主循环里读取 ADC_CHANNEL_2，
  177           * 然后映射更新 adc_set。
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 4   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 4   
 
  178           */
  179          volatile uint16_t adc_set = 200;
@@ -232,19 +232,19 @@ line level    source
  215          static volatile uint8_t  g_dbg_last_adc_ok       = 0;
  216          
  217          #if UART_ADC_DEBUG_ENABLE
- 218          
- 219          static volatile uint8_t  g_uart_debug_need_print = 0;
- 220          static volatile uint8_t  g_uart_debug_div_count  = 0;
- 221          static volatile uint8_t  g_uart_debug_reason     = 0;
- 222          
- 223          /* 事件统计，满 65535 后保持 */
- 224          static volatile uint16_t g_dbg_irq_count         = 0;
- 225          static volatile uint16_t g_dbg_short_edge_count  = 0;
- 226          static volatile uint16_t g_dbg_adc_fail_count    = 0;
- 227          static volatile uint16_t g_dbg_valid_pulse_count = 0;
- 228          static volatile uint16_t g_dbg_timeout_count     = 0;
- 229          
- 230          #endif
+              
+              static volatile uint8_t  g_uart_debug_need_print = 0;
+              static volatile uint8_t  g_uart_debug_div_count  = 0;
+              static volatile uint8_t  g_uart_debug_reason     = 0;
+              
+              /* 事件统计，满 65535 后保持 */
+              static volatile uint16_t g_dbg_irq_count         = 0;
+              static volatile uint16_t g_dbg_short_edge_count  = 0;
+              static volatile uint16_t g_dbg_adc_fail_count    = 0;
+              static volatile uint16_t g_dbg_valid_pulse_count = 0;
+              static volatile uint16_t g_dbg_timeout_count     = 0;
+              
+              #endif
  231          
  232          
  233          /*======================================================================
@@ -254,7 +254,7 @@ line level    source
  237          void gtimer0_UECallBack(void);
  238          void gtimer1_UECallBack(void);
  239          void GPIO_Init(void);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 5   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 5   
 
  240          void ADC_Init(void);
  241          void gpio_int_pro(void);
@@ -269,13 +269,13 @@ line level    source
  250          static uint8_t rx_adc_hysteresis_check(uint16_t adc);
  251          
  252          #if UART_ADC_DEBUG_ENABLE
- 253          static void uart_debug_inc16(volatile uint16_t *value);
- 254          static void uart_debug_request(uint8_t reason, uint8_t force);
- 255          static void uart_adc_debug_process(void);
- 256          #else
-              #define uart_debug_request(reason, force)     ((void)0)
-              #define uart_adc_debug_process()              ((void)0)
-              #endif
+              static void uart_debug_inc16(volatile uint16_t *value);
+              static void uart_debug_request(uint8_t reason, uint8_t force);
+              static void uart_adc_debug_process(void);
+              #else
+ 257          #define uart_debug_request(reason, force)     ((void)0)
+ 258          #define uart_adc_debug_process()              ((void)0)
+ 259          #endif
  260          
  261          
  262          /*======================================================================
@@ -318,7 +318,7 @@ line level    source
  299           *====================================================================*/
  300          
  301          static void rx_output_light(void)
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 6   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 6   
 
  302          {
  303   1          /*
@@ -382,7 +382,7 @@ line level    source
  361   1          {
  362   2              return (uint16_t)(adc_set - RX_ADC_HYS_VALUE);
  363   2          }
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 7   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 7   
 
  364   1      
  365   1          return 0U;
@@ -438,117 +438,117 @@ line level    source
  415           *====================================================================*/
  416          
  417          #if UART_ADC_DEBUG_ENABLE
- 418          
- 419          static void uart_debug_inc16(volatile uint16_t *value)
- 420          {
- 421   1          if (*value < 65535U)
- 422   1          {
- 423   2              (*value)++;
- 424   2          }
- 425   1      }
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 8   
+              
+              static void uart_debug_inc16(volatile uint16_t *value)
+              {
+                  if (*value < 65535U)
+                  {
+                      (*value)++;
+                  }
+              }
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 8   
 
- 426          
- 427          
- 428          static void uart_debug_request(uint8_t reason, uint8_t force)
- 429          {
- 430   1          g_uart_debug_reason = reason;
- 431   1      
- 432   1          if (force != 0U)
- 433   1          {
- 434   2              g_uart_debug_div_count  = 0U;
- 435   2              g_uart_debug_need_print = 1U;
- 436   2              return;
- 437   2          }
- 438   1      
- 439   1          g_uart_debug_div_count++;
- 440   1      
- 441   1          if (g_uart_debug_div_count >= UART_ADC_DEBUG_EVENT_DIV)
- 442   1          {
- 443   2              g_uart_debug_div_count  = 0U;
- 444   2              g_uart_debug_need_print = 1U;
- 445   2          }
- 446   1      }
- 447          
- 448          
- 449          static void uart_adc_debug_process(void)
- 450          {
- 451   1          uint16_t adc_off_th;
- 452   1      
- 453   1          if (g_uart_debug_need_print == 0U)
- 454   1          {
- 455   2              return;
- 456   2          }
- 457   1      
- 458   1          g_uart_debug_need_print = 0U;
- 459   1      
- 460   1          adc_off_th = rx_adc_calc_off_threshold();
- 461   1      
- 462   1          /*
- 463   1           * 字段说明：
- 464   1           *
- 465   1           * S   ：最近一次接收信号 ADC。
- 466   1           * A   ：预留 ADJ ADC，目前未主动读取。
- 467   1           * TH  ：ADC 有效上阈值 adc_set。
- 468   1           * HYS ：ADC 迟滞宽度。
- 469   1           * OFF ：ADC 无效下阈值。
- 470   1           * EL  ：最近一次边沿间隔，24 分频下单位就是 us。
- 471   1           * VC  ：连续有效脉冲计数。
- 472   1           * L   ：当前有光确认状态，1 有光，0 遮光。
- 473   1           * AS  ：ADC 迟滞状态，1 ADC 有效，0 ADC 无效。
- 474   1           * OK  ：最近一次 ADC 判断结果。
- 475   1           * IR  ：P1_4 中断总次数。
- 476   1           * SH  ：小于 600us 被过滤的短边沿次数。
- 477   1           * AF  ：ADC 不满足阈值次数。
- 478   1           * VP  ：有效脉冲次数。
- 479   1           * TO  ：丢光超时次数。
- 480   1           * R   ：打印原因码。
- 481   1           *
- 482   1           * R：
- 483   1           * 1 = 上电
- 484   1           * 2 = 短边沿毛刺
- 485   1           * 3 = ADC 不满足
- 486   1           * 4 = 有效脉冲
- 487   1           * 5 = 有光确认
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 9   
+              
+              
+              static void uart_debug_request(uint8_t reason, uint8_t force)
+              {
+                  g_uart_debug_reason = reason;
+              
+                  if (force != 0U)
+                  {
+                      g_uart_debug_div_count  = 0U;
+                      g_uart_debug_need_print = 1U;
+                      return;
+                  }
+              
+                  g_uart_debug_div_count++;
+              
+                  if (g_uart_debug_div_count >= UART_ADC_DEBUG_EVENT_DIV)
+                  {
+                      g_uart_debug_div_count  = 0U;
+                      g_uart_debug_need_print = 1U;
+                  }
+              }
+              
+              
+              static void uart_adc_debug_process(void)
+              {
+                  uint16_t adc_off_th;
+              
+                  if (g_uart_debug_need_print == 0U)
+                  {
+                      return;
+                  }
+              
+                  g_uart_debug_need_print = 0U;
+              
+                  adc_off_th = rx_adc_calc_off_threshold();
+              
+                  /*
+                   * 字段说明：
+                   *
+                   * S   ：最近一次接收信号 ADC。
+                   * A   ：预留 ADJ ADC，目前未主动读取。
+                   * TH  ：ADC 有效上阈值 adc_set。
+                   * HYS ：ADC 迟滞宽度。
+                   * OFF ：ADC 无效下阈值。
+                   * EL  ：最近一次边沿间隔，24 分频下单位就是 us。
+                   * VC  ：连续有效脉冲计数。
+                   * L   ：当前有光确认状态，1 有光，0 遮光。
+                   * AS  ：ADC 迟滞状态，1 ADC 有效，0 ADC 无效。
+                   * OK  ：最近一次 ADC 判断结果。
+                   * IR  ：P1_4 中断总次数。
+                   * SH  ：小于 600us 被过滤的短边沿次数。
+                   * AF  ：ADC 不满足阈值次数。
+                   * VP  ：有效脉冲次数。
+                   * TO  ：丢光超时次数。
+                   * R   ：打印原因码。
+                   *
+                   * R：
+                   * 1 = 上电
+                   * 2 = 短边沿毛刺
+                   * 3 = ADC 不满足
+                   * 4 = 有效脉冲
+                   * 5 = 有光确认
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 9   
 
- 488   1           * 6 = 丢光超时
- 489   1           *
- 490   1           * 调试判断：
- 491   1           * 1. 正常有光：
- 492   1           *      EL ≈ 1000，VC = 3，L = 1，AS = 1，OK = 1。
- 493   1           *
- 494   1           * 2. SH 持续增加：
- 495   1           *      P1_4 比较器输出有毛刺、双边沿或振铃。
- 496   1           *
- 497   1           * 3. AF 持续增加：
- 498   1           *      ADC 经常不过阈值，可能 TH 太高、光强不够或采样时机偏晚。
- 499   1           *
- 500   1           * 4. TO 有光时持续增加：
- 501   1           *      1.5ms 内没有稳定收到有效脉冲。
- 502   1           *      优先考虑把 RX_LOST_TIMEOUT_TICK 改成 2500U 或 3000U。
- 503   1           */
- 504   1          printfS("S=%u,A=%u,TH=%u,HYS=%u,OFF=%u,EL=%u,VC=%u,L=%u,AS=%u,OK=%u,IR=%u,SH=%u,AF=%u,VP=%u,TO=%u,R=%u
+                   * 6 = 丢光超时
+                   *
+                   * 调试判断：
+                   * 1. 正常有光：
+                   *      EL ≈ 1000，VC = 3，L = 1，AS = 1，OK = 1。
+                   *
+                   * 2. SH 持续增加：
+                   *      P1_4 比较器输出有毛刺、双边沿或振铃。
+                   *
+                   * 3. AF 持续增加：
+                   *      ADC 经常不过阈值，可能 TH 太高、光强不够或采样时机偏晚。
+                   *
+                   * 4. TO 有光时持续增加：
+                   *      1.5ms 内没有稳定收到有效脉冲。
+                   *      优先考虑把 RX_LOST_TIMEOUT_TICK 改成 2500U 或 3000U。
+                   */
+                  printfS("S=%u,A=%u,TH=%u,HYS=%u,OFF=%u,EL=%u,VC=%u,L=%u,AS=%u,OK=%u,IR=%u,SH=%u,AF=%u,VP=%u,TO=%u,R=%u
              -\r\n",
- 505   1                  adc_data,
- 506   1                  adc_data1,
- 507   1                  adc_set,
- 508   1                  (uint16_t)RX_ADC_HYS_VALUE,
- 509   1                  adc_off_th,
- 510   1                  g_dbg_last_elapsed_tick,
- 511   1                  (uint16_t)rx_valid_count,
- 512   1                  (uint16_t)rx_light_state,
- 513   1                  (uint16_t)rx_adc_valid_state,
- 514   1                  (uint16_t)g_dbg_last_adc_ok,
- 515   1                  g_dbg_irq_count,
- 516   1                  g_dbg_short_edge_count,
- 517   1                  g_dbg_adc_fail_count,
- 518   1                  g_dbg_valid_pulse_count,
- 519   1                  g_dbg_timeout_count,
- 520   1                  (uint16_t)g_uart_debug_reason);
- 521   1      }
- 522          
- 523          #endif
+                          adc_data,
+                          adc_data1,
+                          adc_set,
+                          (uint16_t)RX_ADC_HYS_VALUE,
+                          adc_off_th,
+                          g_dbg_last_elapsed_tick,
+                          (uint16_t)rx_valid_count,
+                          (uint16_t)rx_light_state,
+                          (uint16_t)rx_adc_valid_state,
+                          (uint16_t)g_dbg_last_adc_ok,
+                          g_dbg_irq_count,
+                          g_dbg_short_edge_count,
+                          g_dbg_adc_fail_count,
+                          g_dbg_valid_pulse_count,
+                          g_dbg_timeout_count,
+                          (uint16_t)g_uart_debug_reason);
+              }
+              
+              #endif
  524          
  525          
  526          /*======================================================================
@@ -574,7 +574,7 @@ line level    source
  546   1           *
  547   1           * 响应速度：
  548   1           *      1 / 1.5ms ≈ 667Hz
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 10  
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 10  
 
  549   1           *
  550   1           * 注意：
@@ -613,6 +613,7 @@ line level    source
  583   1           * 上电打印一次，确认串口调试打开。
  584   1           */
  585   1          uart_debug_request(UART_DBG_REASON_BOOT, 1U);
+*** WARNING C275 IN LINE 585 OF ..\source\main.c: expression with possibly no effect
  586   1      
  587   1          while (1)
  588   1          {
@@ -620,6 +621,7 @@ line level    source
  590   2               * 串口调试只在主循环打印，不在中断里打印。
  591   2               */
  592   2              uart_adc_debug_process();
+*** WARNING C275 IN LINE 592 OF ..\source\main.c: expression with possibly no effect
  593   2          }
  594   1      }
  595          
@@ -636,18 +638,18 @@ line level    source
  606   1          /*
  607   1           * 丢光后 ADC 迟滞状态清零。
  608   1           *
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 11  
+
  609   1           * 作用：
  610   1           *      再次来光时，ADC 必须重新超过 adc_set，
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 11  
-
  611   1           *      避免上一次 ADC 有效状态残留导致误确认有光。
  612   1           */
  613   1          rx_adc_valid_state = 0;
  614   1          g_dbg_last_adc_ok  = 0;
  615   1      
  616   1      #if UART_ADC_DEBUG_ENABLE
- 617   1          uart_debug_inc16(&g_dbg_timeout_count);
- 618   1      #endif
+                  uart_debug_inc16(&g_dbg_timeout_count);
+              #endif
  619   1      
  620   1          if (rx_light_state)
  621   1          {
@@ -656,6 +658,7 @@ line level    source
  624   2      
  625   2      #if UART_ADC_DEBUG_STATE_CHANGE_PRINT
  626   2              uart_debug_request(UART_DBG_REASON_TIMEOUT, 1U);
+*** WARNING C275 IN LINE 626 OF ..\source\main.c: expression with possibly no effect
  627   2      #else
                       uart_debug_request(UART_DBG_REASON_TIMEOUT, 0U);
               #endif
@@ -664,6 +667,7 @@ line level    source
  632   1          {
  633   2              rx_output_block();
  634   2              uart_debug_request(UART_DBG_REASON_TIMEOUT, 0U);
+*** WARNING C275 IN LINE 634 OF ..\source\main.c: expression with possibly no effect
  635   2          }
  636   1      
  637   1          /*
@@ -698,12 +702,12 @@ line level    source
  666   2              gpio_irq_clr(P1_4);
  667   2      
  668   2      #if UART_ADC_DEBUG_ENABLE
- 669   2              uart_debug_inc16(&g_dbg_irq_count);
- 670   2      #endif
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 12  
+
+                      uart_debug_inc16(&g_dbg_irq_count);
+              #endif
  671   2      
  672   2      #if RX_ADC_HYS_ENABLE
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 12  
-
  673   2              /*
  674   2               * ADC 采样尽量提前。
  675   2               *
@@ -720,9 +724,10 @@ line level    source
  686   2              if (!adc_ok)
  687   2              {
  688   3      #if UART_ADC_DEBUG_ENABLE
- 689   3                  uart_debug_inc16(&g_dbg_adc_fail_count);
- 690   3      #endif
+                          uart_debug_inc16(&g_dbg_adc_fail_count);
+              #endif
  691   3                  uart_debug_request(UART_DBG_REASON_ADC_FAIL, 0U);
+*** WARNING C275 IN LINE 691 OF ..\source\main.c: expression with possibly no effect
  692   3                  return;
  693   3              }
  694   2      #else
@@ -753,21 +758,22 @@ line level    source
  719   2              if (rx_seen_once && (elapsed < RX_MIN_PERIOD_TICK))
  720   2              {
  721   3      #if UART_ADC_DEBUG_ENABLE
- 722   3                  uart_debug_inc16(&g_dbg_short_edge_count);
- 723   3      #endif
+                          uart_debug_inc16(&g_dbg_short_edge_count);
+              #endif
  724   3                  uart_debug_request(UART_DBG_REASON_SHORT_EDGE, 0U);
+*** WARNING C275 IN LINE 724 OF ..\source\main.c: expression with possibly no effect
  725   3                  return;
  726   3              }
  727   2      
  728   2              /*
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 13  
+
  729   2               * 到这里说明：
  730   2               * 1. P1_4 有比较器中断；
  731   2               * 2. ADC 幅值通过迟滞判断；
  732   2               * 3. 不是 600us 内重复毛刺。
  733   2               *
  734   2               * 这才算一次真正有效的光脉冲。
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 13  
-
  735   2               */
  736   2              if (rx_seen_once && (elapsed > RX_MAX_PERIOD_TICK))
  737   2              {
@@ -805,8 +811,8 @@ line level    source
  769   2              rx_timer_restart();
  770   2      
  771   2      #if UART_ADC_DEBUG_ENABLE
- 772   2              uart_debug_inc16(&g_dbg_valid_pulse_count);
- 773   2      #endif
+                      uart_debug_inc16(&g_dbg_valid_pulse_count);
+              #endif
  774   2      
  775   2              /*
  776   2               * 连续 RX_CONFIRM_COUNT 个有效 1ms 周期确认有光。
@@ -822,16 +828,18 @@ line level    source
  786   3      
  787   3      #if UART_ADC_DEBUG_STATE_CHANGE_PRINT
  788   3                  uart_debug_request(UART_DBG_REASON_LIGHT_ON, 1U);
+*** WARNING C275 IN LINE 788 OF ..\source\main.c: expression with possibly no effect
  789   3      #else
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 14  
+
                           uart_debug_request(UART_DBG_REASON_LIGHT_ON, 0U);
               #endif
  792   3              }
  793   2              else
  794   2              {
  795   3                  uart_debug_request(UART_DBG_REASON_VALID_PULSE, 0U);
+*** WARNING C275 IN LINE 795 OF ..\source\main.c: expression with possibly no effect
  796   3              }
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 14  
-
  797   2          }
  798   1          
  799   1          gpio_io_set(P1_0, GPIO_HIGH);
@@ -886,6 +894,8 @@ line level    source
  848   1           * P1_4 输入中断。
  849   1           *
  850   1           * P1_4 用于捕获比较器输出脉冲。
+C51 COMPILER V9.57.0.0   MAIN                                                              06/16/2026 14:42:23 PAGE 15  
+
  851   1           * ADC_CHANNEL_1 用于读取接收信号 ADC 幅值。
  852   1           *
  853   1           * 软件判断方式：
@@ -894,8 +904,6 @@ line level    source
  856   1           *      GTIMER0 负责“多久没有有效脉冲则判定遮光”。
  857   1           */
  858   1          gpio_init(P1_4);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 17:32:23 PAGE 15  
-
  859   1          gpio_dir_set(P1_4, GPIO_DIR_IN);
  860   1          gpio_dr_set(P1_4, GPIO_SR_HIGH);
  861   1          gpio_in_enable(P1_4, IN_ENABLE);
@@ -924,9 +932,9 @@ line level    source
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =   1139    ----
-   CONSTANT SIZE    =     96    ----
-   XDATA SIZE       =     32       4
+   CODE SIZE        =    733    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     19       2
    PDATA SIZE       =   ----    ----
    DATA SIZE        =   ----    ----
    IDATA SIZE       =   ----    ----
@@ -938,4 +946,4 @@ MODULE INFORMATION:   STATIC OVERLAYABLE
 END OF MODULE INFORMATION.
 
 
-C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
+C51 COMPILATION COMPLETE.  8 WARNING(S),  0 ERROR(S)

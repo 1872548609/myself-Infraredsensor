@@ -1,0 +1,322 @@
+C51 COMPILER V9.57.0.0   GTIMER2                                                           06/16/2026 15:09:00 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE GTIMER2
+OBJECT MODULE PLACED IN .\Out_Files\gtimer2.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\gtimer2.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE
+                    - INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_F
+                    -iles\gtimer2.lst) OBJECT(.\Out_Files\gtimer2.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : gtimer2.c
+   5           * Description : gtimer2 driver source file
+   6           * Author(s)   : shengyu
+   7           * version     : V1.0
+   8           * Modify date : 2021-12-30
+   9           ***********************************************************************/
+  10          #include "gtimer.h"
+  11          
+  12          void (*gtimer2_callback[3])(void) = { 0 };
+  13          
+  14          /***********************************************************************
+  15           * Function     : GTIM2_IRQHandler
+  16           * Description  : GTIM2 interrupt handling
+  17           * Input                : none
+  18           * Output               : none   
+  19           * Return               : none
+  20           ***********************************************************************/
+  21          void GTIM2_IRQHandler(void) interrupt 19
+  22          {
+  23   1              if((REG_GTIM2_SR & GTIMER2_UIF) && (REG_GTIM2_IER & GTIMER2_UIE))                       //UE中断
+  24   1              {
+  25   2                      if(gtimer2_callback[0] != NULL)
+  26   2                      {
+  27   3                              gtimer2_callback[0]();
+  28   3                      }
+  29   2                      REG_GTIM2_SR = GTIMER2_UIF;                                                     //清除UE中断标志
+  30   2              }
+  31   1              else if((REG_GTIM2_SR & GTIMER2_CCIF) && (REG_GTIM2_IER & GTIMER2_CCIE))                //比较中断/捕捉中断
+  32   1              {
+  33   2                      if(gtimer2_callback[1] != NULL)
+  34   2                      {
+  35   3                              gtimer2_callback[1]();
+  36   3                      }
+  37   2                      REG_GTIM2_SR = GTIMER2_CCIF;                                                    //清除中断/捕捉中断
+  38   2              }
+  39   1              
+  40   1              else if((REG_GTIM2_SR & GTIMER2_BKE_IF)&& (REG_GTIM2_IER & GTIMER2_BKE_IE))     //刹车中断
+  41   1              {
+  42   2                      if(gtimer2_callback[2] != NULL)
+  43   2                      {
+  44   3                              gtimer2_callback[2]();
+  45   3                      }
+  46   2                      REG_GTIM2_SR = GTIMER2_BKE_IF;          //清除刹车中断标志
+  47   2              }
+  48   1              else
+  49   1              {
+  50   2                      REG_GTIM2_SR = 0x7;                                                             //清除所有中断标志
+  51   2              }
+  52   1      } 
+  53          
+C51 COMPILER V9.57.0.0   GTIMER2                                                           06/16/2026 15:09:00 PAGE 2   
+
+  54          
+  55          
+  56           /************************************************************************
+  57           * Function     : gtimer2_count_init
+  58           * Description  : gtimer2_count_init GTIMER2 count初始化
+  59           * Input                : uint16_t arr  GTIMER2重载值
+  60                                                                  uint16_t psc    GTIMER2分频值
+  61           * Output       : none
+  62           * Return               : none
+  63           ************************************************************************/      
+  64          void gtimer2_count_init(uint16_t arr,uint16_t psc)
+  65          {
+  66   1              PCLK1 |= (1<<6);                                                                                //开Gtim2时钟使能       
+  67   1              PRESET1 |= (1<<6);                                                                      //GTim2正常工作
+  68   1              
+  69   1              REG_GTIM2_CR0 |= (1<<6);                                                //使能auto-repload 
+  70   1                                              
+  71   1              REG_GTIM2_PSC1 = (psc>>8)&0xFF;                 //高8位 FCK_CNT=FCK_PSC/(PSC[15:0]+1);  FCK_PSC = APBCLK 
+  72   1              REG_GTIM2_PSC0 = psc&0xFF;                                      //低8位 FCK_CNT=FCK_PSC/(PSC[15:0]+1);  FCK_PSC = APBCLK 
+  73   1                                              
+  74   1              REG_GTIM2_ARR1 = ((arr-1)>>8)&0xFF;                     //高8位 自动装载值
+  75   1              REG_GTIM2_ARR0 = (arr-1)&0xFF;                                  //低8位 自动装载值
+  76   1                              
+  77   1              REG_GTIM2_EGR = 0x1;                                                            //产生UE事件，将PSC的值立即载入shadow寄存器
+  78   1              REG_GTIM2_SR |= (1<<0);                                                 //清除UE产生的中断，否则会直接进入中断服务函数
+  79   1              
+  80   1      }
+  81          
+  82          
+  83          
+  84          /************************************************************************
+  85           * Function     : gtimer2_pwm_init
+  86           * Description  : gtimer2_pwm_init GTIMER2 PWM初始化
+  87           * Input                : uint16_t arr  GTIMER2重载值
+  88                                                                  uint16_t psc    GTIMER2分频值
+  89                                                                  uint16_t ccr    GTIMER2比较值
+  90           * Output       : none
+  91           * Return               : none
+  92           ************************************************************************/      
+  93          void gtimer2_pwm_init(uint16_t arr, uint16_t psc, uint16_t ccr)
+  94          {
+  95   1              PCLK1 |= (1<<6);                                                                          //开Gtim2时钟使能     
+  96   1              PRESET1 |= (1<<6);                                                                      //GTim2正常工作
+  97   1              
+  98   1              REG_P10_CFG = 0x06;                                                                     //P10 CH 
+  99   1              REG_P15_CFG = 0x06;                                                                     //P15 CH
+ 100   1      //      REG_P26_CFG = 0x06;                                                             //P26 CH
+ 101   1      
+ 102   1              REG_P01_CFG = 0x06;                                                                     //P01 CHN
+ 103   1              REG_P04_CFG = 0x06;                                                                     //P04 CHN 
+ 104   1              REG_P22_CFG = 0x06;                                                                     //P22 CHN
+ 105   1              
+ 106   1              REG_GTIM2_CR0 |= (1<<6);                                                //使能auto-repload
+ 107   1                                              
+ 108   1              REG_GTIM2_PSC1 = (psc>>8)&0xFF;                 //高8位 FCK_CNT=FCK_PSC/(PSC[15:0]+1);  FCK_PSC = APBCLK 
+ 109   1              REG_GTIM2_PSC0 = psc&0xFF;                                      //低8位 FCK_CNT=FCK_PSC/(PSC[15:0]+1);  FCK_PSC = APBCLK 
+ 110   1                                      
+ 111   1              REG_GTIM2_ARR1 = ((arr-1)>>8)&0xFF;                     //高8位 自动装载值 
+ 112   1              REG_GTIM2_ARR0 = (arr-1)&0xFF;                                  //低8位 自动装载值
+ 113   1                                              
+ 114   1              REG_GTIM2_ARRN1 = ((arr-1)>>8)&0xFF;            //高8位 自动装载值 
+ 115   1              REG_GTIM2_ARRN0 = (arr-1)&0xFF;                                 //低8位 自动装载值 
+C51 COMPILER V9.57.0.0   GTIMER2                                                           06/16/2026 15:09:00 PAGE 3   
+
+ 116   1                                              
+ 117   1              REG_GTIM2_CCR1 = (ccr>>8)&0xFF;                 //高8位 比较寄存器 
+ 118   1              REG_GTIM2_CCR0 = ccr&0xFF;                                      //低8位 比较寄存器 
+ 119   1                                      
+ 120   1              REG_GTIM2_CCRN1 = (ccr>>8)&0xFF;                //高8位 比较寄存器 
+ 121   1              REG_GTIM2_CCRN0 = ccr&0xFF;                                     //低8位 比较寄存器 
+ 122   1                                              
+ 123   1              REG_GTIM2_CR1 |= (1<<0);                                                //互补PWM和原PWM反相位 
+ 124   1                                      
+ 125   1              REG_GTIM2_CR1 |= (1<<1);                                                //避免死区功能使能 
+ 126   1                                              
+ 127   1              REG_GTIM2_EGR = 0x1;                                                            //产生UE事件，将PSC的值立即载入shadow寄存器
+ 128   1              REG_GTIM2_SR |= (1<<0);                                                 //清除UE产生的中断，否则会直接进入中断服务函数 
+ 129   1                              
+ 130   1              REG_GTIM2_CR2 |= (1<<2);                                                //输出总使能
+ 131   1                                              
+ 132   1              REG_GTIM2_CCER |= (1<<0);                                               //使能输出
+ 133   1              
+ 134   1              
+ 135   1      }
+ 136          
+ 137          
+ 138          /***********************************************************************
+ 139           * Function     : gtimer2_capture_init
+ 140           * Description  : gtimer2_capture_init gtimer2输入捕获
+ 141           * Input                : uint16_t arr          装载值
+ 142           *                                      : uint8_t capture_div   捕捉源预分频位
+ 143           *                                      : uint8_t capssel                       捕捉源选择位
+ 144           * Output               : none
+ 145           * Return               : none
+ 146           ***********************************************************************/
+ 147          void gtimer2_capture_init(uint16_t arr,uint8_t capture_div,uint8_t capssel)
+ 148          {
+ 149   1              PCLK1 |= (1<<6);                                                                                //开Gtim2时钟使能 
+ 150   1              PRESET1 |= (1<<6);                                                                              //GTim2正常工作 
+ 151   1              
+ 152   1              REG_P10_CFG = 0x06;                                                                             //P10 CH 
+ 153   1              REG_P15_CFG = 0x06;                                                                             //P15 CH 
+ 154   1      //      REG_P26_CFG = 0x06;                                                                     //P26 CH 
+ 155   1              
+ 156   1              REG_GTIM2_ARR1 = ((arr-1)>>8)&0xFF;                             //高8位 自动装载值
+ 157   1              REG_GTIM2_ARR0 = (arr-1)&0xFF;                                          //低8位 自动装载值
+ 158   1                                      
+ 159   1              REG_GTIM2_CCMR0 &= ~(1<<7);                                             //外部计数源滤波使能：无滤波功能
+ 160   1              REG_GTIM2_CCMR0 |= (1<<0);                                              //配置CCS为输入 
+ 161   1              
+ 162   1              REG_GTIM2_CCMR1 = (REG_GTIM2_CCMR1&(~(0x03<<0)))|(capssel<<0);                  //捕捉源选择位 
+ 163   1              
+ 164   1              REG_GTIM2_CCMR1 = (REG_GTIM2_CCMR1&(~(3<<5)))|(capture_div<<5);
+ 165   1                                      
+ 166   1              REG_GTIM2_CCMR1 &= ~(0x03<<2);                          //捕获沿触发控制位：上升沿触发 
+ 167   1      
+ 168   1              REG_GTIM2_CCER |= (1<<0);                                                       //使能捕捉功能 
+ 169   1              
+ 170   1      }
+ 171          
+ 172          
+ 173          
+ 174          /***********************************************************************
+ 175           * Function     : gtimer2_bke_init
+ 176           * Description  : gtimer2_bke_init GTIMER2刹车
+ 177           * Input                : none
+C51 COMPILER V9.57.0.0   GTIMER2                                                           06/16/2026 15:09:00 PAGE 4   
+
+ 178           * Output               : none
+ 179           * Return               : none
+ 180           ***********************************************************************/
+ 181          void gtimer2_bke_init(void)
+ 182          {
+ 183   1              PCLK1 |= (1<<6);                                                                                        //开Gtim2时钟使能       
+ 184   1              PRESET1 |= (1<<6);                                                                              //GTim2正常工作 
+ 185   1      
+ 186   1      //      REG_P00_CFG = 0x05;                                                                     //P00 GTIMER2_BKE 
+ 187   1              REG_P23_CFG = 0x06;                                                                             //P23 GTIMER2_BKE       
+ 188   1      //      REG_P27_CFG = 0x06;                                                                             //P27 GTIMER2_BKE 
+ 189   1              
+ 190   1              REG_GTIM2_CR1 &= ~(3<<6);                                                       //PWM刹车触发后，PWM正向电平状态设置位:低电平 
+ 191   1              REG_GTIM2_CR2 &= ~(3<<0);                                                       //PWM刹车触发后，PWM互补电平状态设置位:低电平 
+ 192   1                                      
+ 193   1              REG_GTIM2_CR1 &= ~(1<<3);                                                       //刹车信号高电平有效
+ 194   1                                      
+ 195   1              REG_GTIM2_CR1 |= (1<<2);                                                        //使能刹车功能 
+ 196   1                                      
+ 197   1              REG_GTIM2_CCER |= (1<<0);                                                       //使能输出 
+ 198   1      }
+ 199          
+ 200          
+ 201          /************************************************************************
+ 202           * Function     : gtimer2_irq_init
+ 203           * Description  : gtimer2_irq_init      GTIMER2 中断初始化
+ 204           * Input                : uint8_t irq_enable            GTIMER2中断使能开关 1：使能 0：禁止
+ 205                                                                  uint8_t gtimer_irq_type GTIMER2中断类型选择
+ 206           *            void (*pfunc)()                                   GTIMER2中断回调函数
+ 207           * Output       : none
+ 208           * Return               : none
+ 209           ************************************************************************/      
+ 210          void gtimer2_irq_init(uint8_t irq_enable,uint8_t gtimer_irq_type,void (*pfunc)())
+ 211          {
+ 212   1              REG_GTIM2_SR = 0x7;             //清除状态标志
+ 213   1              
+ 214   1              if(irq_enable == GTIMER_IRQ_ENABLE)
+ 215   1              {
+ 216   2                      switch(gtimer_irq_type)
+ 217   2                      {
+ 218   3                              case GTIMER2_UIE_IRQ:
+ 219   3                                              gtimer2_callback[0] = pfunc;
+ 220   3                                              REG_GTIM2_IER |= GTIMER2_UIE;                           //使能UPDATE中断
+ 221   3                                              break;
+ 222   3                              case GTIMER2_CCIE_IRQ:
+ 223   3                                              gtimer2_callback[1] = pfunc;
+ 224   3                                              REG_GTIM2_IER |= GTIMER2_CCIE;                  //使能比较/捕捉中断
+ 225   3                                              break;  
+ 226   3                              case GTIMER2_BKE_IE_IRQ:
+ 227   3                                              gtimer2_callback[2] = pfunc;
+ 228   3                                              REG_GTIM2_IER |= GTIMER2_BKE_IE;                //使能刹车中断
+ 229   3                                              break;
+ 230   3                              default:
+ 231   3                                              break;                          
+ 232   3                      }       
+ 233   2                      EA = 1 ;                                                                                                                                        //开启总中断
+ 234   2                      IEN1 |= (1<<6);                                                                                                         //开启GTIMER2中断
+ 235   2              }
+ 236   1              else
+ 237   1              {
+ 238   2                      switch(gtimer_irq_type)
+ 239   2                      {
+C51 COMPILER V9.57.0.0   GTIMER2                                                           06/16/2026 15:09:00 PAGE 5   
+
+ 240   3                              case GTIMER2_UIE_IRQ:
+ 241   3                                              gtimer2_callback[0] = pfunc;
+ 242   3                                              REG_GTIM2_IER |= ~GTIMER2_UIE;                          //禁止UPDATE中断
+ 243   3                                              break;
+ 244   3                              case GTIMER2_CCIE_IRQ:
+ 245   3                                              gtimer2_callback[1] = pfunc;
+ 246   3                                              REG_GTIM2_IER |= ~GTIMER2_CCIE;                         //禁止比较/捕捉中断
+ 247   3                                              break;  
+ 248   3                              case GTIMER2_BKE_IE_IRQ:
+ 249   3                                              gtimer2_callback[2] = pfunc;
+ 250   3                                              REG_GTIM2_IER |= ~GTIMER2_BKE_IE;                       //禁止刹车中断
+ 251   3                                              break;          
+ 252   3                              default:
+ 253   3                                              break;                          
+ 254   3                      }       
+ 255   2              }
+ 256   1              
+ 257   1      }
+ 258          
+ 259          /************************************************************************
+ 260           * Function     : gtimer2_start
+ 261           * Description  : gtimer2_start 启动GTIMER2计数
+ 262           * Input                : none
+ 263           * Output       : none
+ 264           * Return               : none
+ 265           ************************************************************************/      
+ 266          void gtimer2_start(void)
+ 267          {
+ 268   1              REG_GTIM2_CR0 |= (1<<0);                                        //使能计数器
+ 269   1      }
+ 270          
+ 271          /***********************************************************************
+ 272           * Function     : gtimer2_stop
+ 273           * Description  : gtimer2_stop  停止GTIMER2计数器
+ 274           * Input                : none
+ 275           * Output               : none
+ 276           * Return               : none
+ 277           ***********************************************************************/
+ 278          void gtimer2_stop(void)
+ 279          {
+ 280   1              REG_GTIM2_CR0 &= ~(1<<0);                                       //不使能计数器
+ 281   1      }
+ 282          
+ 283          
+ 284          
+ 285           
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    697    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      9       7
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

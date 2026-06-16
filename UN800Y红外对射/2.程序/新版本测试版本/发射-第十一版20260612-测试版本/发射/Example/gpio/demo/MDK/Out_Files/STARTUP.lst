@@ -1,4 +1,4 @@
-A51 MACRO ASSEMBLER  STARTUP                                                              01/30/2026 10:34:39 PAGE     1
+A51 MACRO ASSEMBLER  STARTUP                                                              06/12/2026 19:04:05 PAGE     1
 
 
 MACRO ASSEMBLER A51 V8.2.7.0
@@ -65,7 +65,7 @@ LOC  OBJ            LINE     SOURCE
                       55     ;
                       56     ; <h> Stack Space for reentrant functions in the SMALL model.
                       57     ;  <q> IBPSTACK: Enable SMALL model reentrant stack
-A51 MACRO ASSEMBLER  STARTUP                                                              01/30/2026 10:34:39 PAGE     2
+A51 MACRO ASSEMBLER  STARTUP                                                              06/12/2026 19:04:05 PAGE     2
 
                       58     ;     <i> Stack space for reentrant functions in the SMALL model.
   0000                59     IBPSTACK        EQU     0      ; set to 1 if small reentrant is used. 使用SMALL存储器模式再
@@ -133,7 +133,7 @@ LOC  OBJ            LINE     SOURCE
 ----                 119                     RSEG    ?STACK                   ; 堆栈
 0000                 120                     DS      1
                      121     
-A51 MACRO ASSEMBLER  STARTUP                                                              01/30/2026 10:34:39 PAGE     3
+A51 MACRO ASSEMBLER  STARTUP                                                              06/12/2026 19:04:05 PAGE     3
 
                      122                     EXTRN CODE (?C_START)            ; 程序开始地址
                      123                     PUBLIC  ?C_STARTUP
@@ -201,7 +201,7 @@ LOC  OBJ            LINE     SOURCE
                              ENDIF
                      184     
                      185     IF PBPSTACK <> 0
-A51 MACRO ASSEMBLER  STARTUP                                                              01/30/2026 10:34:39 PAGE     4
+A51 MACRO ASSEMBLER  STARTUP                                                              06/12/2026 19:04:05 PAGE     4
 
                              EXTRN DATA (?C_PBP)
                                              MOV     ?C_PBP,#LOW PBPSTACKTOP
@@ -225,7 +225,7 @@ LOC  OBJ            LINE     SOURCE
 0009 020000   F      205                     LJMP    ?C_START
                      206     
                      207                     END
-A51 MACRO ASSEMBLER  STARTUP                                                              01/30/2026 10:34:39 PAGE     5
+A51 MACRO ASSEMBLER  STARTUP                                                              06/12/2026 19:04:05 PAGE     5
 
 SYMBOL TABLE LISTING
 ------ ----- -------

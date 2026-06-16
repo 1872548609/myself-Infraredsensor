@@ -27,7 +27,7 @@ void main(void)
 	GPIO_Init();
 	uart_init();
 	
-	pwm2_init(16000,800,LOW);// 16M /sysclk * 400 = T
+	pwm2_init(24000,1200,LOW);// 16M /sysclk * 400 = T
 	pwm2_start();
     
 	while(1) 

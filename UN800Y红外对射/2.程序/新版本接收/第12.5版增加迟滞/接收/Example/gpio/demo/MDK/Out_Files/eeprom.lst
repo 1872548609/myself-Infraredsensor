@@ -1,0 +1,149 @@
+C51 COMPILER V9.57.0.0   EEPROM                                                            06/16/2026 15:09:00 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE EEPROM
+OBJECT MODULE PLACED IN .\Out_Files\eeprom.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\eeprom.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE 
+                    -INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Fi
+                    -les\eeprom.lst) OBJECT(.\Out_Files\eeprom.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : eflash.c
+   5           * Description : eflash driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-29
+   9           ***********************************************************************/
+  10          #include  "eeprom.h"
+  11          
+  12          void eeprom_init(uint32_t system_clk_hz)  
+  13          {       
+  14   1              uint8_t system_clk_mhz;
+  15   1              
+  16   1              if(system_clk_hz < 2000000)
+  17   1              {
+  18   2                      return;
+  19   2              }
+  20   1              
+  21   1              system_clk_mhz = system_clk_hz/1000000;
+  22   1              
+  23   1              OPSET |= (0<<3);                                 //RD_WAIT = 0
+  24   1          
+  25   1              if(((*(volatile uint8_t xdata *)(0x9000+0x1B0)) ) == ~((*(volatile uint8_t xdata *)(0x9000+0x1B0+2))))
+  26   1          {
+  27   2              OUS = (*(volatile uint8_t xdata *)(0x9000+0x1B0));
+  28   2          }
+  29   1          else
+  30   1          {
+  31   2              OUS = 0x0f;      
+  32   2          }
+  33   1              
+  34   1              OINTUS = 0x3f;                                   //清除所有中断标志位
+  35   1              OINTEN = 0x00;                                   //关闭所有中断功能
+  36   1                      
+  37   1      }
+  38          
+  39          void eeprom_erase_page(uint16_t page_addr)      
+  40          {
+  41   1              OPSET &= ~(7<<0);
+  42   1              OPSET |= EFC_NVR_SET_MODE;              //开启eeprom擦写使能
+  43   1              OPSET |= EFC_PAGE_ERASE_MODE;           //开启page擦除模式
+  44   1              OADR = page_addr;
+  45   1              OCTRL |= (0x1<<3);                                      //PUMP_SEL = 6.75v
+  46   1              OCTRL |= (1<<6);                                        //PUMP_EN=1
+  47   1              while(!(OCTRL & (1<<1)));                       //wait for PUMP OK
+  48   1              OCTRL |= (1<<7);                                        //VPPO_EN = 1
+  49   1              while((OCTRL & (1<<7)));                        //wait for VPPO_EN = 0
+  50   1              OCTRL &= ~(1<<6);                                       //PUMP_EN=0
+  51   1              OPSET &= ~EFC_PAGE_ERASE_MODE;          //关闭page擦除模式
+  52   1              OPSET &= ~EFC_NVR_SET_MODE;             //关闭eeprom擦写使能
+  53   1      }
+C51 COMPILER V9.57.0.0   EEPROM                                                            06/16/2026 15:09:00 PAGE 2   
+
+  54          
+  55          void eeprom_write_byte(uint16_t addr,uint8_t value)      
+  56          {
+  57   1              OPSET &= ~(7<<0);
+  58   1              OPSET |= EFC_NVR_SET_MODE;              //开启eeprom擦写使能
+  59   1              OPSET |= EFC_WRITE_MODE;                        //使能写模式    
+  60   1              OADR = addr;
+  61   1              ODATA = value;
+  62   1              OCTRL |= (0x1<<3);                                      //PUMP_SEL = 6.75v
+  63   1              OCTRL |= (1<<6);                                        //PUMP_EN=1
+  64   1              while(!(OCTRL & (1<<1)));                       //wait for PUMP OK;
+  65   1              OCTRL |= (1<<7);                                        //VPPO_EN = 1
+  66   1              while((OCTRL & (1<<7)));                        //wait for VPPO_EN = 0
+  67   1              OCTRL &= ~(1<<6);                                       //PUMP_EN=0
+  68   1      
+  69   1              OPSET &= ~EFC_WRITE_MODE;                       //关闭写模式
+  70   1              OPSET &= ~EFC_NVR_SET_MODE;             //关闭eeprom擦写使能
+  71   1              
+  72   1      }
+  73          
+  74          void eeprom_write_bytes(uint16_t addr, uint8_t *buff, uint32_t length)   
+  75          { 
+  76   1              OPSET &= ~(7<<0);
+  77   1              OPSET |= EFC_NVR_SET_MODE;              //开启eeprom擦写使能
+  78   1              OPSET |= EFC_WRITE_MODE;                        //使能写模式 
+  79   1          while(length--)
+  80   1          {
+  81   2              OADR = addr++;
+  82   2              ODATA = *buff++;
+  83   2              OCTRL |= (0x1<<3);                              //PUMP_SEL = 6.75v
+  84   2              OCTRL |= (1<<6);                                //PUMP_EN=1
+  85   2              while(!(OCTRL & (1<<1)));           //wait for PUMP OK;
+  86   2              OCTRL |= (1<<7);                                //VPPO_EN = 1
+  87   2              while((OCTRL & (1<<7)));            //wait for VPPO_EN = 0
+  88   2              OCTRL &= ~(1<<6);                               //PUMP_EN=0     
+  89   2          }
+  90   1              OPSET &= ~EFC_WRITE_MODE;                       //关闭写模式
+  91   1              OPSET &= ~EFC_NVR_SET_MODE;             //关闭eeprom擦写使能
+  92   1      }
+  93          
+  94          uint8_t eeprom_read_byte(uint16_t addr)
+  95          {
+  96   1              uint8_t value;
+  97   1      
+  98   1              value = (*(volatile uint8_t xdata *)(addr));
+  99   1            
+ 100   1              return value;
+ 101   1      
+ 102   1      }
+ 103          
+ 104          uint32_t eeprom_read_bytes(uint16_t addr, uint8_t *buff, uint32_t length)
+ 105          {
+ 106   1              uint32_t index;
+ 107   1          
+ 108   1          for(index = 0; index<length; index++)
+ 109   1          {
+ 110   2              buff[index] = (*(volatile uint8_t xdata *)(addr+index));        
+ 111   2          }
+ 112   1              
+ 113   1              return index;
+ 114   1      }
+ 115          
+C51 COMPILER V9.57.0.0   EEPROM                                                            06/16/2026 15:09:00 PAGE 3   
+
+ 116          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    387    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----      27
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
