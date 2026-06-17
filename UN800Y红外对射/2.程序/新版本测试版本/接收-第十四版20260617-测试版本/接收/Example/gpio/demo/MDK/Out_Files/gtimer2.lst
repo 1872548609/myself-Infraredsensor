@@ -1,4 +1,4 @@
-C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 05:29:13 PAGE 1   
+C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 06:19:13 PAGE 1   
 
 
 C51 COMPILER V9.54, COMPILATION OF MODULE GTIMER2
@@ -62,7 +62,7 @@ line level    source
   51   2        }
   52   1      } 
   53          
-C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 05:29:13 PAGE 2   
+C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 06:19:13 PAGE 2   
 
   54          
   55          
@@ -126,7 +126,7 @@ line level    source
  113   1                
  114   1        REG_GTIM2_ARRN1 = ((arr-1)>>8)&0xFF;    //高8位 自动装载值 
  115   1        REG_GTIM2_ARRN0 = (arr-1)&0xFF;         //低8位 自动装载值 
-C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 05:29:13 PAGE 3   
+C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 06:19:13 PAGE 3   
 
  116   1                
  117   1        REG_GTIM2_CCR1 = (ccr>>8)&0xFF;     //高8位 比较寄存器 
@@ -190,7 +190,7 @@ line level    source
  175           * Function     : gtimer2_bke_init
  176           * Description  : gtimer2_bke_init GTIMER2刹车
  177           * Input    : none
-C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 05:29:13 PAGE 4   
+C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 06:19:13 PAGE 4   
 
  178           * Output   : none
  179           * Return   : none
@@ -254,7 +254,7 @@ line level    source
  237   1        {
  238   2          switch(gtimer_irq_type)
  239   2          {
-C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 05:29:13 PAGE 5   
+C51 COMPILER V9.54   GTIMER2                                                               06/18/2026 06:19:13 PAGE 5   
 
  240   3            case GTIMER2_UIE_IRQ:
  241   3                gtimer2_callback[0] = pfunc;

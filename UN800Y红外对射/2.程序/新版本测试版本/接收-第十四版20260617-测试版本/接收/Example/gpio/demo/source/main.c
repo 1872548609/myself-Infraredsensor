@@ -1194,40 +1194,58 @@ static void rx_process_adc_window(void)
 
     if (adc_ok)
     {
-        /*
-         * 只要一个窗口被认为有效，遮光连续无效计数就会清零。
-         * 所以遮光偶尔不判断时，要看遮光后 adc_ok 是否偶尔仍为 1。
-         */
-        rx_lost_window_count = 0U;//== 清除无效计数
+//        rx_lost_window_count = 0U;//== 清除无效计数
 
-        if (rx_valid_count < RX_CONFIRM_COUNT)//== 追加有效计数
+//        if (rx_valid_count < RX_CONFIRM_COUNT)//== 追加有效计数
+//        {
+//            rx_valid_count++;
+//        }
+
+//        if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))//== 如果是遮光并且有效计数大于有效值
+//        {
+//            rx_light_state = 1U;
+//            rx_output_light();//== 输出
+//        }
+			
+				if (rx_valid_count < RX_CONFIRM_COUNT)//== 追加有效计数
         {
             rx_valid_count++;
-        }
-
-        if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))//== 如果是遮光并且有效计数大于有效值
-        {
-            rx_light_state = 1U;
-            rx_output_light();//== 输出
         }
     }
     else//== 小于比较应差判断遮光
     {
-        rx_valid_count = 0U;//== 清除有效计数
+//        rx_valid_count = 0U;//== 清除有效计数
 
-        if (rx_lost_window_count < RX_LOST_WINDOW_COUNT)//== 无效计数达到一定数量判断输出
-        {
-            rx_lost_window_count++;
-        }
+//        if (rx_lost_window_count < RX_LOST_WINDOW_COUNT)//== 无效计数达到一定数量判断输出
+//        {
+//            rx_lost_window_count++;
+//        }
 
-        if (rx_lost_window_count >= RX_LOST_WINDOW_COUNT)
+//        if (rx_lost_window_count >= RX_LOST_WINDOW_COUNT)
+//        {
+//            /*
+//             * 正常 ADC 遮光路径最终到这里。
+//             */
+//            rx_enter_block_state(UART_DBG_REASON_TIMEOUT);//== 遮光状态重新等同步
+//        }
+        
+        if (rx_valid_count)
         {
-            /*
-             * 正常 ADC 遮光路径最终到这里。
-             */
-            rx_enter_block_state(UART_DBG_REASON_TIMEOUT);//== 遮光状态重新等同步
+           rx_valid_count--;
         }
     }
+		
+		//== 新逻辑三次有效输出
+		if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))//== 如果是遮光并且有效计数大于有效值
+		{
+				rx_light_state = 1U;
+				rx_output_light();//== 输出
+		}
+		else
+		{
+
+        rx_enter_block_state(UART_DBG_REASON_TIMEOUT);//== 遮光状态重新等同步
+		}
 
     
     if (rx_seen_once != 0U)//== 已经同步记录窗口次数，超过窗口次数强制同步
