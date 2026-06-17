@@ -1051,9 +1051,6 @@ static void rx_force_resync_from_main(void)
      */
     rx_timer_stop_clear();
 
-    /* 重新打开 P1_4，等待下一次发射脉冲边沿重新同步。 */
-    rx_sync_irq_enable();
-
     /*
      * 当前仍然处于有光输出状态，开始 2ms 同步等待超时。
      * 如果 2ms 内没有新的 P1_4 同步边沿，主循环会判定遮光。
@@ -1062,6 +1059,9 @@ static void rx_force_resync_from_main(void)
     {
         rx_sync_timeout_timer_start();
     }
+		
+		 /* 重新打开 P1_4，等待下一次发射脉冲边沿重新同步。 */
+    rx_sync_irq_enable();
 }
 
 
@@ -1320,22 +1320,6 @@ static void uart_adc_debug_process(void)
  * 十一、主函数
  *====================================================================*/
 
-/*
- * 主函数。
- *
- * 主循环只做四类 pending 处理：
- * 1. rx_sync_pending：GPIO 同步边沿来了，启动周期窗口。
- * 2. rx_sync_wait_timeout_pending：强制重同步等待超时，判定遮光。
- * 3. rx_window_pending：GTIMER0 到点了，处理 ADC 窗口。
- * 4. rx_resync_pending：达到重同步周期，停掉 ADC 窗口并等待 P1_4。
- *
- * 排查主线：
- * 遮光不判断时，需要判断卡在哪个 pending：
- * - rx_window_pending 不来：GTIMER0 没跑或 rx_seen_once=0。
- * - rx_window_pending 来但 adc_ok=1：ADC/阈值/窗口问题。
- * - rx_resync_pending 频繁：强制重同步太频繁。
- * - rx_sync_wait_timeout_pending 不来：GTIMER1 超时链路问题。
- */
 void main(void)
 {
     system_init();
@@ -1527,10 +1511,6 @@ void GPIO_IRQHandler(void) interrupt 0
     if (gpio_irq_get(P1_4))
     {
         gpio_irq_clr(P1_4);
-
-#if UART_ADC_DEBUG_ENABLE
-        uart_debug_inc16(&g_dbg_irq_count);
-#endif
 
         /* 已同步运行时不再用 P1_4 参与判断。 */
         if ((rx_seen_once != 0U) ||
