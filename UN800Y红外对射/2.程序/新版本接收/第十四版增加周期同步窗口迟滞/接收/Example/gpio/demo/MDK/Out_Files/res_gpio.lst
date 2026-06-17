@@ -1,0 +1,61 @@
+C51 COMPILER V9.57.0.0   RES_GPIO                                                          06/17/2026 16:01:47 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE RES_GPIO
+OBJECT MODULE PLACED IN .\Out_Files\res_gpio.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\res_gpio.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\.
+                    -.\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\res_gpi
+                    -o.lst) OBJECT(.\Out_Files\res_gpio.obj)
+
+line level    source
+
+   1          #include "res_gpio.h"
+   2          
+   3          
+   4          
+   5          
+   6          void res_gpio_test(void)
+   7          {
+   8   1              delay1ms(4000);
+   9   1              
+  10   1              ESTCR &= ~(1<<3);                                                                       //P0_2外部复位功能禁止
+  11   1              gpio_init(P0_2);                  //P0_2初始化
+  12   1              gpio_dir_set(P0_2, GPIO_DIR_OUT); //配置P0_2为输出
+  13   1              
+  14   1              while(1)
+  15   1              {
+  16   2                      gpio_io_set(P0_2, GPIO_HIGH);                                           
+  17   2                      delay1ms(1000);
+  18   2                      
+  19   2                      gpio_io_set(P0_2, GPIO_LOW); 
+  20   2                      delay1ms(1000);
+  21   2              }
+  22   1      }
+  23          
+  24          
+  25          
+  26          
+  27          
+  28          
+  29          
+  30          
+  31          
+  32          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     64    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

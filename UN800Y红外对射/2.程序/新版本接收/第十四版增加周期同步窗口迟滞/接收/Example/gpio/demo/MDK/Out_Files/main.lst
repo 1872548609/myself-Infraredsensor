@@ -1,0 +1,1280 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Out_Files\main.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..
+                    -\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\main.lst) O
+                    -BJECT(.\Out_Files\main.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * UM800Y 红外对射接收端 main.c
+   3           *
+   4           * 本版本逻辑：
+   5           * 1. P1_4 只作为“首次同步边沿”。捕获到一次比较器脉冲后，认为已经对齐发射周期。
+   6           * 2. 同步后关闭 P1_4 同步中断，启动 GTIMER0，但第一次溢出使用可调起点间隔。
+   7           * 3. 起点间隔由 RX_FIRST_WINDOW_DELAY_TICK 设置，用于补偿同步中断带来的相位延迟。
+   8           * 4. 第一次窗口触发后，后续仍然按 RX_WINDOW_INTERVAL_TICK 周期触发，默认每 1ms 一次。
+   9           * 5. ADC 扫描窗口宽度由 RX_ADC_WINDOW_WIDTH_TICK 设置，窗口内连续读取 ADC，做积分平均。
+  10           * 6. 最终使用“窗口平均 ADC”进入原来的 ADC 迟滞判断。
+  11           * 7. 连续 RX_CONFIRM_COUNT 个有效窗口确认有光；连续 RX_LOST_WINDOW_COUNT 个无效窗口判定遮光。
+  12           * 8. 遮光后停止 GTIMER0，重新打开 P1_4 同步中断，等待下一次来光重新同步。
+  13           *
+  14           * 重要参数：
+  15           * - RX_FIRST_WINDOW_DELAY_TICK：同步中断后的第一次窗口起点间隔。
+  16           * - RX_WINDOW_INTERVAL_TICK：第一次窗口之后的窗口间隔周期，默认 1000us。
+  17           * - RX_ADC_WINDOW_WIDTH_TICK：ADC 连续扫描窗口宽度，默认 40us。
+  18           * - RX_CONFIRM_COUNT：连续有效窗口确认有光次数。
+  19           * - RX_LOST_WINDOW_COUNT：连续无效窗口判定遮光次数。
+  20           *
+  21           * 注意：
+  22           * 本方案不再在 P1_4 中断里读 ADC，避免 ADC 采样时机被外部中断抖动影响。
+  23           * P1_4 只负责第一次同步；真正的 ADC 判断由定时器窗口完成。
+  24           ***********************************************************************/
+  25          
+  26          #include "system_um800y.h"
+  27          #include "app.h"
+  28          #include "gtimer.h"
+  29          #include "pwm.h"
+  30          #include "common.h"
+  31          #include "config.h"
+  32          #include "gpio.h"
+  33          #include "adc.h"
+  34          
+  35          
+  36          /*======================================================================
+  37           * 一、接收算法参数
+  38           *====================================================================*/
+  39          
+  40          /*
+  41           * 系统主频 24MHz，GTIMER0 使用 24 分频：
+  42           * 24MHz / 24 = 1MHz，1 tick = 1us。
+  43           */
+  44          
+  45          #define RX_CONFIRM_COUNT              3U
+  46          
+  47          /*
+  48           * 定时器窗口间隔周期。
+  49           * 默认 1000us，也就是同步后每隔 1ms 打开一次 ADC 扫描窗口。
+  50           * 如果发射端周期不是 1ms，只需要改这里。
+  51           */
+  52          #define RX_WINDOW_INTERVAL_TICK       1000U
+  53          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 2   
+
+  54          /*
+  55           * 同步中断后的第一次窗口起点间隔。
+  56           *
+  57           * 这个参数只影响“同步后的第一次 ADC 窗口”。
+  58           * 第一次窗口之后，后续窗口仍然保持 RX_WINDOW_INTERVAL_TICK，也就是 1000us。
+  59           *
+  60           * 调试方法：
+  61           * - 如果示波器看到 ADC 窗口整体偏后，就把这里调小，例如 950、900、850。
+  62           * - 如果示波器看到 ADC 窗口整体偏前，就把这里调大，最大不要超过 RX_WINDOW_INTERVAL_TICK。
+  63           *
+  64           * 例：
+  65           * - 1000U：等同旧版，同步后 1000us 才打开第一次窗口。
+  66           * - 900U ：同步后 900us 打开第一次窗口，相当于后续相位整体提前 100us。
+  67           */
+  68          #define RX_FIRST_WINDOW_DELAY_TICK    900U
+  69          
+  70          /*
+  71           * ADC 连续扫描窗口宽度。
+  72           * 默认 40us。
+  73           *
+  74           * 发射有效脉宽约 25us 时：
+  75           * - 窗口太小：容易因为相位偏差漏掉脉冲；
+  76           * - 窗口太大：平均值会被窗口内的低电平拉低，需要适当降低 adc_set；
+  77           * - 建议先用 30~60us 调试。
+  78           */
+  79          #define RX_ADC_WINDOW_WIDTH_TICK      100U
+  80          
+  81          /*
+  82           * 连续多少个 ADC 窗口无效后判定遮光。
+  83           * 默认 3 个窗口，即约 3ms 遮光确认，响应约 333Hz。
+  84           * 如果想更快，可以改 2；如果现场抖动明显，可以改 4 或 5。
+  85           */
+  86          #define RX_LOST_WINDOW_COUNT          3U
+  87          
+  88          /*
+  89           * 周期性强制重新同步功能。
+  90           *
+  91           * 作用：
+  92           * 同步后虽然 GTIMER0 每 1ms 周期本身稳定，但接收端本地定时器和发射端周期
+  93           * 之间可能有微小频差，累计一段时间后 ADC 窗口会相对发射脉冲慢慢漂移。
+  94           * 所以每处理 RX_RESYNC_WINDOW_COUNT 个窗口后，主动退出当前 1ms 周期采样，
+  95           * 重新打开 P1_4 同步中断，等下一次发射脉冲边沿重新校准相位。
+  96           *
+  97           * 注意：
+  98           * 强制重同步不会把输出拉成遮光，只是暂停周期窗口并等待下一次同步边沿。
+  99           * 如果确实已经遮光，则仍然由 RX_LOST_WINDOW_COUNT 个无效窗口走遮光逻辑。
+ 100           *
+ 101           * 默认 100 个周期，即约每 100ms 重新同步一次。
+ 102           * 如果漂移很快，可以改 50 或 20；如果现场很稳，可以改 200。
+ 103           */
+ 104          #define RX_RESYNC_ENABLE              1U
+ 105          #define RX_RESYNC_WINDOW_COUNT        3U
+ 106          
+ 107          /*
+ 108           * 强制重同步等待超时。
+ 109           * 周期性强制重同步时，接收端会停止 GTIMER0 窗口采样并重新打开 P1_4。
+ 110           * 如果 2ms 内没有收到新的 P1_4 同步边沿，就认为当前已经遮光。
+ 111           * 这个超时只用于“已经有光后的强制重同步等待期”，上电遮光等待不启动。
+ 112           */
+ 113          #define RX_SYNC_WAIT_TIMEOUT_TICK     2000U
+ 114          
+ 115          /*
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 3   
+
+ 116           * 是否在同步边沿后立刻补采一个窗口。
+ 117           * 0：只从下一个 1ms 周期开始采样，时序更干净。
+ 118           * 1：同步后马上采一次，来光确认更快，但可能刚好处于脉冲尾部。
+ 119           */
+ 120          #define RX_FIRST_WINDOW_IMMEDIATE     0U
+ 121          
+ 122          /*
+ 123           * 如果你的 gpio_irq_set() 库没有定义 GPIO_IRQ_DISABLE，通常 0 就是关闭。
+ 124           */
+ 125          #ifndef GPIO_IRQ_DISABLE
+              #define GPIO_IRQ_DISABLE              0U
+              #endif
+ 128          
+ 129          
+ 130          /*======================================================================
+ 131           * 二、ADC 迟滞参数
+ 132           *====================================================================*/
+ 133          
+ 134          #define RX_ADC_HYS_ENABLE             1U
+ 135          #define RX_ADC_HYS_VALUE              120U
+ 136          
+ 137          #ifndef ADC_INVALID
+              #define ADC_INVALID                   4095U
+              #endif
+ 140          
+ 141          #ifndef ADC_MAX_VALUE
+ 142          #define ADC_MAX_VALUE                 4095U
+ 143          #endif
+ 144          
+ 145          #define RX_ADC_MAX_VALID              (ADC_INVALID - 2U)
+ 146          
+ 147          
+ 148          /*======================================================================
+ 149           * 三、串口调试参数
+ 150           *====================================================================*/
+ 151          
+ 152          #define UART_ADC_DEBUG_ENABLE              0U
+ 153          #define UART_ADC_DEBUG_EVENT_DIV           100U
+ 154          #define UART_ADC_DEBUG_STATE_CHANGE_PRINT  1U
+ 155          
+ 156          #define UART_DBG_REASON_BOOT               1U
+ 157          #define UART_DBG_REASON_SYNC               2U
+ 158          #define UART_DBG_REASON_ADC_FAIL           3U
+ 159          #define UART_DBG_REASON_VALID_WINDOW       4U
+ 160          #define UART_DBG_REASON_LIGHT_ON           5U
+ 161          #define UART_DBG_REASON_TIMEOUT            6U
+ 162          #define UART_DBG_REASON_WINDOW_OVERRUN     7U
+ 163          #define UART_DBG_REASON_RESYNC             8U
+ 164          #define UART_DBG_REASON_SYNC_TIMEOUT       9U
+ 165          
+ 166          
+ 167          /**** 全局变量，保留原命名 ****/
+ 168          
+ 169          volatile uint16_t adc_data  = 0;      /* 最近一次 ADC 窗口平均值 */
+ 170          volatile uint16_t adc_data1 = 0;      /* 最近一次 ADC 窗口采样次数，方便调试 */
+ 171          
+ 172          /* 当前 ADC 有效阈值。窗口平均后幅值会低于峰值，必要时需要重新标定这个值。 */
+ 173          volatile uint16_t adc_set = 200;
+ 174          
+ 175          uint16_t status   = 0;
+ 176          uint16_t adcount  = 0;
+ 177          uint16_t adcount1 = 0;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 4   
+
+ 178          
+ 179          
+ 180          /* 接收状态 */
+ 181          static volatile uint8_t rx_valid_count       = 0;     /* 连续有效窗口计数 */
+ 182          static volatile uint8_t rx_lost_window_count = 0;     /* 连续无效窗口计数 */
+ 183          static volatile uint8_t rx_light_state       = 0;     /* 0 = 遮光/无光，1 = 有光 */
+ 184          static volatile uint8_t rx_seen_once         = 0;     /* 0 = 等待同步，1 = 已同步并运行窗口采样 */
+ 185          
+ 186          /* 定时器中断置位，主循环执行 ADC 窗口扫描 */
+ 187          static volatile uint8_t rx_window_pending    = 0;
+ 188          
+ 189          /* GPIO_IRQHandler only sets this flag; main loop performs sync start to avoid calling gpio_irq_set() insi
+             -de ISR. */
+ 190          static volatile uint8_t rx_sync_pending      = 0;
+ 191          
+ 192          /* 周期性重同步请求：由主循环处理，避免在中断上下文调用 gpio_irq_set()。 */
+ 193          static volatile uint8_t rx_resync_pending    = 0;
+ 194          
+ 195          /*
+ 196           * 强制重同步等待 P1_4 边沿期间的 2ms 超时标志。
+ 197           * GTIMER1 中断只置位，主循环里真正执行遮光处理，避免在中断里调用 GPIO 库函数。
+ 198           */
+ 199          static volatile uint8_t rx_sync_wait_timeout_pending = 0;
+ 200          static volatile uint8_t rx_sync_wait_timer_running   = 0;
+ 201          
+ 202          /* 已同步后累计处理的 ADC 窗口个数，用于按周期数强制重新同步。 */
+ 203          static volatile uint16_t rx_resync_window_count = 0;
+ 204          
+ 205          /* ADC 迟滞状态：0 = ADC 当前认为无效，1 = ADC 当前认为有效 */
+ 206          static volatile uint8_t rx_adc_valid_state   = 0;
+ 207          
+ 208          /* 1 = 下一次 GTIMER0 溢出是同步后的第一次起点间隔窗口 */
+ 209          static volatile uint8_t rx_first_interval_pending = 0;
+ 210          
+ 211          /* 最近一次触发窗口的实际间隔，单位 us；第一次可能不是 1000us */
+ 212          static volatile uint16_t rx_last_trigger_interval_tick = 0;
+ 213          
+ 214          /* Cached first-window delay, written in main context and read by GTIMER0 ISR. */
+ 215          static volatile uint16_t rx_first_delay_cached_tick = RX_FIRST_WINDOW_DELAY_TICK;
+ 216          
+ 217          
+ 218          /*======================================================================
+ 219           * 四、串口调试变量
+ 220           *====================================================================*/
+ 221          
+ 222          static volatile uint16_t g_dbg_last_elapsed_tick = 0;  /* 当前窗口间隔，单位 us */
+ 223          static volatile uint8_t  g_dbg_last_adc_ok       = 0;
+ 224          
+ 225          #if UART_ADC_DEBUG_ENABLE
+              
+              static volatile uint8_t  g_uart_debug_need_print = 0;
+              static volatile uint8_t  g_uart_debug_div_count  = 0;
+              static volatile uint8_t  g_uart_debug_reason     = 0;
+              
+              static volatile uint16_t g_dbg_irq_count         = 0;  /* 同步中断次数 */
+              static volatile uint16_t g_dbg_short_edge_count  = 0;  /* 这里改成窗口丢失/积压次数 */
+              static volatile uint16_t g_dbg_adc_fail_count    = 0;  /* ADC 窗口无效次数 */
+              static volatile uint16_t g_dbg_valid_pulse_count = 0;  /* ADC 窗口有效次数 */
+              static volatile uint16_t g_dbg_timeout_count     = 0;  /* 遮光次数 */
+              
+              #endif
+ 238          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 5   
+
+ 239          
+ 240          /*======================================================================
+ 241           * 五、函数声明
+ 242           *====================================================================*/
+ 243          
+ 244          void gtimer0_UECallBack(void);
+ 245          void gtimer1_UECallBack(void);
+ 246          void GPIO_Init(void);
+ 247          void ADC_Init(void);
+ 248          void gpio_int_pro(void);
+ 249          void gpio_UECallBack(void);
+ 250          
+ 251          static uint16_t rx_timer_get_count(void);
+ 252          static uint16_t rx_timer_elapsed_from(uint16_t start_tick);
+ 253          static uint16_t rx_first_delay_get(void);
+ 254          static uint16_t rx_first_delay_to_timer_preload(uint16_t first_delay_tick);
+ 255          static void rx_timer_stop_clear(void);
+ 256          static void rx_timer_restart_with_preload(uint16_t preload_tick);
+ 257          static void rx_timer_restart_with_first_delay(void);
+ 258          static void rx_sync_timeout_timer_stop_clear(void);
+ 259          static void rx_sync_timeout_timer_start(void);
+ 260          static void rx_sync_irq_enable(void);
+ 261          static void rx_sync_irq_disable(void);
+ 262          static void rx_output_light(void);
+ 263          static void rx_output_block(void);
+ 264          static uint16_t rx_adc_read_once(uint8_t ch);
+ 265          static uint16_t rx_adc_scan_window_average(uint8_t ch, uint16_t window_tick, uint16_t *sample_count);
+ 266          static uint16_t rx_adc_calc_off_threshold(void);
+ 267          static uint8_t rx_adc_hysteresis_check(uint16_t adc);
+ 268          static void rx_start_periodic_window_from_sync(void);
+ 269          static void rx_enter_block_state(uint8_t debug_reason);
+ 270          static void rx_force_resync_from_main(void);
+ 271          static void rx_handle_sync_wait_timeout_from_main(void);
+ 272          static void rx_resync_count_after_window(uint8_t adc_ok);
+ 273          static void rx_process_adc_window(void);
+ 274          
+ 275          #if UART_ADC_DEBUG_ENABLE
+              static void uart_debug_inc16(volatile uint16_t *value);
+              static void uart_debug_request(uint8_t reason, uint8_t force);
+              static void uart_adc_debug_process(void);
+              #else
+ 280          #define uart_debug_request(reason, force)     ((void)0)
+ 281          #define uart_adc_debug_process()              ((void)0)
+ 282          #endif
+ 283          
+ 284          
+ 285          /*======================================================================
+ 286           * 六、定时器与同步中断工具函数
+ 287           *====================================================================*/
+ 288          
+ 289          static uint16_t rx_timer_get_count(void)
+ 290          {
+ 291   1          uint16_t cnt;
+ 292   1      
+ 293   1          cnt  = REG_GTIM0_CNT0;
+ 294   1          cnt |= ((uint16_t)REG_GTIM0_CNT1 << 8);
+ 295   1      
+ 296   1          return cnt;
+ 297   1      }
+ 298          
+ 299          
+ 300          static uint16_t rx_timer_elapsed_from(uint16_t start_tick)
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 6   
+
+ 301          {
+ 302   1          uint16_t now_tick;
+ 303   1          uint16_t elapsed;
+ 304   1      
+ 305   1          now_tick = rx_timer_get_count();
+ 306   1      
+ 307   1          if (now_tick >= start_tick)
+ 308   1          {
+ 309   2              elapsed = (uint16_t)(now_tick - start_tick);
+ 310   2          }
+ 311   1          else
+ 312   1          {
+ 313   2              /* GTIMER0 在 RX_WINDOW_INTERVAL_TICK 周期回卷。 */
+ 314   2              elapsed = (uint16_t)((RX_WINDOW_INTERVAL_TICK - start_tick) + now_tick);
+ 315   2          }
+ 316   1      
+ 317   1          return elapsed;
+ 318   1      }
+ 319          
+ 320          
+ 321          static uint16_t rx_first_delay_get(void)
+ 322          {
+ 323   1          uint16_t first_delay_tick;
+ 324   1      
+ 325   1          first_delay_tick = RX_FIRST_WINDOW_DELAY_TICK;
+ 326   1      
+ 327   1          /*
+ 328   1           * 0us 容易造成定时器重装异常。
+ 329   1           * 如果确实要同步后马上补采，使用 RX_FIRST_WINDOW_IMMEDIATE。
+ 330   1           */
+ 331   1          if (first_delay_tick == 0U)
+ 332   1          {
+ 333   2              first_delay_tick = 1U;
+ 334   2          }
+ 335   1      
+ 336   1          /*
+ 337   1           * 这里做保护：起点间隔最大不超过后续周期。
+ 338   1           * 本需求主要用于“前移一点”，所以通常应小于 1000us。
+ 339   1           */
+ 340   1          if (first_delay_tick > RX_WINDOW_INTERVAL_TICK)
+ 341   1          {
+ 342   2              first_delay_tick = RX_WINDOW_INTERVAL_TICK;
+ 343   2          }
+ 344   1      
+ 345   1          return first_delay_tick;
+ 346   1      }
+ 347          
+ 348          
+ 349          static uint16_t rx_first_delay_to_timer_preload(uint16_t first_delay_tick)
+ 350          {
+ 351   1          /*
+ 352   1           * GTIMER0 的自动重装周期仍然保持 RX_WINDOW_INTERVAL_TICK。
+ 353   1           * 想让第一次溢出提前到 first_delay_tick，
+ 354   1           * 只需要在启动定时器时把 CNT 预装到：
+ 355   1           *
+ 356   1           *     RX_WINDOW_INTERVAL_TICK - first_delay_tick
+ 357   1           *
+ 358   1           * 这样第一次溢出后，硬件自然回到 0，
+ 359   1           * 后续就继续每 RX_WINDOW_INTERVAL_TICK 溢出一次。
+ 360   1           */
+ 361   1          if (first_delay_tick >= RX_WINDOW_INTERVAL_TICK)
+ 362   1          {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 7   
+
+ 363   2              return 0U;
+ 364   2          }
+ 365   1      
+ 366   1          return (uint16_t)(RX_WINDOW_INTERVAL_TICK - first_delay_tick);
+ 367   1      }
+ 368          
+ 369          
+ 370          static void rx_timer_stop_clear(void)
+ 371          {
+ 372   1          REG_GTIM0_CR0 &= ~(1 << 0);
+ 373   1      
+ 374   1          REG_GTIM0_CNT0 = 0x00;
+ 375   1          REG_GTIM0_CNT1 = 0x00;
+ 376   1      }
+ 377          
+ 378          
+ 379          
+ 380          static void rx_timer_restart_with_preload(uint16_t preload_tick)
+ 381          {
+ 382   1          REG_GTIM0_CR0 &= ~(1 << 0);
+ 383   1      
+ 384   1          REG_GTIM0_CNT0 = (uint8_t)(preload_tick & 0x00FFU);
+ 385   1          REG_GTIM0_CNT1 = (uint8_t)((preload_tick >> 8) & 0x00FFU);
+ 386   1      
+ 387   1          REG_GTIM0_CR0 |= (1 << 0);
+ 388   1      }
+ 389          
+ 390          
+ 391          static void rx_timer_restart_with_first_delay(void)
+ 392          {
+ 393   1          uint16_t first_delay_tick;
+ 394   1          uint16_t preload_tick;
+ 395   1      
+ 396   1          first_delay_tick = rx_first_delay_get();
+ 397   1          preload_tick     = rx_first_delay_to_timer_preload(first_delay_tick);
+ 398   1      
+ 399   1          rx_first_delay_cached_tick = first_delay_tick;
+ 400   1          rx_last_trigger_interval_tick = 0U;
+ 401   1      
+ 402   1          rx_timer_restart_with_preload(preload_tick);
+ 403   1      }
+ 404          
+ 405          
+ 406          /* GTIMER1：强制重同步等待 P1_4 边沿的 2ms 一次性超时定时器。 */
+ 407          static void rx_sync_timeout_timer_stop_clear(void)
+ 408          {
+ 409   1          rx_sync_wait_timer_running   = 0U;
+ 410   1          rx_sync_wait_timeout_pending = 0U;
+ 411   1      
+ 412   1          REG_GTIM1_CR0 &= ~(1 << 0);
+ 413   1          REG_GTIM1_CNT0 = 0x00;
+ 414   1          REG_GTIM1_CNT1 = 0x00;
+ 415   1      }
+ 416          
+ 417          
+ 418          static void rx_sync_timeout_timer_start(void)
+ 419          {
+ 420   1          rx_sync_wait_timeout_pending = 0U;
+ 421   1          rx_sync_wait_timer_running   = 1U;
+ 422   1      
+ 423   1          REG_GTIM1_CR0 &= ~(1 << 0);
+ 424   1          REG_GTIM1_CNT0 = 0x00;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 8   
+
+ 425   1          REG_GTIM1_CNT1 = 0x00;
+ 426   1          REG_GTIM1_CR0 |= (1 << 0);
+ 427   1      }
+ 428          
+ 429          
+ 430          static void rx_sync_irq_enable(void)
+ 431          {
+ 432   1          gpio_irq_clr(P1_4);
+ 433   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
+ 434   1      }
+ 435          
+ 436          
+ 437          static void rx_sync_irq_disable(void)
+ 438          {
+ 439   1          gpio_irq_clr(P1_4);
+ 440   1          gpio_irq_set(P1_4, GPIO_IRQ_DISABLE, gpio_UECallBack);
+ 441   1      }
+ 442          
+ 443          
+ 444          /*======================================================================
+ 445           * 七、输出控制
+ 446           *====================================================================*/
+ 447          
+ 448          static void rx_output_light(void)
+ 449          {
+ 450   1          gpio_io_set(P1_2, GPIO_HIGH);
+ 451   1          gpio_io_set(P1_3, GPIO_HIGH);
+ 452   1      //    gpio_io_set(P1_0, GPIO_LOW);
+ 453   1      }
+ 454          
+ 455          
+ 456          static void rx_output_block(void)
+ 457          {
+ 458   1          gpio_io_set(P1_2, GPIO_LOW);
+ 459   1          gpio_io_set(P1_3, GPIO_LOW);
+ 460   1      //    gpio_io_set(P1_0, GPIO_HIGH);
+ 461   1      }
+ 462          
+ 463          
+ 464          /*======================================================================
+ 465           * 八、ADC 读取、窗口积分平均与迟滞判断
+ 466           *====================================================================*/
+ 467          
+ 468          static uint16_t rx_adc_read_once(uint8_t ch)
+ 469          {
+ 470   1          uint16_t value;
+ 471   1      
+ 472   1          adc_convert_start(ch);
+ 473   1      
+ 474   1          while ((ADCGCR1 & 0x04) != 0);
+ 475   1          while (!(ADCCSTAT & 0x01));
+ 476   1      
+ 477   1          ADCCSTAT = 0x01;
+ 478   1      
+ 479   1          value = adc_get_value();
+ 480   1      
+ 481   1          if (value > ADC_MAX_VALUE)
+ 482   1          {
+ 483   2              value = ADC_MAX_VALUE;
+ 484   2          }
+ 485   1      
+ 486   1          return value;
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 9   
+
+ 487   1      }
+ 488          
+ 489          
+ 490          static uint16_t rx_adc_scan_window_average(uint8_t ch, uint16_t window_tick, uint16_t *sample_count)
+ 491          {
+ 492   1          uint16_t start_tick;
+ 493   1          uint16_t value;
+ 494   1          uint16_t count;
+ 495   1          uint32_t sum;
+ 496   1      
+ 497   1          sum   = 0U;
+ 498   1          count = 0U;
+ 499   1      
+ 500   1          start_tick = rx_timer_get_count();
+ 501   1      
+ 502   1          /* P1_0 拉低用于示波器观察 ADC 扫描窗口。 */
+ 503   1          gpio_io_set(P1_0, GPIO_LOW);
+ 504   1      
+ 505   1          do
+ 506   1          {
+ 507   2              value = rx_adc_read_once(ch);
+ 508   2      
+ 509   2              if (value < RX_ADC_MAX_VALID)
+ 510   2              {
+ 511   3                  sum += value;
+ 512   3                  count++;
+ 513   3              }
+ 514   2          }
+ 515   1          while (rx_timer_elapsed_from(start_tick) < window_tick);
+ 516   1      
+ 517   1          gpio_io_set(P1_0, GPIO_HIGH);
+ 518   1      
+ 519   1          if (sample_count != 0)
+ 520   1          {
+ 521   2              *sample_count = count;
+ 522   2          }
+ 523   1      
+ 524   1          if (count == 0U)
+ 525   1          {
+ 526   2              return ADC_INVALID;
+ 527   2          }
+ 528   1      
+ 529   1          return (uint16_t)(sum / count);
+ 530   1      }
+ 531          
+ 532          
+ 533          static uint16_t rx_adc_calc_off_threshold(void)
+ 534          {
+ 535   1          if (adc_set > RX_ADC_HYS_VALUE)
+ 536   1          {
+ 537   2              return (uint16_t)(adc_set - RX_ADC_HYS_VALUE);
+ 538   2          }
+ 539   1      
+ 540   1          return 0U;
+ 541   1      }
+ 542          
+ 543          
+ 544          static uint8_t rx_adc_hysteresis_check(uint16_t adc)
+ 545          {
+ 546   1          uint16_t adc_on_th;
+ 547   1          uint16_t adc_off_th;
+ 548   1      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 10  
+
+ 549   1          if (adc >= RX_ADC_MAX_VALID)
+ 550   1          {
+ 551   2              rx_adc_valid_state = 0;
+ 552   2              return 0;
+ 553   2          }
+ 554   1      
+ 555   1          adc_on_th  = adc_set;
+ 556   1          adc_off_th = rx_adc_calc_off_threshold();
+ 557   1      
+ 558   1          if (rx_adc_valid_state == 0)
+ 559   1          {
+ 560   2              if (adc >= adc_on_th)
+ 561   2              {
+ 562   3                  rx_adc_valid_state = 1;
+ 563   3              }
+ 564   2          }
+ 565   1          else
+ 566   1          {
+ 567   2              if (adc <= adc_off_th)
+ 568   2              {
+ 569   3                  rx_adc_valid_state = 0;
+ 570   3              }
+ 571   2          }
+ 572   1      
+ 573   1          return rx_adc_valid_state;
+ 574   1      }
+ 575          
+ 576          
+ 577          /*======================================================================
+ 578           * 九、接收状态机
+ 579           *====================================================================*/
+ 580          
+ 581          static void rx_start_periodic_window_from_sync(void)
+ 582          {
+ 583   1          /* 已经收到同步边沿，关闭 2ms 同步等待超时定时器。 */
+ 584   1          rx_sync_timeout_timer_stop_clear();
+ 585   1      
+ 586   1          rx_seen_once         = 1U;
+ 587   1          rx_window_pending    = 0U;
+ 588   1          rx_sync_pending      = 0U;
+ 589   1          rx_resync_pending    = 0U;
+ 590   1          rx_resync_window_count = 0U;
+ 591   1          rx_valid_count       = 0U;
+ 592   1          rx_lost_window_count = 0U;
+ 593   1          rx_adc_valid_state   = 0U;
+ 594   1          rx_first_interval_pending = 1U;
+ 595   1          rx_last_trigger_interval_tick = 0U;
+ 596   1          g_dbg_last_adc_ok    = 0U;
+ 597   1      
+ 598   1          /* 同步完成后，P1_4 不再反复进中断，后续由 GTIMER0 周期窗口采样。 */
+ 599   1          rx_sync_irq_disable();
+ 600   1      
+ 601   1      #if RX_FIRST_WINDOW_IMMEDIATE
+                  /*
+                   * 这个立即补采窗口不影响后续定时器相位。
+                   * 后续仍然先等 RX_FIRST_WINDOW_DELAY_TICK，再进入 1ms 周期。
+                   */
+                  rx_window_pending = 1U;
+              #endif
+ 608   1      
+ 609   1          /*
+ 610   1           * 关键修改：
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 11  
+
+ 611   1           * GTIMER0 的周期仍然是 1000us，只是启动时预装 CNT，
+ 612   1           * 让“第一次溢出”发生在 RX_FIRST_WINDOW_DELAY_TICK 后。
+ 613   1           * 第一次溢出以后，硬件自动回到 1ms 周期，不需要在中断里改周期。
+ 614   1           */
+ 615   1          rx_timer_restart_with_first_delay();
+ 616   1      
+ 617   1          uart_debug_request(UART_DBG_REASON_SYNC, 1U);
+*** WARNING C275 IN LINE 617 OF ..\source\main.c: expression with possibly no effect
+ 618   1      }
+ 619          
+ 620          
+ 621          static void rx_enter_block_state(uint8_t debug_reason)
+ 622          {
+ 623   1          rx_valid_count       = 0U;
+ 624   1          rx_lost_window_count = 0U;
+ 625   1          rx_seen_once         = 0U;
+ 626   1          rx_window_pending    = 0U;
+ 627   1          rx_sync_pending      = 0U;
+ 628   1          rx_resync_pending    = 0U;
+ 629   1          rx_sync_wait_timeout_pending = 0U;
+ 630   1          rx_sync_wait_timer_running   = 0U;
+ 631   1          rx_resync_window_count = 0U;
+ 632   1          rx_adc_valid_state   = 0U;
+ 633   1          rx_first_interval_pending = 0U;
+ 634   1          rx_last_trigger_interval_tick = 0U;
+ 635   1          g_dbg_last_adc_ok    = 0U;
+ 636   1      
+ 637   1          rx_timer_stop_clear();
+ 638   1          rx_sync_timeout_timer_stop_clear();
+ 639   1          rx_output_block();
+ 640   1      
+ 641   1          if (rx_light_state)
+ 642   1          {
+ 643   2              rx_light_state = 0U;
+ 644   2          }
+ 645   1      
+ 646   1          /* 遮光后重新打开 P1_4 中断，等待下一次来光重新同步。 */
+ 647   1          rx_sync_irq_enable();
+ 648   1      
+ 649   1          uart_debug_request(debug_reason, 1U);
+*** WARNING C275 IN LINE 649 OF ..\source\main.c: expression with possibly no effect
+ 650   1      }
+*** WARNING C280 IN LINE 621 OF ..\source\main.c: 'debug_reason': unreferenced local variable
+ 651          
+ 652          
+ 653          /*
+ 654           * 主循环上下文里的强制重同步。
+ 655           *
+ 656           * 这个函数不能放在 GTIMER0 中断或 GPIO 中断里调用，原因是里面会重新打开
+ 657           * P1_4 同步中断，最终会调用 gpio_irq_set()，C51 会对 ISR 和主流程双入口
+ 658           * 调用库函数报 L15 警告。
+ 659           *
+ 660           * 强制重同步只重新校准采样相位，不改变当前输出状态：
+ 661           * - 当前已经有光：输出继续保持有光，等待下一次 P1_4 边沿后恢复 1ms 窗口。
+ 662           * - 当前实际遮光：因为没有新的 P1_4 边沿，后续不会误确认有光；遮光正常由
+ 663           *   无效窗口逻辑处理，所以这里不主动拉低输出。
+ 664           */
+ 665          static void rx_force_resync_from_main(void)
+ 666          {
+ 667   1          rx_resync_pending = 0U;
+ 668   1          rx_resync_window_count = 0U;
+ 669   1      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 12  
+
+ 670   1          rx_seen_once = 0U;
+ 671   1          rx_window_pending = 0U;
+ 672   1          rx_sync_pending = 0U;
+ 673   1          rx_sync_wait_timeout_pending = 0U;
+ 674   1          rx_sync_wait_timer_running   = 0U;
+ 675   1          rx_adc_valid_state = 0U;
+ 676   1          rx_first_interval_pending = 0U;
+ 677   1          rx_last_trigger_interval_tick = 0U;
+ 678   1      
+ 679   1          rx_timer_stop_clear();
+ 680   1      
+ 681   1          /* 重新打开 P1_4，等待下一次发射脉冲边沿重新同步。 */
+ 682   1          rx_sync_irq_enable();
+ 683   1      
+ 684   1          /*
+ 685   1           * 当前仍然处于有光输出状态，开始 2ms 同步等待超时。
+ 686   1           * 如果 2ms 内没有新的 P1_4 同步边沿，主循环会判定遮光。
+ 687   1           */
+ 688   1          if (rx_light_state != 0U)
+ 689   1          {
+ 690   2              rx_sync_timeout_timer_start();
+ 691   2          }
+ 692   1      
+ 693   1          uart_debug_request(UART_DBG_REASON_RESYNC, 1U);
+*** WARNING C275 IN LINE 693 OF ..\source\main.c: expression with possibly no effect
+ 694   1      }
+ 695          
+ 696          
+ 697          /*
+ 698           * 主循环上下文里的同步等待超时处理。
+ 699           * 如果强制重同步后 2ms 内没有收到 P1_4，同步等待超时，直接判定遮光。
+ 700           */
+ 701          static void rx_handle_sync_wait_timeout_from_main(void)
+ 702          {
+ 703   1          if (rx_sync_wait_timeout_pending == 0U)
+ 704   1          {
+ 705   2              return;
+ 706   2          }
+ 707   1      
+ 708   1          rx_sync_wait_timeout_pending = 0U;
+ 709   1          rx_sync_wait_timer_running   = 0U;
+ 710   1      
+ 711   1          if ((rx_seen_once == 0U) && (rx_light_state != 0U))
+ 712   1          {
+ 713   2      #if UART_ADC_DEBUG_ENABLE
+                      uart_debug_inc16(&g_dbg_timeout_count);
+              #endif
+ 716   2              rx_enter_block_state(UART_DBG_REASON_SYNC_TIMEOUT);
+ 717   2          }
+ 718   1      }
+ 719          
+ 720          
+ 721          /*
+ 722           * 每处理一个 ADC 窗口后累计一次。
+ 723           *
+ 724           * 为了避免真实遮光时刚好碰到重同步周期，导致输出保持有光等待同步，
+ 725           * 这里只在“本窗口仍然有效 adc_ok=1”时触发强制重同步。
+ 726           * 如果已经开始连续无效，优先走 RX_LOST_WINDOW_COUNT 遮光判定。
+ 727           */
+ 728          static void rx_resync_count_after_window(uint8_t adc_ok)
+ 729          {
+ 730   1      #if RX_RESYNC_ENABLE
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 13  
+
+ 731   1          if (RX_RESYNC_WINDOW_COUNT == 0U)
+ 732   1          {
+ 733   2              return;
+ 734   2          }
+ 735   1      
+ 736   1          if (rx_seen_once == 0U)
+ 737   1          {
+ 738   2              rx_resync_window_count = 0U;
+ 739   2              return;
+ 740   2          }
+ 741   1      
+ 742   1          if (rx_resync_window_count < 65535U)
+ 743   1          {
+ 744   2              rx_resync_window_count++;
+ 745   2          }
+ 746   1      
+ 747   1          if ((rx_resync_window_count >= RX_RESYNC_WINDOW_COUNT) && (adc_ok != 0U))
+ 748   1          {
+ 749   2              rx_resync_pending = 1U;
+ 750   2          }
+ 751   1      #else
+                  (void)adc_ok;
+              #endif
+ 754   1      }
+ 755          
+ 756          
+ 757          static void rx_process_adc_window(void)
+ 758          {
+ 759   1          uint16_t avg_adc;
+ 760   1          uint16_t sample_count;
+ 761   1          uint8_t adc_ok;
+ 762   1      
+ 763   1          if (rx_seen_once == 0U)
+ 764   1          {
+ 765   2              return;
+ 766   2          }
+ 767   1      
+ 768   1          sample_count = 0U;
+ 769   1          avg_adc = rx_adc_scan_window_average(ADC_CHANNEL_1,
+ 770   1                                               RX_ADC_WINDOW_WIDTH_TICK,
+ 771   1                                               &sample_count);
+ 772   1      
+ 773   1          adc_data  = avg_adc;
+ 774   1          adc_data1 = sample_count;
+ 775   1          adcount   = sample_count;
+ 776   1          g_dbg_last_elapsed_tick = rx_last_trigger_interval_tick;
+ 777   1      
+ 778   1      #if RX_ADC_HYS_ENABLE
+ 779   1          adc_ok = rx_adc_hysteresis_check(avg_adc);
+ 780   1      #else
+                  if ((avg_adc < RX_ADC_MAX_VALID) && (avg_adc >= adc_set))
+                  {
+                      adc_ok = 1U;
+                  }
+                  else
+                  {
+                      adc_ok = 0U;
+                  }
+              #endif
+ 790   1      
+ 791   1          g_dbg_last_adc_ok = adc_ok;
+ 792   1      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 14  
+
+ 793   1          if (adc_ok)
+ 794   1          {
+ 795   2              rx_lost_window_count = 0U;
+ 796   2      
+ 797   2              if (rx_valid_count < RX_CONFIRM_COUNT)
+ 798   2              {
+ 799   3                  rx_valid_count++;
+ 800   3              }
+ 801   2      
+ 802   2      #if UART_ADC_DEBUG_ENABLE
+                      uart_debug_inc16(&g_dbg_valid_pulse_count);
+              #endif
+ 805   2      
+ 806   2              if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))
+ 807   2              {
+ 808   3                  rx_light_state = 1U;
+ 809   3                  rx_output_light();
+ 810   3      
+ 811   3      #if UART_ADC_DEBUG_STATE_CHANGE_PRINT
+ 812   3                  uart_debug_request(UART_DBG_REASON_LIGHT_ON, 1U);
+*** WARNING C275 IN LINE 812 OF ..\source\main.c: expression with possibly no effect
+ 813   3      #else
+                          uart_debug_request(UART_DBG_REASON_LIGHT_ON, 0U);
+              #endif
+ 816   3              }
+ 817   2              else
+ 818   2              {
+ 819   3                  uart_debug_request(UART_DBG_REASON_VALID_WINDOW, 0U);
+*** WARNING C275 IN LINE 819 OF ..\source\main.c: expression with possibly no effect
+ 820   3              }
+ 821   2          }
+ 822   1          else
+ 823   1          {
+ 824   2              rx_valid_count = 0U;
+ 825   2      
+ 826   2              if (rx_lost_window_count < RX_LOST_WINDOW_COUNT)
+ 827   2              {
+ 828   3                  rx_lost_window_count++;
+ 829   3              }
+ 830   2      
+ 831   2      #if UART_ADC_DEBUG_ENABLE
+                      uart_debug_inc16(&g_dbg_adc_fail_count);
+              #endif
+ 834   2      
+ 835   2              if (rx_lost_window_count >= RX_LOST_WINDOW_COUNT)
+ 836   2              {
+ 837   3      #if UART_ADC_DEBUG_ENABLE
+                          uart_debug_inc16(&g_dbg_timeout_count);
+              #endif
+ 840   3                  rx_enter_block_state(UART_DBG_REASON_TIMEOUT);
+ 841   3              }
+ 842   2              else
+ 843   2              {
+ 844   3                  uart_debug_request(UART_DBG_REASON_ADC_FAIL, 0U);
+*** WARNING C275 IN LINE 844 OF ..\source\main.c: expression with possibly no effect
+ 845   3              }
+ 846   2          }
+ 847   1      
+ 848   1          /* 如果本窗口没有触发遮光状态机退出，则按窗口周期累计重同步。 */
+ 849   1          if (rx_seen_once != 0U)
+ 850   1          {
+ 851   2              rx_resync_count_after_window(adc_ok);
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 15  
+
+ 852   2          }
+ 853   1      }
+ 854          
+ 855          
+ 856          /*======================================================================
+ 857           * 十、串口调试函数
+ 858           *====================================================================*/
+ 859          
+ 860          #if UART_ADC_DEBUG_ENABLE
+              
+              static void uart_debug_inc16(volatile uint16_t *value)
+              {
+                  if (*value < 65535U)
+                  {
+                      (*value)++;
+                  }
+              }
+              
+              
+              static void uart_debug_request(uint8_t reason, uint8_t force)
+              {
+                  g_uart_debug_reason = reason;
+              
+                  if (force != 0U)
+                  {
+                      g_uart_debug_div_count  = 0U;
+                      g_uart_debug_need_print = 1U;
+                      return;
+                  }
+              
+                  g_uart_debug_div_count++;
+              
+                  if (g_uart_debug_div_count >= UART_ADC_DEBUG_EVENT_DIV)
+                  {
+                      g_uart_debug_div_count  = 0U;
+                      g_uart_debug_need_print = 1U;
+                  }
+              }
+              
+              
+              static void uart_adc_debug_process(void)
+              {
+                  uint16_t adc_off_th;
+              
+                  if (g_uart_debug_need_print == 0U)
+                  {
+                      return;
+                  }
+              
+                  g_uart_debug_need_print = 0U;
+              
+                  adc_off_th = rx_adc_calc_off_threshold();
+              
+                  /*
+                   * 字段说明：
+                   * S   ：最近一次 ADC 窗口平均值。
+                   * A   ：最近一次窗口内 ADC 采样次数。
+                   * TH  ：ADC 有效上阈值。
+                   * HYS ：ADC 迟滞宽度。
+                   * OFF ：ADC 无效下阈值。
+                   * EL  ：最近一次窗口触发间隔；第一次可能是起点间隔，后续默认 1000us。
+                   * VC  ：连续有效窗口计数。
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 16  
+
+                   * L   ：当前有光状态。
+                   * AS  ：ADC 迟滞状态。
+                   * OK  ：最近一次窗口判断结果。
+                   * IR  ：P1_4 同步中断次数。
+                   * SH  ：窗口积压/丢失次数。
+                   * AF  ：ADC 窗口无效次数。
+                   * VP  ：ADC 窗口有效次数。
+                   * TO  ：遮光次数。
+                   * R   ：打印原因码。
+                   *
+                   * R：
+                   * 1 = 上电
+                   * 2 = 首次同步
+                   * 3 = ADC 窗口无效
+                   * 4 = ADC 窗口有效
+                   * 5 = 有光确认
+                   * 6 = 遮光
+                   * 7 = 窗口积压
+                   * 8 = 周期性强制重同步
+                   * 9 = 强制重同步等待同步边沿超时
+                   */
+                  printfS("S=%u,A=%u,TH=%u,HYS=%u,OFF=%u,EL=%u,VC=%u,L=%u,AS=%u,OK=%u,IR=%u,SH=%u,AF=%u,VP=%u,TO=%u,R=%u
+             -\r\n",
+                          adc_data,
+                          adc_data1,
+                          adc_set,
+                          (uint16_t)RX_ADC_HYS_VALUE,
+                          adc_off_th,
+                          g_dbg_last_elapsed_tick,
+                          (uint16_t)rx_valid_count,
+                          (uint16_t)rx_light_state,
+                          (uint16_t)rx_adc_valid_state,
+                          (uint16_t)g_dbg_last_adc_ok,
+                          g_dbg_irq_count,
+                          g_dbg_short_edge_count,
+                          g_dbg_adc_fail_count,
+                          g_dbg_valid_pulse_count,
+                          g_dbg_timeout_count,
+                          (uint16_t)g_uart_debug_reason);
+              }
+              
+              #endif
+ 955          
+ 956          
+ 957          /*======================================================================
+ 958           * 十一、主函数
+ 959           *====================================================================*/
+ 960          
+ 961          void main(void)
+ 962          {
+ 963   1          system_init();
+ 964   1      
+ 965   1          GPIO_Init();
+ 966   1      
+ 967   1          uart_init();
+ 968   1      
+ 969   1          /*
+ 970   1           * GTIMER0 作为 ADC 扫描窗口周期定时器。
+ 971   1           * 24MHz / 24 = 1MHz，1 tick = 1us。
+ 972   1           * RX_WINDOW_INTERVAL_TICK = 1000 表示后续每 1ms 产生一次窗口触发。
+ 973   1           * 同步后的第一次触发时间由 RX_FIRST_WINDOW_DELAY_TICK 通过 CNT 预装实现。
+ 974   1           */
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 17  
+
+ 975   1          gtimer0_count_init(RX_WINDOW_INTERVAL_TICK, 24 - 1);
+ 976   1          gtimer0_irq_init(GTIMER_IRQ_ENABLE, GTIMER0_UIE_IRQ, gtimer0_UECallBack);
+ 977   1      
+ 978   1          /*
+ 979   1           * GTIMER1 作为强制重同步等待同步边沿的 2ms 一次性超时定时器。
+ 980   1           * 只在周期性强制重同步时启动，收到 P1_4 后立即关闭。
+ 981   1           */
+ 982   1          gtimer1_count_init(RX_SYNC_WAIT_TIMEOUT_TICK, 24 - 1);
+ 983   1          gtimer1_irq_init(GTIMER_IRQ_ENABLE, GTIMER1_UIE_IRQ, gtimer1_UECallBack);
+ 984   1      
+ 985   1          /* 上电先不启动定时器，等待第一次 P1_4 同步边沿。 */
+ 986   1          rx_timer_stop_clear();
+ 987   1          rx_sync_timeout_timer_stop_clear();
+ 988   1      
+ 989   1          /* ADC_CHANNEL_1：接收信号 ADC；ADC_CHANNEL_2：预留 ADJ 电位器。 */
+ 990   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 4, ADC_ENABLE);
+ 991   1          adc_sample_clk_config(ADC_SAMPCLK_4);
+ 992   1          adc_io_config(ADC_CHANNEL_1 | ADC_CHANNEL_2);
+ 993   1          adc_scan_mode_config(ADC_MODE_SINGLE);
+ 994   1          adc_power_config(ADC_ENABLE);
+ 995   1          adc_controller_config(ADC_ENABLE);
+ 996   1      
+ 997   1          rx_output_block();
+ 998   1          rx_sync_irq_enable();
+ 999   1      
+1000   1          uart_debug_request(UART_DBG_REASON_BOOT, 1U);
+*** WARNING C275 IN LINE 1000 OF ..\source\main.c: expression with possibly no effect
+1001   1      
+1002   1          while (1)
+1003   1          {
+1004   2              /*
+1005   2               * P1_4 interrupt only sets rx_sync_pending.
+1006   2               * Do the actual sync start here so gpio_irq_set() is never called from GPIO_IRQHandler.
+1007   2               */
+1008   2              if (rx_sync_pending != 0U)
+1009   2              {
+1010   3                  rx_sync_pending = 0U;
+1011   3      
+1012   3                  if (rx_seen_once == 0U)
+1013   3                  {
+1014   4                      rx_start_periodic_window_from_sync();
+1015   4                  }
+1016   3              }
+1017   2      
+1018   2              /*
+1019   2               * 强制重同步等待期的 2ms 超时处理。
+1020   2               * 放在同步处理后面：如果同步边沿和超时几乎同时发生，优先认为同步成功。
+1021   2               */
+1022   2              if (rx_sync_wait_timeout_pending != 0U)
+1023   2              {
+1024   3                  rx_handle_sync_wait_timeout_from_main();
+1025   3              }
+1026   2      
+1027   2              /*
+1028   2               * 定时器中断只置位，不在中断里做 ADC 连续扫描。
+1029   2               * 这样可以避免 40us 级窗口扫描长时间占用中断。
+1030   2               */
+1031   2              if (rx_window_pending != 0U)
+1032   2              {
+1033   3                  rx_window_pending = 0U;
+1034   3                  rx_process_adc_window();
+1035   3              }
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 18  
+
+1036   2      
+1037   2              /*
+1038   2               * 周期性重同步也在主循环处理。
+1039   2               * 这样 rx_sync_irq_enable()/gpio_irq_set() 不会从中断上下文调用，避免 L15。
+1040   2               */
+1041   2              if (rx_resync_pending != 0U)
+1042   2              {
+1043   3                  rx_force_resync_from_main();
+1044   3              }
+1045   2      
+1046   2              uart_adc_debug_process();
+*** WARNING C275 IN LINE 1046 OF ..\source\main.c: expression with possibly no effect
+1047   2          }
+1048   1      }
+1049          
+1050          
+1051          /*======================================================================
+1052           * 十二、GTIMER0 周期窗口触发回调
+1053           *====================================================================*/
+1054          
+1055          void gtimer0_UECallBack(void)
+1056          {
+1057   1          if (rx_seen_once == 0U)
+1058   1          {
+1059   2              rx_first_interval_pending = 0U;
+1060   2              REG_GTIM0_CR0 &= ~(1 << 0);
+1061   2              REG_GTIM0_CNT0 = 0x00;
+1062   2              REG_GTIM0_CNT1 = 0x00;
+1063   2              return;
+1064   2          }
+1065   1      
+1066   1          if (rx_first_interval_pending != 0U)
+1067   1          {
+1068   2              /*
+1069   2               * 这是同步后的第一次窗口。
+1070   2               * 它的触发间隔不是 1000us，而是 RX_FIRST_WINDOW_DELAY_TICK。
+1071   2               * 第一次溢出之后，GTIMER0 自动从 0 重新计数，
+1072   2               * 后续自然恢复为每 1000us 触发一次。
+1073   2               */
+1074   2              rx_first_interval_pending = 0U;
+1075   2              rx_last_trigger_interval_tick = rx_first_delay_cached_tick;
+1076   2          }
+1077   1          else
+1078   1          {
+1079   2              rx_last_trigger_interval_tick = RX_WINDOW_INTERVAL_TICK;
+1080   2          }
+1081   1      
+1082   1          if (rx_window_pending != 0U)
+1083   1          {
+1084   2      #if UART_ADC_DEBUG_ENABLE
+                      uart_debug_inc16(&g_dbg_short_edge_count);
+              #endif
+1087   2              uart_debug_request(UART_DBG_REASON_WINDOW_OVERRUN, 0U);
+*** WARNING C275 IN LINE 1087 OF ..\source\main.c: expression with possibly no effect
+1088   2          }
+1089   1          else
+1090   1          {
+1091   2              rx_window_pending = 1U;
+1092   2          }
+1093   1      }
+1094          
+1095          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 19  
+
+1096          /*======================================================================
+1097           * 十三、GTIMER1 同步等待超时回调
+1098           *====================================================================*/
+1099          
+1100          void gtimer1_UECallBack(void)
+1101          {
+1102   1          /*
+1103   1           * GTIMER1 只作为一次性 2ms 看门狗。
+1104   1           * 中断里不调用 gpio_irq_set()/rx_enter_block_state()，只停表并置位，
+1105   1           * 真正遮光处理交给主循环，避免 C51 L15 多入口警告。
+1106   1           */
+1107   1          REG_GTIM1_CR0 &= ~(1 << 0);
+1108   1          REG_GTIM1_CNT0 = 0x00;
+1109   1          REG_GTIM1_CNT1 = 0x00;
+1110   1      
+1111   1          if (rx_sync_wait_timer_running != 0U)
+1112   1          {
+1113   2              rx_sync_wait_timer_running   = 0U;
+1114   2              rx_sync_wait_timeout_pending = 1U;
+1115   2          }
+1116   1      }
+1117          
+1118          
+1119          /*======================================================================
+1120           * 十四、P1_4 比较器同步中断
+1121           *====================================================================*/
+1122          
+1123          void GPIO_IRQHandler(void) interrupt 0
+1124          {
+1125   1          if (gpio_irq_get(P1_4))
+1126   1          {
+1127   2              gpio_irq_clr(P1_4);
+1128   2      
+1129   2      #if UART_ADC_DEBUG_ENABLE
+                      uart_debug_inc16(&g_dbg_irq_count);
+              #endif
+1132   2      
+1133   2              /* 已同步运行时不再用 P1_4 参与判断。 */
+1134   2              if ((rx_seen_once != 0U) ||
+1135   2                  (rx_sync_pending != 0U) ||
+1136   2                  (rx_sync_wait_timeout_pending != 0U))
+1137   2              {
+1138   3                  return;
+1139   3              }
+1140   2      
+1141   2              rx_sync_pending = 1U;
+1142   2          }
+1143   1      }
+1144          
+1145          
+1146          void gpio_UECallBack(void)
+1147          {
+1148   1          /* 不用二次回调。 */
+1149   1      }
+1150          
+1151          
+1152          /*======================================================================
+1153           * 十五、GPIO 初始化
+1154           *====================================================================*/
+1155          
+1156          void GPIO_Init(void)
+1157          {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/17/2026 16:38:40 PAGE 20  
+
+1158   1          /* P1_0 输出：用作 ADC 窗口示波器观测脚，窗口期间拉低。 */
+1159   1          REG_P10_CFG = 0x00;
+1160   1      
+1161   1          gpio_init(P1_0);
+1162   1          gpio_dir_set(P1_0, GPIO_DIR_OUT);
+1163   1          gpio_dr_set(P1_0, GPIO_SR_HIGH);
+1164   1          gpio_io_set(P1_0, GPIO_HIGH);
+1165   1      
+1166   1          /* P1_2 输出 */
+1167   1          REG_P12_CFG = 0x00;
+1168   1      
+1169   1          gpio_init(P1_2);
+1170   1          gpio_dir_set(P1_2, GPIO_DIR_OUT);
+1171   1          gpio_dr_set(P1_2, GPIO_SR_HIGH);
+1172   1          gpio_io_set(P1_2, GPIO_LOW);
+1173   1      
+1174   1          /* P1_3 输出 */
+1175   1          REG_P13_CFG = 0x00;
+1176   1      
+1177   1          gpio_init(P1_3);
+1178   1          gpio_dir_set(P1_3, GPIO_DIR_OUT);
+1179   1          gpio_dr_set(P1_3, GPIO_SR_HIGH);
+1180   1          gpio_io_set(P1_3, GPIO_LOW);
+1181   1      
+1182   1          /* P1_4 输入中断：只用于第一次同步。 */
+1183   1          gpio_init(P1_4);
+1184   1          gpio_dir_set(P1_4, GPIO_DIR_IN);
+1185   1          gpio_dr_set(P1_4, GPIO_SR_HIGH);
+1186   1          gpio_in_enable(P1_4, IN_ENABLE);
+1187   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
+1188   1      
+1189   1          /* 保留原来的 P1_4 特殊配置。 */
+1190   1          P1AH &= ~(0x02);
+1191   1          P1AH |=  (0x01);
+1192   1      
+1193   1          REG_P14_CFG = 0x20;
+1194   1      
+1195   1          /* P1_5 输入，保留原配置。 */
+1196   1          REG_P15_CFG = 0x00;
+1197   1      
+1198   1          gpio_init(P1_5);
+1199   1          gpio_dir_set(P1_5, GPIO_DIR_IN);
+1200   1          gpio_in_enable(P1_5, IN_ENABLE);
+1201   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1618    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     32      22
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  10 WARNING(S),  0 ERROR(S)
