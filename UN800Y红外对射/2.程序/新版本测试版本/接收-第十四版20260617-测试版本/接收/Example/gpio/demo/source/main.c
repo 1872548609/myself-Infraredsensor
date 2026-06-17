@@ -1236,15 +1236,17 @@ static void rx_process_adc_window(void)
     }
 		
 		//== 新逻辑三次有效输出
-		if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))//== 如果是遮光并且有效计数大于有效值
+		/* 从遮光状态进入有光：必须连续/累计有效到达确认次数 */
+		if ((rx_light_state == 0U) && (rx_valid_count >= RX_CONFIRM_COUNT))
 		{
 				rx_light_state = 1U;
-				rx_output_light();//== 输出
+				rx_output_light();
 		}
-		else
-		{
 
-        rx_enter_block_state(UART_DBG_REASON_TIMEOUT);//== 遮光状态重新等同步
+		/* 从有光状态进入遮光：有效积分被扣到 0 才遮光 */
+		if ((rx_light_state != 0U) && (rx_valid_count == 0U))
+		{
+				rx_enter_block_state(UART_DBG_REASON_TIMEOUT);
 		}
 
     
