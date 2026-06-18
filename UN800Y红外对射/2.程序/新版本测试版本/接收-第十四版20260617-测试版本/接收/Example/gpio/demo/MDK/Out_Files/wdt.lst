@@ -1,11 +1,11 @@
-C51 COMPILER V9.54   WDT                                                                   06/18/2026 06:19:13 PAGE 1   
+C51 COMPILER V9.57.0.0   WDT                                                               06/18/2026 10:26:17 PAGE 1   
 
 
-C51 COMPILER V9.54, COMPILATION OF MODULE WDT
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE WDT
 OBJECT MODULE PLACED IN .\Out_Files\wdt.obj
-COMPILER INVOKED BY: E:\keilC51\C51\BIN\C51.EXE ..\..\..\..\Driver\src\wdt.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(.
-                    -.\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\wdt.
-                    -lst) TABS(2) OBJECT(.\Out_Files\wdt.obj)
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\wdt.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INC
+                    -DIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files
+                    -\wdt.lst) OBJECT(.\Out_Files\wdt.obj)
 
 line level    source
 
@@ -24,27 +24,27 @@ line level    source
   13           * Function     : wdt_init
   14           * Description  : wdt init
   15           * Input        : none
-  16           * Output   : none
-  17           * Return   : none
+  16           * Output               : none
+  17           * Return               : none
   18           ***********************************************************************/
   19          void wdt_init(void)
   20          {
-  21   1        PCLK0 |= (1<<2);                                // 开启WDT时钟 
-  22   1        PRESET0 |= (1<<2);                              // WDT正常工作 
-  23   1        WDEN = 1;                                       // WDT使能 
+  21   1              PCLK0 |= (1<<2);                                                                                                                        // 开启WDT时钟 
+  22   1              PRESET0 |= (1<<2);                                                                                              // WDT正常工作 
+  23   1              WDEN = 1;                                                                                                       // WDT使能 
   24   1      }
   25          
   26          /***********************************************************************
   27           * Function     : wdt_load
   28           * Description  : 设置溢出周期最小值
   29           * Input        : uint8_t arr：arr_1_ms，arr_4_ms...
-  30           * Output   : none
-  31           * Return   : none
+  30           * Output               : none
+  31           * Return               : none
   32           ***********************************************************************/
   33          void wdt_load(uint8_t arr)
   34          {
   35   1        RSTSTAT &= ~(7<<0);  
-  36   1        RSTSTAT |= (arr<<0);
+  36   1              RSTSTAT |= (arr<<0);
   37   1      }
   38          
   39          
@@ -52,17 +52,17 @@ line level    source
   41           * Function     : wdt_feed
   42           * Description  : 喂狗
   43           * Input        : uint8_t arr：arr_1_ms，arr_4_ms...
-  44           * Output   : none
-  45           * Return   : none
+  44           * Output               : none
+  45           * Return               : none
   46           ***********************************************************************/
   47          void wdt_feed(uint8_t arr)
   48          {
-  49   1        RSTSTAT &= ~(7<<0); 
-  50   1        RSTSTAT |= (arr<<0);
+  49   1              RSTSTAT &= ~(7<<0); 
+  50   1              RSTSTAT |= (arr<<0);
   51   1      }
   52          
   53          
-C51 COMPILER V9.54   WDT                                                                   06/18/2026 06:19:13 PAGE 2   
+C51 COMPILER V9.57.0.0   WDT                                                               06/18/2026 10:26:17 PAGE 2   
 
 
 

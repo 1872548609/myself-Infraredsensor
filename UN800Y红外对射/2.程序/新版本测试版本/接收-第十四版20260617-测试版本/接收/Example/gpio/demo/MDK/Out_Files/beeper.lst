@@ -1,11 +1,11 @@
-C51 COMPILER V9.54   BEEPER                                                                06/18/2026 06:19:12 PAGE 1   
+C51 COMPILER V9.57.0.0   BEEPER                                                            06/18/2026 10:26:15 PAGE 1   
 
 
-C51 COMPILER V9.54, COMPILATION OF MODULE BEEPER
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE BEEPER
 OBJECT MODULE PLACED IN .\Out_Files\beeper.obj
-COMPILER INVOKED BY: E:\keilC51\C51\BIN\C51.EXE ..\..\..\..\Driver\src\beeper.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDI
-                    -R(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\b
-                    -eeper.lst) TABS(2) OBJECT(.\Out_Files\beeper.obj)
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\beeper.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE 
+                    -INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Fi
+                    -les\beeper.lst) OBJECT(.\Out_Files\beeper.obj)
 
 line level    source
 
@@ -30,7 +30,7 @@ line level    source
   19           ************************************************************************/
   20          void beeper_init(void)
   21          {
-  22   1         BEEPCTR |= (1<<4);         //BEEPER使能,P2.5作为BEEP功能
+  22   1               BEEPCTR |= (1<<4);         //BEEPER使能,P2.5作为BEEP功能
   23   1      }
   24          
   25          /************************************************************************
@@ -44,16 +44,16 @@ line level    source
   33           ************************************************************************/
   34          void beeper_level_set(uint8_t level,uint8_t freq)
   35          {
-  36   1        if(LOW == level)
-  37   1        {
-  38   2            BEEPCTR &= ~(1<<2);         //BEEP输出低电平
-  39   2        }
-  40   1        else
-  41   1        {
-  42   2            BEEPCTR |= (1<<2);         //BEEP输出高电平
-  43   2        }
-  44   1        BEEPCTR &= ~(3<<0);
-  45   1        BEEPCTR |= (freq<<0);          //输出频率
+  36   1              if(LOW == level)
+  37   1              {
+  38   2                  BEEPCTR &= ~(1<<2);         //BEEP输出低电平
+  39   2              }
+  40   1              else
+  41   1              {
+  42   2                  BEEPCTR |= (1<<2);         //BEEP输出高电平
+  43   2              }
+  44   1              BEEPCTR &= ~(3<<0);
+  45   1              BEEPCTR |= (freq<<0);          //输出频率
   46   1      }
   47          
   48          
@@ -62,7 +62,7 @@ line level    source
 MODULE INFORMATION:   STATIC OVERLAYABLE
    CODE SIZE        =     22    ----
    CONSTANT SIZE    =   ----    ----
-C51 COMPILER V9.54   BEEPER                                                                06/18/2026 06:19:12 PAGE 2   
+C51 COMPILER V9.57.0.0   BEEPER                                                            06/18/2026 10:26:15 PAGE 2   
 
    XDATA SIZE       =   ----    ----
    PDATA SIZE       =   ----    ----

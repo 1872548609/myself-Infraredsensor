@@ -268,7 +268,7 @@
  * 排查点：
  * 遮光后如果窗口平均值仍然在 170 以上，迟滞会继续认为有效。
  */
-#define RX_ADC_HYS_VALUE              30U
+#define RX_ADC_HYS_VALUE              100U
 
 #ifndef ADC_INVALID
 #define ADC_INVALID                   4095U
@@ -447,7 +447,7 @@ static void rx_start_periodic_window_from_sync(void);
 static void rx_enter_block_state(uint8_t debug_reason);
 static void rx_force_resync_from_main(void);
 static void rx_handle_sync_wait_timeout_from_main(void);
-static void rx_resync_count_after_window(uint8_t adc_ok);
+static void rx_resync_count_after_window(void);
 static void rx_process_adc_window(void);
 
 #if UART_ADC_DEBUG_ENABLE
@@ -992,6 +992,7 @@ static void rx_start_periodic_window_from_sync(void)
  */
 static void rx_enter_block_state(uint8_t debug_reason)
 {
+    debug_reason=0;
     rx_valid_count       = 0U;
     rx_lost_window_count = 0U;
     rx_seen_once         = 0U;
@@ -1018,6 +1019,7 @@ static void rx_enter_block_state(uint8_t debug_reason)
 
     /* 遮光后重新打开 P1_4 中断，等待下一次来光重新同步。 */
     rx_sync_irq_enable();
+
 }
 
 
@@ -1050,7 +1052,7 @@ static void rx_force_resync_from_main(void)
      * 停止 GTIMER0：这是强制重同步的核心动作。
      */
     rx_timer_stop_clear();
-
+    
     /*
      * 当前仍然处于有光输出状态，开始 2ms 同步等待超时。
      * 如果 2ms 内没有新的 P1_4 同步边沿，主循环会判定遮光。
@@ -1059,9 +1061,11 @@ static void rx_force_resync_from_main(void)
     {
         rx_sync_timeout_timer_start();
     }
-		
-		 /* 重新打开 P1_4，等待下一次发射脉冲边沿重新同步。 */
+    
+    /* 重新打开 P1_4，等待下一次发射脉冲边沿重新同步。 */
     rx_sync_irq_enable();
+		
+   
 }
 
 
@@ -1110,9 +1114,9 @@ static void rx_handle_sync_wait_timeout_from_main(void)
  *
  * 当前代码逻辑：
  * - 只要 rx_seen_once=1，就累计 rx_resync_window_count。
- * - 当累计到 RX_RESYNC_WINDOW_COUNT，且本窗口 adc_ok=1，就置位 rx_resync_pending。
+ * - 当累计到 RX_RESYNC_WINDOW_COUNT，就置位 rx_resync_pending。
  */
-static void rx_resync_count_after_window(uint8_t adc_ok)
+static void rx_resync_count_after_window(void)
 {
 #if RX_RESYNC_ENABLE
     if (RX_RESYNC_WINDOW_COUNT == 0U)//== 次数上限0不计数
@@ -1131,12 +1135,15 @@ static void rx_resync_count_after_window(uint8_t adc_ok)
         rx_resync_window_count++;
     }
 
-    if ((rx_resync_window_count >= RX_RESYNC_WINDOW_COUNT) && (adc_ok != 0U))//== 大于强制同步次数设置强制同步标志
+    if ((rx_resync_window_count >= RX_RESYNC_WINDOW_COUNT))//== 大于强制同步次数设置强制同步标志
     {
         rx_resync_pending = 1U;
+        
+        rx_valid_count=0;
+        rx_lost_window_count=0;
     }
 #else
-    (void)adc_ok;
+    (void)0;
 #endif
 }
 
@@ -1194,65 +1201,36 @@ static void rx_process_adc_window(void)
 
     if (adc_ok)
     {
-//        rx_lost_window_count = 0U;//== 清除无效计数
-
-//        if (rx_valid_count < RX_CONFIRM_COUNT)//== 追加有效计数
-//        {
-//            rx_valid_count++;
-//        }
-
-//        if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))//== 如果是遮光并且有效计数大于有效值
-//        {
-//            rx_light_state = 1U;
-//            rx_output_light();//== 输出
-//        }
-			
-				if (rx_valid_count < RX_CONFIRM_COUNT)//== 追加有效计数
+        if (rx_valid_count < RX_CONFIRM_COUNT)//== 追加有效计数
         {
             rx_valid_count++;
+        }
+
+        if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))//== 如果是遮光并且有效计数大于有效值
+        {
+            rx_light_state = 1U;
+            rx_output_light();//== 输出
         }
     }
     else//== 小于比较应差判断遮光
     {
-//        rx_valid_count = 0U;//== 清除有效计数
-
-//        if (rx_lost_window_count < RX_LOST_WINDOW_COUNT)//== 无效计数达到一定数量判断输出
-//        {
-//            rx_lost_window_count++;
-//        }
-
-//        if (rx_lost_window_count >= RX_LOST_WINDOW_COUNT)
-//        {
-//            /*
-//             * 正常 ADC 遮光路径最终到这里。
-//             */
-//            rx_enter_block_state(UART_DBG_REASON_TIMEOUT);//== 遮光状态重新等同步
-//        }
-        
-        if (rx_valid_count)
+        if (rx_lost_window_count < RX_LOST_WINDOW_COUNT)//== 无效计数达到一定数量判断输出
         {
-           rx_valid_count--;
+            rx_lost_window_count++;
+        }
+
+        if (rx_lost_window_count >= RX_LOST_WINDOW_COUNT)
+        {
+            /*
+             * 正常 ADC 遮光路径最终到这里。
+             */
+            rx_enter_block_state(UART_DBG_REASON_TIMEOUT);//== 遮光状态重新等同步
         }
     }
-		
-		//== 新逻辑三次有效输出
-		/* 从遮光状态进入有光：必须连续/累计有效到达确认次数 */
-		if ((rx_light_state == 0U) && (rx_valid_count >= RX_CONFIRM_COUNT))
-		{
-				rx_light_state = 1U;
-				rx_output_light();
-		}
-
-		/* 从有光状态进入遮光：有效积分被扣到 0 才遮光 */
-		if ((rx_light_state != 0U) && (rx_valid_count == 0U))
-		{
-				rx_enter_block_state(UART_DBG_REASON_TIMEOUT);
-		}
-
     
     if (rx_seen_once != 0U)//== 已经同步记录窗口次数，超过窗口次数强制同步
     {
-        rx_resync_count_after_window(adc_ok);
+        rx_resync_count_after_window();
     }
 }
 
@@ -1395,6 +1373,14 @@ void main(void)
             }
         }
 
+ 
+         /*
+         * 窗口计数后启动强制同步事件。
+         */
+        if (rx_resync_pending != 0U)
+        {
+            rx_force_resync_from_main();
+        }
         /*
          * 强制重同步等待期的 2ms 超时后处理结果。
          * 放在同步处理后面：如果同步边沿和超时几乎同时发生，优先认为同步成功。
@@ -1417,15 +1403,7 @@ void main(void)
             rx_process_adc_window();
         }
 
-        /*
-         * 窗口计数后启动强制同步事件。
-         */
-        if (rx_resync_pending != 0U)
-        {
-            rx_force_resync_from_main();
-        }
-
-        uart_adc_debug_process();
+       
     }
 }
 
