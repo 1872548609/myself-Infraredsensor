@@ -32,64 +32,6 @@
 #include "gpio.h"
 #include "adc.h"
 
-
-/***********************************************************************
- * 【新增总览注释：这份文件的核心状态机】
- *
- * 1. 上电默认遮光：
- *      rx_light_state = 0
- *      rx_seen_once   = 0
- *      GTIMER0 停止
- *      P1_4 同步中断打开
- *
- * 2. 收到 P1_4 同步边沿：
- *      GPIO_IRQHandler() 只置位 rx_sync_pending
- *      主循环看到 rx_sync_pending 后调用 rx_start_periodic_window_from_sync()
- *      然后关闭 P1_4 中断，打开 GTIMER0 周期窗口
- *
- * 3. GTIMER0 每次溢出：
- *      不直接读 ADC，只置位 rx_window_pending
- *      主循环看到 rx_window_pending 后调用 rx_process_adc_window()
- *
- * 4. 每个 ADC 窗口判断：
- *      avg_adc >= adc_set                  -> 有效窗口
- *      avg_adc <= adc_set - RX_ADC_HYS_VALUE -> 无效窗口
- *      连续 RX_CONFIRM_COUNT 个有效窗口    -> 输出有光
- *      连续 RX_LOST_WINDOW_COUNT 个无效窗口 -> 输出遮光
- *
- * 5. 强制重同步：
- *      rx_resync_count_after_window() 到达 RX_RESYNC_WINDOW_COUNT 后，
- *      置位 rx_resync_pending。
- *      主循环调用 rx_force_resync_from_main()，会停止 GTIMER0，重新打开 P1_4。
- *      如果当前已经有光，会启动 GTIMER1 作为 2ms 同步等待超时。
- *
- * 【遮光偶尔不判断时重点看三条链路】
- *
- * A. 正常 ADC 遮光链路：
- *      rx_process_adc_window()
- *        -> adc_ok = 0
- *        -> rx_lost_window_count++
- *        -> rx_lost_window_count >= RX_LOST_WINDOW_COUNT
- *        -> rx_enter_block_state()
- *
- * B. 强制重同步等待链路：
- *      rx_force_resync_from_main()
- *        -> rx_seen_once = 0
- *        -> GTIMER0 停止，不再有 ADC 窗口
- *        -> 只能靠 GTIMER1 2ms 超时进入遮光
- *
- * C. 同步边沿误触发链路：
- *      遮光时如果 P1_4 仍然有毛刺/反射/干扰边沿，
- *      会重新 rx_start_periodic_window_from_sync()，导致系统又进入采样状态。
- *
- * 【当前版本最可疑参数】
- *      RX_RESYNC_WINDOW_COUNT = 3U
- *      这表示每 3 个有效窗口就停掉 ADC 窗口去重同步一次。
- *      如果遮光刚好发生在重同步等待期，遮光就不走连续无效窗口链路，
- *      而是依赖 GTIMER1 同步等待超时链路。
- ***********************************************************************/
-
-
 /*======================================================================
  * 一、接收算法参数
  *====================================================================*/
@@ -105,7 +47,7 @@
  * 作用：防止单个窗口偶然采到噪声就立即输出有光。
  * 影响：越大，来光响应越慢；越小，越容易误亮。
  */
-#define RX_CONFIRM_COUNT              3U
+#define RX_CONFIRM_COUNT              1U
 
 /*
  * 定时器窗口间隔周期。
@@ -170,16 +112,16 @@
  * 默认 3 个窗口，即约 3ms 遮光确认，响应约 333Hz。
  * 如果想更快，可以改 2；如果现场抖动明显，可以改 4 或 5。
  */
-/*
- * 【遮光确认次数】
- * 连续 3 个窗口无效才判定遮光。
- * 正常情况下遮光响应约为：3 * 1ms = 3ms。
- *
- * 排查点：
- * 如果遮光时偶尔还能采到有效值，rx_lost_window_count 会被清零，
- * 就会表现为“明明遮挡了，但偶尔不判断遮光”。
+//#define RX_LOST_WINDOW_COUNT          3U
+
+/* 
+ *每组 ADC 判断窗口数。
  */
-#define RX_LOST_WINDOW_COUNT          3U
+#define RX_DECISION_GROUP_WINDOW_COUNT   1U
+
+#if (RX_CONFIRM_COUNT > RX_DECISION_GROUP_WINDOW_COUNT)
+#error "RX_CONFIRM_COUNT must not exceed RX_DECISION_GROUP_WINDOW_COUNT"
+#endif
 
 /*
  * 周期性强制重新同步功能。
@@ -197,14 +139,6 @@
  * 默认 100 个周期，即约每 100ms 重新同步一次。
  * 如果漂移很快，可以改 50 或 20；如果现场很稳，可以改 200。
  */
-/*
- * 【是否启用强制重同步】
- * 1 = 启用；0 = 关闭。
- *
- * 排查建议：
- * 若出现“遮光偶尔不判断”，可以先临时改成 0U。
- * 如果关闭后问题消失，说明问题在强制重同步等待链路。
- */
 #define RX_RESYNC_ENABLE              1U
 /*
  * 【强制重同步窗口数】
@@ -219,7 +153,7 @@
  *
  * 建议调试：先改 100U 或关闭 RX_RESYNC_ENABLE 验证。
  */
-#define RX_RESYNC_WINDOW_COUNT        3U
+#define RX_RESYNC_WINDOW_COUNT        1U
 
 /*
  * 强制重同步等待超时。
@@ -227,16 +161,7 @@
  * 如果 2ms 内没有收到新的 P1_4 同步边沿，就认为当前已经遮光。
  * 这个超时只用于“已经有光后的强制重同步等待期”，上电遮光等待不启动。
  */
-/*
- * 【强制重同步等待超时】
- * 已经有光时进入强制重同步，如果 2ms 内没有新的 P1_4 同步边沿，
- * 就认为可能已经遮光。
- *
- * 排查点：
- * 只有 rx_force_resync_from_main() 里 rx_light_state != 0 时才启动。
- * 上电无光等待同步时不会启动这个超时。
- */
-#define RX_SYNC_WAIT_TIMEOUT_TICK     2000U
+#define RX_SYNC_WAIT_TIMEOUT_TICK     1500U
 
 /*
  * 是否在同步边沿后立刻补采一个窗口。
@@ -391,6 +316,9 @@ static volatile uint16_t rx_last_trigger_interval_tick = 0;
 
 /* Cached first-window delay, written in main context and read by GTIMER0 ISR. */
 static volatile uint16_t rx_first_delay_cached_tick = RX_FIRST_WINDOW_DELAY_TICK;
+
+/* 当前同步周期内已处理的窗口数，3 个窗口为一组。 */
+static volatile uint8_t rx_group_window_count = 0U;
 
 
 /*======================================================================
@@ -955,6 +883,7 @@ static void rx_start_periodic_window_from_sync(void)
     rx_first_interval_pending = 1U;//== 告诉系统是第一次窗口
     rx_last_trigger_interval_tick = 0U;
     g_dbg_last_adc_ok    = 0U;
+    rx_group_window_count = 0U;
 
     /* 同步完成后，P1_4 不再反复进中断，后续由 GTIMER0 周期窗口采样。 */
     rx_sync_irq_disable();//== 关闭同步中断
@@ -1006,6 +935,7 @@ static void rx_enter_block_state(uint8_t debug_reason)
     rx_first_interval_pending = 0U;
     rx_last_trigger_interval_tick = 0U;
     g_dbg_last_adc_ok    = 0U;
+    rx_group_window_count = 0U;
 
     rx_timer_stop_clear();//== 停止并清零 GTIMER0
     rx_sync_timeout_timer_stop_clear();//== 停止并清零 GTIMER1 同步等待超时定时器为下一次同步准备
@@ -1047,6 +977,7 @@ static void rx_force_resync_from_main(void)
     rx_adc_valid_state = 0U;
     rx_first_interval_pending = 0U;
     rx_last_trigger_interval_tick = 0U;
+    rx_group_window_count = 0U;
 
     /*
      * 停止 GTIMER0：这是强制重同步的核心动作。
@@ -1139,8 +1070,6 @@ static void rx_resync_count_after_window(void)
     {
         rx_resync_pending = 1U;
         
-        rx_valid_count=0;
-        rx_lost_window_count=0;
     }
 #else
     (void)0;
@@ -1199,33 +1128,68 @@ static void rx_process_adc_window(void)
 
     g_dbg_last_adc_ok = adc_ok;//== 记录adc是否判断有效
 
-    if (adc_ok)
+        /*
+     * 当前这 3 个窗口作为一个判断组：
+     * - valid_count：本组有效窗口数量
+     * - lost_count ：本组无效窗口数量
+     */
+    if (adc_ok != 0U)
     {
-        if (rx_valid_count < RX_CONFIRM_COUNT)//== 追加有效计数
+        if (rx_valid_count < RX_DECISION_GROUP_WINDOW_COUNT)
         {
             rx_valid_count++;
         }
-
-        if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))//== 如果是遮光并且有效计数大于有效值
-        {
-            rx_light_state = 1U;
-            rx_output_light();//== 输出
-        }
     }
-    else//== 小于比较应差判断遮光
+    else
     {
-        if (rx_lost_window_count < RX_LOST_WINDOW_COUNT)//== 无效计数达到一定数量判断输出
+        if (rx_lost_window_count < RX_DECISION_GROUP_WINDOW_COUNT)
         {
             rx_lost_window_count++;
         }
+    }
 
-        if (rx_lost_window_count >= RX_LOST_WINDOW_COUNT)
+    /*
+     * 每 3 个窗口统一判定一次。
+     */
+    rx_group_window_count++;
+
+    if (rx_group_window_count >= RX_DECISION_GROUP_WINDOW_COUNT)
+    {
+        rx_group_window_count = 0U;
+
+        /*
+         * 无光状态下：
+         * 必须 3 个窗口全部有效，才确认有光。
+         */
+        if (rx_light_state == 0U)
         {
-            /*
-             * 正常 ADC 遮光路径最终到这里。
-             */
-            rx_enter_block_state(UART_DBG_REASON_TIMEOUT);//== 遮光状态重新等同步
+            if (rx_valid_count >= RX_CONFIRM_COUNT)
+            {
+                rx_light_state = 1U;
+                rx_output_light();
+            }
         }
+        /*
+         * 有光状态下：
+         * 本组只要出现一个无效窗口，就判定遮光。
+         *
+         * 若你希望必须“3 个都无效”才遮光，
+         * 改成 rx_lost_window_count >= RX_RESYNC_WINDOW_COUNT。
+         */
+        else
+        {
+//            if (rx_lost_window_count != 0U)
+//            {
+//                rx_enter_block_state(UART_DBG_REASON_TIMEOUT);
+//                return;
+//            }
+        }
+
+        /*
+         * 当前一组判断结束，清零，准备统计下一组。
+         */
+        rx_valid_count       = 0U;
+        rx_lost_window_count = 0U;
     }
     
     if (rx_seen_once != 0U)//== 已经同步记录窗口次数，超过窗口次数强制同步
@@ -1512,8 +1476,8 @@ void GPIO_IRQHandler(void) interrupt 0
 
         /* 已同步运行时不再用 P1_4 参与判断。 */
         if ((rx_seen_once != 0U) ||
-            (rx_sync_pending != 0U) ||
-            (rx_sync_wait_timeout_pending != 0U))
+            (rx_sync_pending != 0U) /*||(rx_sync_wait_timeout_pending != 0U)*/
+            )
         {
             return;
         }

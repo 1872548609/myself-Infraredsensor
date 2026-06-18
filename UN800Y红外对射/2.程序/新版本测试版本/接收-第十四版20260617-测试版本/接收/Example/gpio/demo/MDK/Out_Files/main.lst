@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -43,388 +43,314 @@ line level    source
   32          #include "gpio.h"
   33          #include "adc.h"
   34          
-  35          
-  36          /***********************************************************************
-  37           * ¡¾ÐÂÔö×ÜÀÀ×¢ÊÍ£ºÕâ·ÝÎÄ¼þµÄºËÐÄ×´Ì¬»ú¡¿
-  38           *
-  39           * 1. ÉÏµçÄ¬ÈÏÕÚ¹â£º
-  40           *      rx_light_state = 0
-  41           *      rx_seen_once   = 0
-  42           *      GTIMER0 Í£Ö¹
-  43           *      P1_4 Í¬²½ÖÐ¶Ï´ò¿ª
-  44           *
-  45           * 2. ÊÕµ½ P1_4 Í¬²½±ßÑØ£º
-  46           *      GPIO_IRQHandler() Ö»ÖÃÎ» rx_sync_pending
-  47           *      Ö÷Ñ­»·¿´µ½ rx_sync_pending ºóµ÷ÓÃ rx_start_periodic_window_from_sync()
-  48           *      È»ºó¹Ø±Õ P1_4 ÖÐ¶Ï£¬´ò¿ª GTIMER0 ÖÜÆÚ´°¿Ú
-  49           *
-  50           * 3. GTIMER0 Ã¿´ÎÒç³ö£º
-  51           *      ²»Ö±½Ó¶Á ADC£¬Ö»ÖÃÎ» rx_window_pending
-  52           *      Ö÷Ñ­»·¿´µ½ rx_window_pending ºóµ÷ÓÃ rx_process_adc_window()
-  53           *
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 2   
+  35          /*======================================================================
+  36           * Ò»¡¢½ÓÊÕËã·¨²ÎÊý
+  37           *====================================================================*/
+  38          
+  39          /*
+  40           * ÏµÍ³Ö÷Æµ 24MHz£¬GTIMER0 Ê¹ÓÃ 24 ·ÖÆµ£º
+  41           * 24MHz / 24 = 1MHz£¬1 tick = 1us¡£
+  42           */
+  43          
+  44          /*
+  45           * ¡¾ÓÐ¹âÈ·ÈÏ´ÎÊý¡¿
+  46           * Á¬Ðø 3 ¸ö ADC ´°¿ÚÓÐÐ§²ÅÈ·ÈÏÓÐ¹â¡£
+  47           * ×÷ÓÃ£º·ÀÖ¹µ¥¸ö´°¿ÚÅ¼È»²Éµ½ÔëÉù¾ÍÁ¢¼´Êä³öÓÐ¹â¡£
+  48           * Ó°Ïì£ºÔ½´ó£¬À´¹âÏìÓ¦Ô½Âý£»Ô½Ð¡£¬Ô½ÈÝÒ×ÎóÁÁ¡£
+  49           */
+  50          #define RX_CONFIRM_COUNT              1U
+  51          
+  52          /*
+  53           * ¶¨Ê±Æ÷´°¿Ú¼ä¸ôÖÜÆÚ¡£
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 2   
 
-  54           * 4. Ã¿¸ö ADC ´°¿ÚÅÐ¶Ï£º
-  55           *      avg_adc >= adc_set                  -> ÓÐÐ§´°¿Ú
-  56           *      avg_adc <= adc_set - RX_ADC_HYS_VALUE -> ÎÞÐ§´°¿Ú
-  57           *      Á¬Ðø RX_CONFIRM_COUNT ¸öÓÐÐ§´°¿Ú    -> Êä³öÓÐ¹â
-  58           *      Á¬Ðø RX_LOST_WINDOW_COUNT ¸öÎÞÐ§´°¿Ú -> Êä³öÕÚ¹â
-  59           *
-  60           * 5. Ç¿ÖÆÖØÍ¬²½£º
-  61           *      rx_resync_count_after_window() µ½´ï RX_RESYNC_WINDOW_COUNT ºó£¬
-  62           *      ÖÃÎ» rx_resync_pending¡£
-  63           *      Ö÷Ñ­»·µ÷ÓÃ rx_force_resync_from_main()£¬»áÍ£Ö¹ GTIMER0£¬ÖØÐÂ´ò¿ª P1_4¡£
-  64           *      Èç¹ûµ±Ç°ÒÑ¾­ÓÐ¹â£¬»áÆô¶¯ GTIMER1 ×÷Îª 2ms Í¬²½µÈ´ý³¬Ê±¡£
-  65           *
-  66           * ¡¾ÕÚ¹âÅ¼¶û²»ÅÐ¶ÏÊ±ÖØµã¿´ÈýÌõÁ´Â·¡¿
+  54           * Ä¬ÈÏ 1000us£¬Ò²¾ÍÊÇÍ¬²½ºóÃ¿¸ô 1ms ´ò¿ªÒ»´Î ADC É¨Ãè´°¿Ú¡£
+  55           * Èç¹û·¢Éä¶ËÖÜÆÚ²»ÊÇ 1ms£¬Ö»ÐèÒª¸ÄÕâÀï¡£
+  56           */
+  57          /*
+  58           * ¡¾´°¿ÚÖÜÆÚ¡¿
+  59           * GTIMER0 ºóÐøÃ¿ 1000us ´¥·¢Ò»´Î ADC É¨Ãè´°¿Ú¡£
+  60           * ×¢Òâ£ºÕâÀïÖ»ÊÇ¡°´°¿ÚÆðµãÖÜÆÚ¡±£¬²»ÊÇ ADC ´°¿Ú¿í¶È¡£
+  61           * Èç¹û·¢Éä¶ËÓÐÐ§Âö³åÖÜÆÚ²»ÊÇ 1ms£¬ÕâÀï±ØÐë¸ú×Å¸Ä¡£
+  62           */
+  63          #define RX_WINDOW_INTERVAL_TICK       1000U
+  64          
+  65          /*
+  66           * Í¬²½ÖÐ¶ÏºóµÄµÚÒ»´Î´°¿ÚÆðµã¼ä¸ô¡£
   67           *
-  68           * A. Õý³£ ADC ÕÚ¹âÁ´Â·£º
-  69           *      rx_process_adc_window()
-  70           *        -> adc_ok = 0
-  71           *        -> rx_lost_window_count++
-  72           *        -> rx_lost_window_count >= RX_LOST_WINDOW_COUNT
-  73           *        -> rx_enter_block_state()
+  68           * Õâ¸ö²ÎÊýÖ»Ó°Ïì¡°Í¬²½ºóµÄµÚÒ»´Î ADC ´°¿Ú¡±¡£
+  69           * µÚÒ»´Î´°¿ÚÖ®ºó£¬ºóÐø´°¿ÚÈÔÈ»±£³Ö RX_WINDOW_INTERVAL_TICK£¬Ò²¾ÍÊÇ 1000us¡£
+  70           *
+  71           * µ÷ÊÔ·½·¨£º
+  72           * - Èç¹ûÊ¾²¨Æ÷¿´µ½ ADC ´°¿ÚÕûÌåÆ«ºó£¬¾Í°ÑÕâÀïµ÷Ð¡£¬ÀýÈç 950¡¢900¡¢850¡£
+  73           * - Èç¹ûÊ¾²¨Æ÷¿´µ½ ADC ´°¿ÚÕûÌåÆ«Ç°£¬¾Í°ÑÕâÀïµ÷´ó£¬×î´ó²»Òª³¬¹ý RX_WINDOW_INTERVAL_TICK¡£
   74           *
-  75           * B. Ç¿ÖÆÖØÍ¬²½µÈ´ýÁ´Â·£º
-  76           *      rx_force_resync_from_main()
-  77           *        -> rx_seen_once = 0
-  78           *        -> GTIMER0 Í£Ö¹£¬²»ÔÙÓÐ ADC ´°¿Ú
-  79           *        -> Ö»ÄÜ¿¿ GTIMER1 2ms ³¬Ê±½øÈëÕÚ¹â
-  80           *
-  81           * C. Í¬²½±ßÑØÎó´¥·¢Á´Â·£º
-  82           *      ÕÚ¹âÊ±Èç¹û P1_4 ÈÔÈ»ÓÐÃ«´Ì/·´Éä/¸ÉÈÅ±ßÑØ£¬
-  83           *      »áÖØÐÂ rx_start_periodic_window_from_sync()£¬µ¼ÖÂÏµÍ³ÓÖ½øÈë²ÉÑù×´Ì¬¡£
-  84           *
-  85           * ¡¾µ±Ç°°æ±¾×î¿ÉÒÉ²ÎÊý¡¿
-  86           *      RX_RESYNC_WINDOW_COUNT = 3U
-  87           *      Õâ±íÊ¾Ã¿ 3 ¸öÓÐÐ§´°¿Ú¾ÍÍ£µô ADC ´°¿ÚÈ¥ÖØÍ¬²½Ò»´Î¡£
-  88           *      Èç¹ûÕÚ¹â¸ÕºÃ·¢ÉúÔÚÖØÍ¬²½µÈ´ýÆÚ£¬ÕÚ¹â¾Í²»×ßÁ¬ÐøÎÞÐ§´°¿ÚÁ´Â·£¬
-  89           *      ¶øÊÇÒÀÀµ GTIMER1 Í¬²½µÈ´ý³¬Ê±Á´Â·¡£
-  90           ***********************************************************************/
-  91          
-  92          
-  93          /*======================================================================
-  94           * Ò»¡¢½ÓÊÕËã·¨²ÎÊý
-  95           *====================================================================*/
-  96          
-  97          /*
-  98           * ÏµÍ³Ö÷Æµ 24MHz£¬GTIMER0 Ê¹ÓÃ 24 ·ÖÆµ£º
-  99           * 24MHz / 24 = 1MHz£¬1 tick = 1us¡£
- 100           */
- 101          
- 102          /*
- 103           * ¡¾ÓÐ¹âÈ·ÈÏ´ÎÊý¡¿
- 104           * Á¬Ðø 3 ¸ö ADC ´°¿ÚÓÐÐ§²ÅÈ·ÈÏÓÐ¹â¡£
- 105           * ×÷ÓÃ£º·ÀÖ¹µ¥¸ö´°¿ÚÅ¼È»²Éµ½ÔëÉù¾ÍÁ¢¼´Êä³öÓÐ¹â¡£
- 106           * Ó°Ïì£ºÔ½´ó£¬À´¹âÏìÓ¦Ô½Âý£»Ô½Ð¡£¬Ô½ÈÝÒ×ÎóÁÁ¡£
+  75           * Àý£º
+  76           * - 1000U£ºµÈÍ¬¾É°æ£¬Í¬²½ºó 1000us ²Å´ò¿ªµÚÒ»´Î´°¿Ú¡£
+  77           * - 900U £ºÍ¬²½ºó 900us ´ò¿ªµÚÒ»´Î´°¿Ú£¬Ïàµ±ÓÚºóÐøÏàÎ»ÕûÌåÌáÇ° 100us¡£
+  78           */
+  79          /*
+  80           * ¡¾µÚÒ»´Î´°¿ÚÑÓ³Ù¡¿
+  81           * ÊÕµ½ P1_4 Í¬²½±ßÑØºó£¬²»ÊÇÁ¢¿Ì²É ADC£¬¶øÊÇµÈ´ý 880us ÔÙ´ò¿ªµÚÒ»´Î´°¿Ú¡£
+  82           * Õâ¸öÖµ¾ö¶¨²ÉÑù´°¿ÚÏà¶ÔÓÚ·¢ÉäÂö³åµÄÎ»ÖÃ¡£
+  83           *
+  84           * ÅÅ²éµã£º
+  85           * - Èç¹ûÕâ¸öÖµÆ«²îÌ«´ó£¬´°¿Ú¿ÉÄÜÉ¨²»µ½Âö³å£¬µ¼ÖÂÎóÕÚ¹â¡£
+  86           * - Èç¹û´°¿ÚÉ¨µ½Âö³åÎ²²¿£¬Æ½¾ùÖµ»áÆ«µÍ£¬¿ÉÄÜ¸ÕºÃµÍÓÚãÐÖµ¡£
+  87           */
+  88          #define RX_FIRST_WINDOW_DELAY_TICK    880U
+  89          
+  90          /*
+  91           * ADC Á¬ÐøÉ¨Ãè´°¿Ú¿í¶È¡£
+  92           * Ä¬ÈÏ 40us¡£
+  93           *
+  94           * ·¢ÉäÓÐÐ§Âö¿íÔ¼ 25us Ê±£º
+  95           * - ´°¿ÚÌ«Ð¡£ºÈÝÒ×ÒòÎªÏàÎ»Æ«²îÂ©µôÂö³å£»
+  96           * - ´°¿ÚÌ«´ó£ºÆ½¾ùÖµ»á±»´°¿ÚÄÚµÄµÍµçÆ½À­µÍ£¬ÐèÒªÊÊµ±½µµÍ adc_set£»
+  97           * - ½¨ÒéÏÈÓÃ 30~60us µ÷ÊÔ¡£
+  98           */
+  99          /*
+ 100           * ¡¾ADC ´°¿Ú¿í¶È¡¿
+ 101           * Ã¿´Î´°¿Ú³ÖÐø 100us£¬ÔÚÕâ 100us ÄÚÁ¬Ðø¶Á ADC ²¢ÇóÆ½¾ù¡£
+ 102           *
+ 103           * ÅÅ²éµã£º
+ 104           * - ·¢ÉäÓÐÐ§Âö¿íÈç¹ûÖ»ÓÐÔ¼ 25us£¬100us ÇóÆ½¾ù»á°Ñ·åÖµÏ¡ÊÍ¡£
+ 105           * - ÀýÈç 25us ÓÐÐ§ + 75us ÎÞÐÅºÅ£¬Æ½¾ùÖµ´óÔ¼Ö»ÓÐ·åÖµµÄ 1/4¡£
+ 106           * - ËùÒÔ adc_set ±ØÐë°´¡°´°¿ÚÆ½¾ùÖµ¡±±ê¶¨£¬²»ÊÇ°´·åÖµ±ê¶¨¡£
  107           */
- 108          #define RX_CONFIRM_COUNT              3U
+ 108          #define RX_ADC_WINDOW_WIDTH_TICK      100U
  109          
  110          /*
- 111           * ¶¨Ê±Æ÷´°¿Ú¼ä¸ôÖÜÆÚ¡£
- 112           * Ä¬ÈÏ 1000us£¬Ò²¾ÍÊÇÍ¬²½ºóÃ¿¸ô 1ms ´ò¿ªÒ»´Î ADC É¨Ãè´°¿Ú¡£
- 113           * Èç¹û·¢Éä¶ËÖÜÆÚ²»ÊÇ 1ms£¬Ö»ÐèÒª¸ÄÕâÀï¡£
+ 111           * Á¬Ðø¶àÉÙ¸ö ADC ´°¿ÚÎÞÐ§ºóÅÐ¶¨ÕÚ¹â¡£
+ 112           * Ä¬ÈÏ 3 ¸ö´°¿Ú£¬¼´Ô¼ 3ms ÕÚ¹âÈ·ÈÏ£¬ÏìÓ¦Ô¼ 333Hz¡£
+ 113           * Èç¹ûÏë¸ü¿ì£¬¿ÉÒÔ¸Ä 2£»Èç¹ûÏÖ³¡¶¶¶¯Ã÷ÏÔ£¬¿ÉÒÔ¸Ä 4 »ò 5¡£
  114           */
- 115          /*
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 3   
+ 115          //#define RX_LOST_WINDOW_COUNT          3U
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 3   
 
- 116           * ¡¾´°¿ÚÖÜÆÚ¡¿
- 117           * GTIMER0 ºóÐøÃ¿ 1000us ´¥·¢Ò»´Î ADC É¨Ãè´°¿Ú¡£
- 118           * ×¢Òâ£ºÕâÀïÖ»ÊÇ¡°´°¿ÚÆðµãÖÜÆÚ¡±£¬²»ÊÇ ADC ´°¿Ú¿í¶È¡£
- 119           * Èç¹û·¢Éä¶ËÓÐÐ§Âö³åÖÜÆÚ²»ÊÇ 1ms£¬ÕâÀï±ØÐë¸ú×Å¸Ä¡£
- 120           */
- 121          #define RX_WINDOW_INTERVAL_TICK       1000U
- 122          
- 123          /*
- 124           * Í¬²½ÖÐ¶ÏºóµÄµÚÒ»´Î´°¿ÚÆðµã¼ä¸ô¡£
- 125           *
- 126           * Õâ¸ö²ÎÊýÖ»Ó°Ïì¡°Í¬²½ºóµÄµÚÒ»´Î ADC ´°¿Ú¡±¡£
- 127           * µÚÒ»´Î´°¿ÚÖ®ºó£¬ºóÐø´°¿ÚÈÔÈ»±£³Ö RX_WINDOW_INTERVAL_TICK£¬Ò²¾ÍÊÇ 1000us¡£
- 128           *
- 129           * µ÷ÊÔ·½·¨£º
- 130           * - Èç¹ûÊ¾²¨Æ÷¿´µ½ ADC ´°¿ÚÕûÌåÆ«ºó£¬¾Í°ÑÕâÀïµ÷Ð¡£¬ÀýÈç 950¡¢900¡¢850¡£
- 131           * - Èç¹ûÊ¾²¨Æ÷¿´µ½ ADC ´°¿ÚÕûÌåÆ«Ç°£¬¾Í°ÑÕâÀïµ÷´ó£¬×î´ó²»Òª³¬¹ý RX_WINDOW_INTERVAL_TICK¡£
- 132           *
- 133           * Àý£º
- 134           * - 1000U£ºµÈÍ¬¾É°æ£¬Í¬²½ºó 1000us ²Å´ò¿ªµÚÒ»´Î´°¿Ú¡£
- 135           * - 900U £ºÍ¬²½ºó 900us ´ò¿ªµÚÒ»´Î´°¿Ú£¬Ïàµ±ÓÚºóÐøÏàÎ»ÕûÌåÌáÇ° 100us¡£
- 136           */
- 137          /*
- 138           * ¡¾µÚÒ»´Î´°¿ÚÑÓ³Ù¡¿
- 139           * ÊÕµ½ P1_4 Í¬²½±ßÑØºó£¬²»ÊÇÁ¢¿Ì²É ADC£¬¶øÊÇµÈ´ý 880us ÔÙ´ò¿ªµÚÒ»´Î´°¿Ú¡£
- 140           * Õâ¸öÖµ¾ö¶¨²ÉÑù´°¿ÚÏà¶ÔÓÚ·¢ÉäÂö³åµÄÎ»ÖÃ¡£
- 141           *
- 142           * ÅÅ²éµã£º
- 143           * - Èç¹ûÕâ¸öÖµÆ«²îÌ«´ó£¬´°¿Ú¿ÉÄÜÉ¨²»µ½Âö³å£¬µ¼ÖÂÎóÕÚ¹â¡£
- 144           * - Èç¹û´°¿ÚÉ¨µ½Âö³åÎ²²¿£¬Æ½¾ùÖµ»áÆ«µÍ£¬¿ÉÄÜ¸ÕºÃµÍÓÚãÐÖµ¡£
- 145           */
- 146          #define RX_FIRST_WINDOW_DELAY_TICK    880U
- 147          
- 148          /*
- 149           * ADC Á¬ÐøÉ¨Ãè´°¿Ú¿í¶È¡£
- 150           * Ä¬ÈÏ 40us¡£
- 151           *
- 152           * ·¢ÉäÓÐÐ§Âö¿íÔ¼ 25us Ê±£º
- 153           * - ´°¿ÚÌ«Ð¡£ºÈÝÒ×ÒòÎªÏàÎ»Æ«²îÂ©µôÂö³å£»
- 154           * - ´°¿ÚÌ«´ó£ºÆ½¾ùÖµ»á±»´°¿ÚÄÚµÄµÍµçÆ½À­µÍ£¬ÐèÒªÊÊµ±½µµÍ adc_set£»
- 155           * - ½¨ÒéÏÈÓÃ 30~60us µ÷ÊÔ¡£
- 156           */
- 157          /*
- 158           * ¡¾ADC ´°¿Ú¿í¶È¡¿
- 159           * Ã¿´Î´°¿Ú³ÖÐø 100us£¬ÔÚÕâ 100us ÄÚÁ¬Ðø¶Á ADC ²¢ÇóÆ½¾ù¡£
- 160           *
- 161           * ÅÅ²éµã£º
- 162           * - ·¢ÉäÓÐÐ§Âö¿íÈç¹ûÖ»ÓÐÔ¼ 25us£¬100us ÇóÆ½¾ù»á°Ñ·åÖµÏ¡ÊÍ¡£
- 163           * - ÀýÈç 25us ÓÐÐ§ + 75us ÎÞÐÅºÅ£¬Æ½¾ùÖµ´óÔ¼Ö»ÓÐ·åÖµµÄ 1/4¡£
- 164           * - ËùÒÔ adc_set ±ØÐë°´¡°´°¿ÚÆ½¾ùÖµ¡±±ê¶¨£¬²»ÊÇ°´·åÖµ±ê¶¨¡£
- 165           */
- 166          #define RX_ADC_WINDOW_WIDTH_TICK      100U
- 167          
- 168          /*
- 169           * Á¬Ðø¶àÉÙ¸ö ADC ´°¿ÚÎÞÐ§ºóÅÐ¶¨ÕÚ¹â¡£
- 170           * Ä¬ÈÏ 3 ¸ö´°¿Ú£¬¼´Ô¼ 3ms ÕÚ¹âÈ·ÈÏ£¬ÏìÓ¦Ô¼ 333Hz¡£
- 171           * Èç¹ûÏë¸ü¿ì£¬¿ÉÒÔ¸Ä 2£»Èç¹ûÏÖ³¡¶¶¶¯Ã÷ÏÔ£¬¿ÉÒÔ¸Ä 4 »ò 5¡£
- 172           */
- 173          /*
- 174           * ¡¾ÕÚ¹âÈ·ÈÏ´ÎÊý¡¿
- 175           * Á¬Ðø 3 ¸ö´°¿ÚÎÞÐ§²ÅÅÐ¶¨ÕÚ¹â¡£
- 176           * Õý³£Çé¿öÏÂÕÚ¹âÏìÓ¦Ô¼Îª£º3 * 1ms = 3ms¡£
- 177           *
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 4   
-
- 178           * ÅÅ²éµã£º
- 179           * Èç¹ûÕÚ¹âÊ±Å¼¶û»¹ÄÜ²Éµ½ÓÐÐ§Öµ£¬rx_lost_window_count »á±»ÇåÁã£¬
- 180           * ¾Í»á±íÏÖÎª¡°Ã÷Ã÷ÕÚµ²ÁË£¬µ«Å¼¶û²»ÅÐ¶ÏÕÚ¹â¡±¡£
- 181           */
- 182          #define RX_LOST_WINDOW_COUNT          3U
- 183          
- 184          /*
- 185           * ÖÜÆÚÐÔÇ¿ÖÆÖØÐÂÍ¬²½¹¦ÄÜ¡£
- 186           *
- 187           * ×÷ÓÃ£º
- 188           * Í¬²½ºóËäÈ» GTIMER0 Ã¿ 1ms ÖÜÆÚ±¾ÉíÎÈ¶¨£¬µ«½ÓÊÕ¶Ë±¾µØ¶¨Ê±Æ÷ºÍ·¢Éä¶ËÖÜÆÚ
- 189           * Ö®¼ä¿ÉÄÜÓÐÎ¢Ð¡Æµ²î£¬ÀÛ¼ÆÒ»¶ÎÊ±¼äºó ADC ´°¿Ú»áÏà¶Ô·¢ÉäÂö³åÂýÂýÆ¯ÒÆ¡£
- 190           * ËùÒÔÃ¿´¦Àí RX_RESYNC_WINDOW_COUNT ¸ö´°¿Úºó£¬Ö÷¶¯ÍË³öµ±Ç° 1ms ÖÜÆÚ²ÉÑù£¬
- 191           * ÖØÐÂ´ò¿ª P1_4 Í¬²½ÖÐ¶Ï£¬µÈÏÂÒ»´Î·¢ÉäÂö³å±ßÑØÖØÐÂÐ£×¼ÏàÎ»¡£
- 192           *
- 193           * ×¢Òâ£º
- 194           * Ç¿ÖÆÖØÍ¬²½²»»á°ÑÊä³öÀ­³ÉÕÚ¹â£¬Ö»ÊÇÔÝÍ£ÖÜÆÚ´°¿Ú²¢µÈ´ýÏÂÒ»´ÎÍ¬²½±ßÑØ¡£
- 195           * Èç¹ûÈ·ÊµÒÑ¾­ÕÚ¹â£¬ÔòÈÔÈ»ÓÉ RX_LOST_WINDOW_COUNT ¸öÎÞÐ§´°¿Ú×ßÕÚ¹âÂß¼­¡£
- 196           *
- 197           * Ä¬ÈÏ 100 ¸öÖÜÆÚ£¬¼´Ô¼Ã¿ 100ms ÖØÐÂÍ¬²½Ò»´Î¡£
- 198           * Èç¹ûÆ¯ÒÆºÜ¿ì£¬¿ÉÒÔ¸Ä 50 »ò 20£»Èç¹ûÏÖ³¡ºÜÎÈ£¬¿ÉÒÔ¸Ä 200¡£
- 199           */
- 200          /*
- 201           * ¡¾ÊÇ·ñÆôÓÃÇ¿ÖÆÖØÍ¬²½¡¿
- 202           * 1 = ÆôÓÃ£»0 = ¹Ø±Õ¡£
- 203           *
- 204           * ÅÅ²é½¨Òé£º
- 205           * Èô³öÏÖ¡°ÕÚ¹âÅ¼¶û²»ÅÐ¶Ï¡±£¬¿ÉÒÔÏÈÁÙÊ±¸Ä³É 0U¡£
- 206           * Èç¹û¹Ø±ÕºóÎÊÌâÏûÊ§£¬ËµÃ÷ÎÊÌâÔÚÇ¿ÖÆÖØÍ¬²½µÈ´ýÁ´Â·¡£
- 207           */
- 208          #define RX_RESYNC_ENABLE              1U
- 209          /*
- 210           * ¡¾Ç¿ÖÆÖØÍ¬²½´°¿ÚÊý¡¿
- 211           * µ±Ç°Îª 3U£¬±íÊ¾Ã¿ 3 ¸öÓÐÐ§´°¿Ú¾ÍÇ¿ÖÆÖØÍ¬²½Ò»´Î¡£
- 212           *
- 213           * ÖØÒªÅÅ²éµã£º
- 214           * - Õâ¸öÖµºÍÉÏ·½×¢ÊÍÀï¡°Ä¬ÈÏ 100 ¸öÖÜÆÚ¡±²»Ò»ÖÂ¡£
- 215           * - 3U Ì«Æµ·±£¬´óÔ¼Ã¿ 3ms Í£Ò»´Î GTIMER0 ADC ´°¿Ú¡£
- 216           * - Í£Ö¹ ADC ´°¿Úºó£¬ÕÚ¹â²»ÔÙ×ß rx_lost_window_count£¬
- 217           *   ¶øÊÇÒÀÀµ GTIMER1 µÄ 2ms Í¬²½µÈ´ý³¬Ê±¡£
- 218           * - Èç¹û GTIMER1 ³¬Ê±Ã»ÓÐ±»Ö÷Ñ­»·¼°Ê±´¦Àí£¬Êä³ö¿ÉÄÜ±£³ÖÓÐ¹â¡£
- 219           *
- 220           * ½¨Òéµ÷ÊÔ£ºÏÈ¸Ä 100U »ò¹Ø±Õ RX_RESYNC_ENABLE ÑéÖ¤¡£
- 221           */
- 222          #define RX_RESYNC_WINDOW_COUNT        3U
- 223          
- 224          /*
- 225           * Ç¿ÖÆÖØÍ¬²½µÈ´ý³¬Ê±¡£
- 226           * ÖÜÆÚÐÔÇ¿ÖÆÖØÍ¬²½Ê±£¬½ÓÊÕ¶Ë»áÍ£Ö¹ GTIMER0 ´°¿Ú²ÉÑù²¢ÖØÐÂ´ò¿ª P1_4¡£
- 227           * Èç¹û 2ms ÄÚÃ»ÓÐÊÕµ½ÐÂµÄ P1_4 Í¬²½±ßÑØ£¬¾ÍÈÏÎªµ±Ç°ÒÑ¾­ÕÚ¹â¡£
- 228           * Õâ¸ö³¬Ê±Ö»ÓÃÓÚ¡°ÒÑ¾­ÓÐ¹âºóµÄÇ¿ÖÆÖØÍ¬²½µÈ´ýÆÚ¡±£¬ÉÏµçÕÚ¹âµÈ´ý²»Æô¶¯¡£
- 229           */
- 230          /*
- 231           * ¡¾Ç¿ÖÆÖØÍ¬²½µÈ´ý³¬Ê±¡¿
- 232           * ÒÑ¾­ÓÐ¹âÊ±½øÈëÇ¿ÖÆÖØÍ¬²½£¬Èç¹û 2ms ÄÚÃ»ÓÐÐÂµÄ P1_4 Í¬²½±ßÑØ£¬
- 233           * ¾ÍÈÏÎª¿ÉÄÜÒÑ¾­ÕÚ¹â¡£
- 234           *
- 235           * ÅÅ²éµã£º
- 236           * Ö»ÓÐ rx_force_resync_from_main() Àï rx_light_state != 0 Ê±²ÅÆô¶¯¡£
- 237           * ÉÏµçÎÞ¹âµÈ´ýÍ¬²½Ê±²»»áÆô¶¯Õâ¸ö³¬Ê±¡£
- 238           */
- 239          #define RX_SYNC_WAIT_TIMEOUT_TICK     2000U
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 5   
-
- 240          
- 241          /*
- 242           * ÊÇ·ñÔÚÍ¬²½±ßÑØºóÁ¢¿Ì²¹²ÉÒ»¸ö´°¿Ú¡£
- 243           * 0£ºÖ»´ÓÏÂÒ»¸ö 1ms ÖÜÆÚ¿ªÊ¼²ÉÑù£¬Ê±Ðò¸ü¸É¾»¡£
- 244           * 1£ºÍ¬²½ºóÂíÉÏ²ÉÒ»´Î£¬À´¹âÈ·ÈÏ¸ü¿ì£¬µ«¿ÉÄÜ¸ÕºÃ´¦ÓÚÂö³åÎ²²¿¡£
- 245           */
- 246          #define RX_FIRST_WINDOW_IMMEDIATE     0U
- 247          
- 248          /*
- 249           * Èç¹ûÄãµÄ gpio_irq_set() ¿âÃ»ÓÐ¶¨Òå GPIO_IRQ_DISABLE£¬Í¨³£ 0 ¾ÍÊÇ¹Ø±Õ¡£
- 250           */
- 251          #ifndef GPIO_IRQ_DISABLE
-              #define GPIO_IRQ_DISABLE              0U
+ 116          
+ 117          /* 
+ 118           *Ã¿×é ADC ÅÐ¶Ï´°¿ÚÊý¡£
+ 119           */
+ 120          #define RX_DECISION_GROUP_WINDOW_COUNT   1U
+ 121          
+ 122          #if (RX_CONFIRM_COUNT > RX_DECISION_GROUP_WINDOW_COUNT)
+              #error "RX_CONFIRM_COUNT must not exceed RX_DECISION_GROUP_WINDOW_COUNT"
               #endif
- 254          
- 255          
- 256          /*======================================================================
- 257           * ¶þ¡¢ADC ³ÙÖÍ²ÎÊý
- 258           *====================================================================*/
- 259          
- 260          #define RX_ADC_HYS_ENABLE             1U
- 261          /*
- 262           * ¡¾ADC ³ÙÖÍ¿í¶È¡¿
- 263           * adc_set ÊÇ´ò¿ªãÐÖµ£¬adc_set - 30 ÊÇ¹Ø±ÕãÐÖµ¡£
- 264           * ÀýÈç adc_set=200£¬Ôò£º
- 265           *   ´ÓÎÞÐ§µ½ÓÐÐ§£ºavg_adc >= 200
- 266           *   ´ÓÓÐÐ§µ½ÎÞÐ§£ºavg_adc <= 170
- 267           *
- 268           * ÅÅ²éµã£º
- 269           * ÕÚ¹âºóÈç¹û´°¿ÚÆ½¾ùÖµÈÔÈ»ÔÚ 170 ÒÔÉÏ£¬³ÙÖÍ»á¼ÌÐøÈÏÎªÓÐÐ§¡£
- 270           */
- 271          #define RX_ADC_HYS_VALUE              100U
- 272          
- 273          #ifndef ADC_INVALID
+ 125          
+ 126          /*
+ 127           * ÖÜÆÚÐÔÇ¿ÖÆÖØÐÂÍ¬²½¹¦ÄÜ¡£
+ 128           *
+ 129           * ×÷ÓÃ£º
+ 130           * Í¬²½ºóËäÈ» GTIMER0 Ã¿ 1ms ÖÜÆÚ±¾ÉíÎÈ¶¨£¬µ«½ÓÊÕ¶Ë±¾µØ¶¨Ê±Æ÷ºÍ·¢Éä¶ËÖÜÆÚ
+ 131           * Ö®¼ä¿ÉÄÜÓÐÎ¢Ð¡Æµ²î£¬ÀÛ¼ÆÒ»¶ÎÊ±¼äºó ADC ´°¿Ú»áÏà¶Ô·¢ÉäÂö³åÂýÂýÆ¯ÒÆ¡£
+ 132           * ËùÒÔÃ¿´¦Àí RX_RESYNC_WINDOW_COUNT ¸ö´°¿Úºó£¬Ö÷¶¯ÍË³öµ±Ç° 1ms ÖÜÆÚ²ÉÑù£¬
+ 133           * ÖØÐÂ´ò¿ª P1_4 Í¬²½ÖÐ¶Ï£¬µÈÏÂÒ»´Î·¢ÉäÂö³å±ßÑØÖØÐÂÐ£×¼ÏàÎ»¡£
+ 134           *
+ 135           * ×¢Òâ£º
+ 136           * Ç¿ÖÆÖØÍ¬²½²»»á°ÑÊä³öÀ­³ÉÕÚ¹â£¬Ö»ÊÇÔÝÍ£ÖÜÆÚ´°¿Ú²¢µÈ´ýÏÂÒ»´ÎÍ¬²½±ßÑØ¡£
+ 137           * Èç¹ûÈ·ÊµÒÑ¾­ÕÚ¹â£¬ÔòÈÔÈ»ÓÉ RX_LOST_WINDOW_COUNT ¸öÎÞÐ§´°¿Ú×ßÕÚ¹âÂß¼­¡£
+ 138           *
+ 139           * Ä¬ÈÏ 100 ¸öÖÜÆÚ£¬¼´Ô¼Ã¿ 100ms ÖØÐÂÍ¬²½Ò»´Î¡£
+ 140           * Èç¹ûÆ¯ÒÆºÜ¿ì£¬¿ÉÒÔ¸Ä 50 »ò 20£»Èç¹ûÏÖ³¡ºÜÎÈ£¬¿ÉÒÔ¸Ä 200¡£
+ 141           */
+ 142          #define RX_RESYNC_ENABLE              1U
+ 143          /*
+ 144           * ¡¾Ç¿ÖÆÖØÍ¬²½´°¿ÚÊý¡¿
+ 145           * µ±Ç°Îª 3U£¬±íÊ¾Ã¿ 3 ¸öÓÐÐ§´°¿Ú¾ÍÇ¿ÖÆÖØÍ¬²½Ò»´Î¡£
+ 146           *
+ 147           * ÖØÒªÅÅ²éµã£º
+ 148           * - Õâ¸öÖµºÍÉÏ·½×¢ÊÍÀï¡°Ä¬ÈÏ 100 ¸öÖÜÆÚ¡±²»Ò»ÖÂ¡£
+ 149           * - 3U Ì«Æµ·±£¬´óÔ¼Ã¿ 3ms Í£Ò»´Î GTIMER0 ADC ´°¿Ú¡£
+ 150           * - Í£Ö¹ ADC ´°¿Úºó£¬ÕÚ¹â²»ÔÙ×ß rx_lost_window_count£¬
+ 151           *   ¶øÊÇÒÀÀµ GTIMER1 µÄ 2ms Í¬²½µÈ´ý³¬Ê±¡£
+ 152           * - Èç¹û GTIMER1 ³¬Ê±Ã»ÓÐ±»Ö÷Ñ­»·¼°Ê±´¦Àí£¬Êä³ö¿ÉÄÜ±£³ÖÓÐ¹â¡£
+ 153           *
+ 154           * ½¨Òéµ÷ÊÔ£ºÏÈ¸Ä 100U »ò¹Ø±Õ RX_RESYNC_ENABLE ÑéÖ¤¡£
+ 155           */
+ 156          #define RX_RESYNC_WINDOW_COUNT        1U
+ 157          
+ 158          /*
+ 159           * Ç¿ÖÆÖØÍ¬²½µÈ´ý³¬Ê±¡£
+ 160           * ÖÜÆÚÐÔÇ¿ÖÆÖØÍ¬²½Ê±£¬½ÓÊÕ¶Ë»áÍ£Ö¹ GTIMER0 ´°¿Ú²ÉÑù²¢ÖØÐÂ´ò¿ª P1_4¡£
+ 161           * Èç¹û 2ms ÄÚÃ»ÓÐÊÕµ½ÐÂµÄ P1_4 Í¬²½±ßÑØ£¬¾ÍÈÏÎªµ±Ç°ÒÑ¾­ÕÚ¹â¡£
+ 162           * Õâ¸ö³¬Ê±Ö»ÓÃÓÚ¡°ÒÑ¾­ÓÐ¹âºóµÄÇ¿ÖÆÖØÍ¬²½µÈ´ýÆÚ¡±£¬ÉÏµçÕÚ¹âµÈ´ý²»Æô¶¯¡£
+ 163           */
+ 164          #define RX_SYNC_WAIT_TIMEOUT_TICK     1500U
+ 165          
+ 166          /*
+ 167           * ÊÇ·ñÔÚÍ¬²½±ßÑØºóÁ¢¿Ì²¹²ÉÒ»¸ö´°¿Ú¡£
+ 168           * 0£ºÖ»´ÓÏÂÒ»¸ö 1ms ÖÜÆÚ¿ªÊ¼²ÉÑù£¬Ê±Ðò¸ü¸É¾»¡£
+ 169           * 1£ºÍ¬²½ºóÂíÉÏ²ÉÒ»´Î£¬À´¹âÈ·ÈÏ¸ü¿ì£¬µ«¿ÉÄÜ¸ÕºÃ´¦ÓÚÂö³åÎ²²¿¡£
+ 170           */
+ 171          #define RX_FIRST_WINDOW_IMMEDIATE     0U
+ 172          
+ 173          /*
+ 174           * Èç¹ûÄãµÄ gpio_irq_set() ¿âÃ»ÓÐ¶¨Òå GPIO_IRQ_DISABLE£¬Í¨³£ 0 ¾ÍÊÇ¹Ø±Õ¡£
+ 175           */
+ 176          #ifndef GPIO_IRQ_DISABLE
+              #define GPIO_IRQ_DISABLE              0U
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 4   
+
+              #endif
+ 179          
+ 180          
+ 181          /*======================================================================
+ 182           * ¶þ¡¢ADC ³ÙÖÍ²ÎÊý
+ 183           *====================================================================*/
+ 184          
+ 185          #define RX_ADC_HYS_ENABLE             1U
+ 186          /*
+ 187           * ¡¾ADC ³ÙÖÍ¿í¶È¡¿
+ 188           * adc_set ÊÇ´ò¿ªãÐÖµ£¬adc_set - 30 ÊÇ¹Ø±ÕãÐÖµ¡£
+ 189           * ÀýÈç adc_set=200£¬Ôò£º
+ 190           *   ´ÓÎÞÐ§µ½ÓÐÐ§£ºavg_adc >= 200
+ 191           *   ´ÓÓÐÐ§µ½ÎÞÐ§£ºavg_adc <= 170
+ 192           *
+ 193           * ÅÅ²éµã£º
+ 194           * ÕÚ¹âºóÈç¹û´°¿ÚÆ½¾ùÖµÈÔÈ»ÔÚ 170 ÒÔÉÏ£¬³ÙÖÍ»á¼ÌÐøÈÏÎªÓÐÐ§¡£
+ 195           */
+ 196          #define RX_ADC_HYS_VALUE              100U
+ 197          
+ 198          #ifndef ADC_INVALID
               #define ADC_INVALID                   4095U
               #endif
- 276          
- 277          #ifndef ADC_MAX_VALUE
- 278          #define ADC_MAX_VALUE                 4095U
- 279          #endif
- 280          
- 281          #define RX_ADC_MAX_VALID              (ADC_INVALID - 2U)
+ 201          
+ 202          #ifndef ADC_MAX_VALUE
+ 203          #define ADC_MAX_VALUE                 4095U
+ 204          #endif
+ 205          
+ 206          #define RX_ADC_MAX_VALID              (ADC_INVALID - 2U)
+ 207          
+ 208          
+ 209          /*======================================================================
+ 210           * Èý¡¢´®¿Úµ÷ÊÔ²ÎÊý
+ 211           *====================================================================*/
+ 212          
+ 213          /*
+ 214           * ´®¿Úµ÷ÊÔÖ»´òÓ¡´°¿ÚÆ½¾ù ADC ºÍµ±Ç°ãÐÖµ¡£
+ 215           *
+ 216           * UART_ADC_DEBUG_EVENT_DIV = 1 £ºÃ¿¸ö ADC ´°¿Ú´òÓ¡Ò»´Î¡£
+ 217           * Èç¹û´°¿ÚÖÜÆÚÈÔÊÇ 1ms£¬ÆÕÍ¨ 115200 ´®¿ÚÈÔ¿ÉÄÜÍÏÂýÖ÷Ñ­»·£»
+ 218           * ÏÖ³¡Ö»¿´Ç÷ÊÆÊ±½¨Òé¸Ä³É 5¡¢10¡¢20¡£
+ 219           */
+ 220          /*
+ 221           * ¡¾´®¿Úµ÷ÊÔ¿ª¹Ø¡¿
+ 222           * µ±Ç°¹Ø±Õ¡£
+ 223           * ÈôÒª¹Û²ìÕÚ¹âÎÊÌâ£¬½¨Òé²»Òª¸ßÆµ´òÓ¡È«×´Ì¬£¬Ö»´òÓ¡¹Ø¼üÁ¿£º
+ 224           * adc_set, adc_data, adc_ok, rx_lost_window_count, rx_seen_once, rx_light_state¡£
+ 225           */
+ 226          #define UART_ADC_DEBUG_ENABLE              0U
+ 227          #define UART_ADC_DEBUG_EVENT_DIV           10U
+ 228          #define UART_ADC_DEBUG_STATE_CHANGE_PRINT  0U
+ 229          
+ 230          #define UART_DBG_REASON_BOOT               1U
+ 231          #define UART_DBG_REASON_SYNC               2U
+ 232          #define UART_DBG_REASON_ADC_FAIL           3U
+ 233          #define UART_DBG_REASON_VALID_WINDOW       4U
+ 234          #define UART_DBG_REASON_LIGHT_ON           5U
+ 235          #define UART_DBG_REASON_TIMEOUT            6U
+ 236          #define UART_DBG_REASON_WINDOW_OVERRUN     7U
+ 237          #define UART_DBG_REASON_RESYNC             8U
+ 238          #define UART_DBG_REASON_SYNC_TIMEOUT       9U
+ 239          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 5   
+
+ 240          
+ 241          /**** È«¾Ö±äÁ¿£¬±£ÁôÔ­ÃüÃû ****/
+ 242          
+ 243          /*
+ 244           * ¡¾±äÁ¿·Ö×éÀí½â¡¿
+ 245           *
+ 246           * adc_data / adc_data1£º
+ 247           *   ÓÃÓÚ¹Û²ì×î½üÒ»´Î´°¿ÚÆ½¾ù ADC ºÍ²ÉÑù´ÎÊý¡£
+ 248           *
+ 249           * rx_valid_count / rx_lost_window_count£º
+ 250           *   ÕæÕý¾ö¶¨¡°ÓÐ¹âÈ·ÈÏ¡±ºÍ¡°ÕÚ¹âÈ·ÈÏ¡±µÄÁ¬Ðø¼ÆÊýÆ÷¡£
+ 251           *
+ 252           * rx_light_state£º
+ 253           *   µ±Ç°Êä³ö×´Ì¬¡£1 ±íÊ¾Êä³ö±£³ÖÓÐ¹â£»0 ±íÊ¾Êä³öÕÚ¹â¡£
+ 254           *
+ 255           * rx_seen_once£º
+ 256           *   µ±Ç°ÊÇ·ñ´¦ÓÚ¡°ÒÑ¾­Í¬²½²¢ÇÒ GTIMER0 ´°¿Ú²ÉÑùÖÐ¡±¡£
+ 257           *   ÕâÊÇÅÅ²éÕÚ¹â²»ÅÐ¶ÏµÄ¹Ø¼ü±äÁ¿£º
+ 258           *   - rx_seen_once = 1£ºÕÚ¹â¿¿ ADC ÎÞÐ§´°¿Ú¼ÆÊýÅÐ¶Ï¡£
+ 259           *   - rx_seen_once = 0£ºADC ´°¿ÚÍ£Ö¹£¬Ö»ÄÜµÈ´ý P1_4 Í¬²½»ò GTIMER1 ³¬Ê±¡£
+ 260           *
+ 261           * rx_window_pending£º
+ 262           *   GTIMER0 ÖÐ¶ÏÖÃÎ»£¬Ö÷Ñ­»·Çå³ý²¢´¦Àí ADC ´°¿Ú¡£
+ 263           *   Èç¹ûÖ÷Ñ­»·±»´®¿Ú»ò ADC ×èÈûÌ«¾Ã£¬¿ÉÄÜ³öÏÖ´°¿Ú»ýÑ¹¡£
+ 264           *
+ 265           * rx_resync_pending£º
+ 266           *   Ç¿ÖÆÖØÍ¬²½ÇëÇó¡£ÖÃÎ»ºóÖ÷Ñ­»·»áÍ£Ö¹ GTIMER0 ²¢´ò¿ª P1_4¡£
+ 267           *
+ 268           * rx_sync_wait_timeout_pending£º
+ 269           *   GTIMER1 ³¬Ê±±êÖ¾¡£Ö»ÓÐÇ¿ÖÆÖØÍ¬²½µÈ´ý³¬Ê±Ê±²Å»áÖÃÎ»¡£
+ 270           */
+ 271          
+ 272          volatile uint16_t adc_data  = 0;      /* ×î½üÒ»´Î ADC ´°¿ÚÆ½¾ùÖµ */
+ 273          volatile uint16_t adc_data1 = 0;      /* ×î½üÒ»´Î ADC ´°¿Ú²ÉÑù´ÎÊý£¬·½±ãµ÷ÊÔ */
+ 274          
+ 275          /* µ±Ç° ADC ÓÐÐ§ãÐÖµ¡£´°¿ÚÆ½¾ùºó·ùÖµ»áµÍÓÚ·åÖµ£¬±ØÒªÊ±ÐèÒªÖØÐÂ±ê¶¨Õâ¸öÖµ¡£ */
+ 276          volatile uint16_t adc_set = 200;      
+ 277          
+ 278          uint16_t status   = 0;
+ 279          uint16_t adcount  = 0;
+ 280          uint16_t adcount1 = 0;
+ 281          
  282          
- 283          
- 284          /*======================================================================
- 285           * Èý¡¢´®¿Úµ÷ÊÔ²ÎÊý
- 286           *====================================================================*/
- 287          
- 288          /*
- 289           * ´®¿Úµ÷ÊÔÖ»´òÓ¡´°¿ÚÆ½¾ù ADC ºÍµ±Ç°ãÐÖµ¡£
- 290           *
- 291           * UART_ADC_DEBUG_EVENT_DIV = 1 £ºÃ¿¸ö ADC ´°¿Ú´òÓ¡Ò»´Î¡£
- 292           * Èç¹û´°¿ÚÖÜÆÚÈÔÊÇ 1ms£¬ÆÕÍ¨ 115200 ´®¿ÚÈÔ¿ÉÄÜÍÏÂýÖ÷Ñ­»·£»
- 293           * ÏÖ³¡Ö»¿´Ç÷ÊÆÊ±½¨Òé¸Ä³É 5¡¢10¡¢20¡£
- 294           */
- 295          /*
- 296           * ¡¾´®¿Úµ÷ÊÔ¿ª¹Ø¡¿
- 297           * µ±Ç°¹Ø±Õ¡£
- 298           * ÈôÒª¹Û²ìÕÚ¹âÎÊÌâ£¬½¨Òé²»Òª¸ßÆµ´òÓ¡È«×´Ì¬£¬Ö»´òÓ¡¹Ø¼üÁ¿£º
- 299           * adc_set, adc_data, adc_ok, rx_lost_window_count, rx_seen_once, rx_light_state¡£
- 300           */
- 301          #define UART_ADC_DEBUG_ENABLE              0U
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 6   
-
- 302          #define UART_ADC_DEBUG_EVENT_DIV           10U
- 303          #define UART_ADC_DEBUG_STATE_CHANGE_PRINT  0U
- 304          
- 305          #define UART_DBG_REASON_BOOT               1U
- 306          #define UART_DBG_REASON_SYNC               2U
- 307          #define UART_DBG_REASON_ADC_FAIL           3U
- 308          #define UART_DBG_REASON_VALID_WINDOW       4U
- 309          #define UART_DBG_REASON_LIGHT_ON           5U
- 310          #define UART_DBG_REASON_TIMEOUT            6U
- 311          #define UART_DBG_REASON_WINDOW_OVERRUN     7U
- 312          #define UART_DBG_REASON_RESYNC             8U
- 313          #define UART_DBG_REASON_SYNC_TIMEOUT       9U
- 314          
- 315          
- 316          /**** È«¾Ö±äÁ¿£¬±£ÁôÔ­ÃüÃû ****/
- 317          
- 318          /*
- 319           * ¡¾±äÁ¿·Ö×éÀí½â¡¿
- 320           *
- 321           * adc_data / adc_data1£º
- 322           *   ÓÃÓÚ¹Û²ì×î½üÒ»´Î´°¿ÚÆ½¾ù ADC ºÍ²ÉÑù´ÎÊý¡£
- 323           *
- 324           * rx_valid_count / rx_lost_window_count£º
- 325           *   ÕæÕý¾ö¶¨¡°ÓÐ¹âÈ·ÈÏ¡±ºÍ¡°ÕÚ¹âÈ·ÈÏ¡±µÄÁ¬Ðø¼ÆÊýÆ÷¡£
- 326           *
- 327           * rx_light_state£º
- 328           *   µ±Ç°Êä³ö×´Ì¬¡£1 ±íÊ¾Êä³ö±£³ÖÓÐ¹â£»0 ±íÊ¾Êä³öÕÚ¹â¡£
- 329           *
- 330           * rx_seen_once£º
- 331           *   µ±Ç°ÊÇ·ñ´¦ÓÚ¡°ÒÑ¾­Í¬²½²¢ÇÒ GTIMER0 ´°¿Ú²ÉÑùÖÐ¡±¡£
- 332           *   ÕâÊÇÅÅ²éÕÚ¹â²»ÅÐ¶ÏµÄ¹Ø¼ü±äÁ¿£º
- 333           *   - rx_seen_once = 1£ºÕÚ¹â¿¿ ADC ÎÞÐ§´°¿Ú¼ÆÊýÅÐ¶Ï¡£
- 334           *   - rx_seen_once = 0£ºADC ´°¿ÚÍ£Ö¹£¬Ö»ÄÜµÈ´ý P1_4 Í¬²½»ò GTIMER1 ³¬Ê±¡£
- 335           *
- 336           * rx_window_pending£º
- 337           *   GTIMER0 ÖÐ¶ÏÖÃÎ»£¬Ö÷Ñ­»·Çå³ý²¢´¦Àí ADC ´°¿Ú¡£
- 338           *   Èç¹ûÖ÷Ñ­»·±»´®¿Ú»ò ADC ×èÈûÌ«¾Ã£¬¿ÉÄÜ³öÏÖ´°¿Ú»ýÑ¹¡£
- 339           *
- 340           * rx_resync_pending£º
- 341           *   Ç¿ÖÆÖØÍ¬²½ÇëÇó¡£ÖÃÎ»ºóÖ÷Ñ­»·»áÍ£Ö¹ GTIMER0 ²¢´ò¿ª P1_4¡£
- 342           *
- 343           * rx_sync_wait_timeout_pending£º
- 344           *   GTIMER1 ³¬Ê±±êÖ¾¡£Ö»ÓÐÇ¿ÖÆÖØÍ¬²½µÈ´ý³¬Ê±Ê±²Å»áÖÃÎ»¡£
- 345           */
- 346          
- 347          volatile uint16_t adc_data  = 0;      /* ×î½üÒ»´Î ADC ´°¿ÚÆ½¾ùÖµ */
- 348          volatile uint16_t adc_data1 = 0;      /* ×î½üÒ»´Î ADC ´°¿Ú²ÉÑù´ÎÊý£¬·½±ãµ÷ÊÔ */
- 349          
- 350          /* µ±Ç° ADC ÓÐÐ§ãÐÖµ¡£´°¿ÚÆ½¾ùºó·ùÖµ»áµÍÓÚ·åÖµ£¬±ØÒªÊ±ÐèÒªÖØÐÂ±ê¶¨Õâ¸öÖµ¡£ */
- 351          volatile uint16_t adc_set = 200;      
- 352          
- 353          uint16_t status   = 0;
- 354          uint16_t adcount  = 0;
- 355          uint16_t adcount1 = 0;
- 356          
- 357          
- 358          /* ½ÓÊÕ×´Ì¬ */
- 359          static volatile uint8_t rx_valid_count       = 0;     /* Á¬ÐøÓÐÐ§´°¿Ú¼ÆÊý */
- 360          static volatile uint8_t rx_lost_window_count = 0;     /* Á¬ÐøÎÞÐ§´°¿Ú¼ÆÊý */
- 361          static volatile uint8_t rx_light_state       = 0;     /* 0 = ÕÚ¹â/ÎÞ¹â£¬1 = ÓÐ¹â */
- 362          static volatile uint8_t rx_seen_once         = 0;     /* 0 = µÈ´ýÍ¬²½£¬1 = ÒÑÍ¬²½²¢ÔËÐÐ´°¿Ú²ÉÑù */
- 363          
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 7   
-
- 364          /* ¶¨Ê±Æ÷ÖÐ¶ÏÖÃÎ»£¬Ö÷Ñ­»·Ö´ÐÐ ADC ´°¿ÚÉ¨Ãè */
- 365          static volatile uint8_t rx_window_pending    = 0;
- 366          
- 367          /* GPIO_IRQHandler only sets this flag; main loop performs sync start to avoid calling gpio_irq_set() insi
+ 283          /* ½ÓÊÕ×´Ì¬ */
+ 284          static volatile uint8_t rx_valid_count       = 0;     /* Á¬ÐøÓÐÐ§´°¿Ú¼ÆÊý */
+ 285          static volatile uint8_t rx_lost_window_count = 0;     /* Á¬ÐøÎÞÐ§´°¿Ú¼ÆÊý */
+ 286          static volatile uint8_t rx_light_state       = 0;     /* 0 = ÕÚ¹â/ÎÞ¹â£¬1 = ÓÐ¹â */
+ 287          static volatile uint8_t rx_seen_once         = 0;     /* 0 = µÈ´ýÍ¬²½£¬1 = ÒÑÍ¬²½²¢ÔËÐÐ´°¿Ú²ÉÑù */
+ 288          
+ 289          /* ¶¨Ê±Æ÷ÖÐ¶ÏÖÃÎ»£¬Ö÷Ñ­»·Ö´ÐÐ ADC ´°¿ÚÉ¨Ãè */
+ 290          static volatile uint8_t rx_window_pending    = 0;
+ 291          
+ 292          /* GPIO_IRQHandler only sets this flag; main loop performs sync start to avoid calling gpio_irq_set() insi
              -de ISR. */
- 368          static volatile uint8_t rx_sync_pending      = 0;
- 369          
- 370          /* ÖÜÆÚÐÔÖØÍ¬²½ÇëÇó£ºÓÉÖ÷Ñ­»·´¦Àí£¬±ÜÃâÔÚÖÐ¶ÏÉÏÏÂÎÄµ÷ÓÃ gpio_irq_set()¡£ */
- 371          static volatile uint8_t rx_resync_pending    = 0;
- 372          
- 373          /*
- 374           * Ç¿ÖÆÖØÍ¬²½µÈ´ý P1_4 ±ßÑØÆÚ¼äµÄ 2ms ³¬Ê±±êÖ¾¡£
- 375           * GTIMER1 ÖÐ¶ÏÖ»ÖÃÎ»£¬Ö÷Ñ­»·ÀïÕæÕýÖ´ÐÐÕÚ¹â´¦Àí£¬±ÜÃâÔÚÖÐ¶ÏÀïµ÷ÓÃ GPIO ¿âº¯Êý¡£
- 376           */
- 377          static volatile uint8_t rx_sync_wait_timeout_pending = 0;
- 378          static volatile uint8_t rx_sync_wait_timer_running   = 0;
- 379          
- 380          /* ÒÑÍ¬²½ºóÀÛ¼Æ´¦ÀíµÄ ADC ´°¿Ú¸öÊý£¬ÓÃÓÚ°´ÖÜÆÚÊýÇ¿ÖÆÖØÐÂÍ¬²½¡£ */
- 381          static volatile uint16_t rx_resync_window_count = 0;
- 382          
- 383          /* ADC ³ÙÖÍ×´Ì¬£º0 = ADC µ±Ç°ÈÏÎªÎÞÐ§£¬1 = ADC µ±Ç°ÈÏÎªÓÐÐ§ */
- 384          static volatile uint8_t rx_adc_valid_state   = 0;
- 385          
- 386          /* 1 = ÏÂÒ»´Î GTIMER0 Òç³öÊÇÍ¬²½ºóµÄµÚÒ»´ÎÆðµã¼ä¸ô´°¿Ú */
- 387          static volatile uint8_t rx_first_interval_pending = 0;
- 388          
- 389          /* ×î½üÒ»´Î´¥·¢´°¿ÚµÄÊµ¼Ê¼ä¸ô£¬µ¥Î» us£»µÚÒ»´Î¿ÉÄÜ²»ÊÇ 1000us */
- 390          static volatile uint16_t rx_last_trigger_interval_tick = 0;
- 391          
- 392          /* Cached first-window delay, written in main context and read by GTIMER0 ISR. */
- 393          static volatile uint16_t rx_first_delay_cached_tick = RX_FIRST_WINDOW_DELAY_TICK;
- 394          
- 395          
- 396          /*======================================================================
- 397           * ËÄ¡¢´®¿Úµ÷ÊÔ±äÁ¿
- 398           *====================================================================*/
- 399          
- 400          static volatile uint16_t g_dbg_last_elapsed_tick = 0;  /* µ±Ç°´°¿Ú¼ä¸ô£¬µ¥Î» us */
- 401          static volatile uint8_t  g_dbg_last_adc_ok       = 0;
- 402          
- 403          #if UART_ADC_DEBUG_ENABLE
+ 293          static volatile uint8_t rx_sync_pending      = 0;
+ 294          
+ 295          /* ÖÜÆÚÐÔÖØÍ¬²½ÇëÇó£ºÓÉÖ÷Ñ­»·´¦Àí£¬±ÜÃâÔÚÖÐ¶ÏÉÏÏÂÎÄµ÷ÓÃ gpio_irq_set()¡£ */
+ 296          static volatile uint8_t rx_resync_pending    = 0;
+ 297          
+ 298          /*
+ 299           * Ç¿ÖÆÖØÍ¬²½µÈ´ý P1_4 ±ßÑØÆÚ¼äµÄ 2ms ³¬Ê±±êÖ¾¡£
+ 300           * GTIMER1 ÖÐ¶ÏÖ»ÖÃÎ»£¬Ö÷Ñ­»·ÀïÕæÕýÖ´ÐÐÕÚ¹â´¦Àí£¬±ÜÃâÔÚÖÐ¶ÏÀïµ÷ÓÃ GPIO ¿âº¯Êý¡£
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 6   
+
+ 301           */
+ 302          static volatile uint8_t rx_sync_wait_timeout_pending = 0;
+ 303          static volatile uint8_t rx_sync_wait_timer_running   = 0;
+ 304          
+ 305          /* ÒÑÍ¬²½ºóÀÛ¼Æ´¦ÀíµÄ ADC ´°¿Ú¸öÊý£¬ÓÃÓÚ°´ÖÜÆÚÊýÇ¿ÖÆÖØÐÂÍ¬²½¡£ */
+ 306          static volatile uint16_t rx_resync_window_count = 0;
+ 307          
+ 308          /* ADC ³ÙÖÍ×´Ì¬£º0 = ADC µ±Ç°ÈÏÎªÎÞÐ§£¬1 = ADC µ±Ç°ÈÏÎªÓÐÐ§ */
+ 309          static volatile uint8_t rx_adc_valid_state   = 0;
+ 310          
+ 311          /* 1 = ÏÂÒ»´Î GTIMER0 Òç³öÊÇÍ¬²½ºóµÄµÚÒ»´ÎÆðµã¼ä¸ô´°¿Ú */
+ 312          static volatile uint8_t rx_first_interval_pending = 0;
+ 313          
+ 314          /* ×î½üÒ»´Î´¥·¢´°¿ÚµÄÊµ¼Ê¼ä¸ô£¬µ¥Î» us£»µÚÒ»´Î¿ÉÄÜ²»ÊÇ 1000us */
+ 315          static volatile uint16_t rx_last_trigger_interval_tick = 0;
+ 316          
+ 317          /* Cached first-window delay, written in main context and read by GTIMER0 ISR. */
+ 318          static volatile uint16_t rx_first_delay_cached_tick = RX_FIRST_WINDOW_DELAY_TICK;
+ 319          
+ 320          /* µ±Ç°Í¬²½ÖÜÆÚÄÚÒÑ´¦ÀíµÄ´°¿ÚÊý£¬3 ¸ö´°¿ÚÎªÒ»×é¡£ */
+ 321          static volatile uint8_t rx_group_window_count = 0U;
+ 322          
+ 323          
+ 324          /*======================================================================
+ 325           * ËÄ¡¢´®¿Úµ÷ÊÔ±äÁ¿
+ 326           *====================================================================*/
+ 327          
+ 328          static volatile uint16_t g_dbg_last_elapsed_tick = 0;  /* µ±Ç°´°¿Ú¼ä¸ô£¬µ¥Î» us */
+ 329          static volatile uint8_t  g_dbg_last_adc_ok       = 0;
+ 330          
+ 331          #if UART_ADC_DEBUG_ENABLE
               
               static volatile uint8_t  g_uart_debug_need_print = 0;
               static volatile uint8_t  g_uart_debug_div_count  = 0;
@@ -437,807 +363,808 @@ line level    source
               static volatile uint16_t g_dbg_timeout_count     = 0;  /* ÕÚ¹â´ÎÊý */
               
               #endif
- 416          
- 417          
- 418          /*======================================================================
- 419           * Îå¡¢º¯ÊýÉùÃ÷
- 420           *====================================================================*/
- 421          
- 422          void gtimer0_UECallBack(void);
- 423          void gtimer1_UECallBack(void);
- 424          void GPIO_Init(void);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 8   
+ 344          
+ 345          
+ 346          /*======================================================================
+ 347           * Îå¡¢º¯ÊýÉùÃ÷
+ 348           *====================================================================*/
+ 349          
+ 350          void gtimer0_UECallBack(void);
+ 351          void gtimer1_UECallBack(void);
+ 352          void GPIO_Init(void);
+ 353          void ADC_Init(void);
+ 354          void gpio_int_pro(void);
+ 355          void gpio_UECallBack(void);
+ 356          
+ 357          static uint16_t rx_timer_get_count(void);
+ 358          static uint16_t rx_timer_elapsed_from(uint16_t start_tick);
+ 359          static uint16_t rx_first_delay_get(void);
+ 360          static uint16_t rx_first_delay_to_timer_preload(uint16_t first_delay_tick);
+ 361          static void rx_timer_stop_clear(void);
+ 362          static void rx_timer_restart_with_preload(uint16_t preload_tick);
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 7   
 
- 425          void ADC_Init(void);
- 426          void gpio_int_pro(void);
- 427          void gpio_UECallBack(void);
- 428          
- 429          static uint16_t rx_timer_get_count(void);
- 430          static uint16_t rx_timer_elapsed_from(uint16_t start_tick);
- 431          static uint16_t rx_first_delay_get(void);
- 432          static uint16_t rx_first_delay_to_timer_preload(uint16_t first_delay_tick);
- 433          static void rx_timer_stop_clear(void);
- 434          static void rx_timer_restart_with_preload(uint16_t preload_tick);
- 435          static void rx_timer_restart_with_first_delay(void);
- 436          static void rx_sync_timeout_timer_stop_clear(void);
- 437          static void rx_sync_timeout_timer_start(void);
- 438          static void rx_sync_irq_enable(void);
- 439          static void rx_sync_irq_disable(void);
- 440          static void rx_output_light(void);
- 441          static void rx_output_block(void);
- 442          static uint16_t rx_adc_read_once(uint8_t ch);
- 443          static uint16_t rx_adc_scan_window_average(uint8_t ch, uint16_t window_tick, uint16_t *sample_count);
- 444          static uint16_t rx_adc_calc_off_threshold(void);
- 445          static uint8_t rx_adc_hysteresis_check(uint16_t adc);
- 446          static void rx_start_periodic_window_from_sync(void);
- 447          static void rx_enter_block_state(uint8_t debug_reason);
- 448          static void rx_force_resync_from_main(void);
- 449          static void rx_handle_sync_wait_timeout_from_main(void);
- 450          static void rx_resync_count_after_window(void);
- 451          static void rx_process_adc_window(void);
- 452          
- 453          #if UART_ADC_DEBUG_ENABLE
+ 363          static void rx_timer_restart_with_first_delay(void);
+ 364          static void rx_sync_timeout_timer_stop_clear(void);
+ 365          static void rx_sync_timeout_timer_start(void);
+ 366          static void rx_sync_irq_enable(void);
+ 367          static void rx_sync_irq_disable(void);
+ 368          static void rx_output_light(void);
+ 369          static void rx_output_block(void);
+ 370          static uint16_t rx_adc_read_once(uint8_t ch);
+ 371          static uint16_t rx_adc_scan_window_average(uint8_t ch, uint16_t window_tick, uint16_t *sample_count);
+ 372          static uint16_t rx_adc_calc_off_threshold(void);
+ 373          static uint8_t rx_adc_hysteresis_check(uint16_t adc);
+ 374          static void rx_start_periodic_window_from_sync(void);
+ 375          static void rx_enter_block_state(uint8_t debug_reason);
+ 376          static void rx_force_resync_from_main(void);
+ 377          static void rx_handle_sync_wait_timeout_from_main(void);
+ 378          static void rx_resync_count_after_window(void);
+ 379          static void rx_process_adc_window(void);
+ 380          
+ 381          #if UART_ADC_DEBUG_ENABLE
               static void uart_debug_inc16(volatile uint16_t *value);
               static void uart_debug_request(uint8_t reason, uint8_t force);
               static void uart_adc_debug_process(void);
               #else
- 458          #define uart_debug_request(reason, force)     ((void)0)
- 459          #define uart_adc_debug_process()              ((void)0)
- 460          #endif
- 461          
- 462          
- 463          /*======================================================================
- 464           * Áù¡¢¶¨Ê±Æ÷ÓëÍ¬²½ÖÐ¶Ï¹¤¾ßº¯Êý
- 465           *====================================================================*/
- 466          
- 467          /*
- 468           * ¶ÁÈ¡ GTIMER0 µ±Ç°¼ÆÊýÖµ¡£
- 469           * µÍ 8 Î»À´×Ô CNT0£¬¸ß 8 Î»À´×Ô CNT1¡£
- 470           *
- 471           * ÓÃÍ¾£º
- 472           * - ADC É¨Ãè´°¿Ú¿ªÊ¼Ê±¼ÇÂ¼ start_tick¡£
- 473           * - Ñ­»·¶Á ADC Ê±²»¶Ï¼ÆËãÒÑ¾­É¨ÃèÁË¶àÉÙ us¡£
- 474           */
- 475          static uint16_t rx_timer_get_count(void)
- 476          {
- 477   1          uint16_t cnt;
- 478   1      
- 479   1          cnt  = REG_GTIM0_CNT0;
- 480   1          cnt |= ((uint16_t)REG_GTIM0_CNT1 << 8);
- 481   1      
- 482   1          return cnt;
- 483   1      }
- 484          
- 485          
- 486          /*
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 9   
+ 386          #define uart_debug_request(reason, force)     ((void)0)
+ 387          #define uart_adc_debug_process()              ((void)0)
+ 388          #endif
+ 389          
+ 390          
+ 391          /*======================================================================
+ 392           * Áù¡¢¶¨Ê±Æ÷ÓëÍ¬²½ÖÐ¶Ï¹¤¾ßº¯Êý
+ 393           *====================================================================*/
+ 394          
+ 395          /*
+ 396           * ¶ÁÈ¡ GTIMER0 µ±Ç°¼ÆÊýÖµ¡£
+ 397           * µÍ 8 Î»À´×Ô CNT0£¬¸ß 8 Î»À´×Ô CNT1¡£
+ 398           *
+ 399           * ÓÃÍ¾£º
+ 400           * - ADC É¨Ãè´°¿Ú¿ªÊ¼Ê±¼ÇÂ¼ start_tick¡£
+ 401           * - Ñ­»·¶Á ADC Ê±²»¶Ï¼ÆËãÒÑ¾­É¨ÃèÁË¶àÉÙ us¡£
+ 402           */
+ 403          static uint16_t rx_timer_get_count(void)
+ 404          {
+ 405   1          uint16_t cnt;
+ 406   1      
+ 407   1          cnt  = REG_GTIM0_CNT0;
+ 408   1          cnt |= ((uint16_t)REG_GTIM0_CNT1 << 8);
+ 409   1      
+ 410   1          return cnt;
+ 411   1      }
+ 412          
+ 413          
+ 414          /*
+ 415           * ¼ÆËã´Ó start_tick µ½µ±Ç° GTIMER0 ¼ÆÊýµÄ¾­¹ýÊ±¼ä¡£
+ 416           *
+ 417           * ×¢Òâ£º
+ 418           * GTIMER0 ÖÜÆÚÊÇ RX_WINDOW_INTERVAL_TICK£¬¼ÆÊý»á»Ø¾í¡£
+ 419           * ÕâÀï×öÁË»Ø¾í´¦Àí¡£
+ 420           *
+ 421           * ·çÏÕµã£º
+ 422           * Èç¹û ADC ´°¿Ú¿í¶È½Ó½ü»ò³¬¹ý¶¨Ê±Æ÷ÖÜÆÚ£¬¼ÆËã»á²»¿É¿¿¡£
+ 423           * µ±Ç° 100us Ô¶Ð¡ÓÚ 1000us£¬ËùÒÔÕý³£¡£
+ 424           */
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 8   
 
- 487           * ¼ÆËã´Ó start_tick µ½µ±Ç° GTIMER0 ¼ÆÊýµÄ¾­¹ýÊ±¼ä¡£
- 488           *
- 489           * ×¢Òâ£º
- 490           * GTIMER0 ÖÜÆÚÊÇ RX_WINDOW_INTERVAL_TICK£¬¼ÆÊý»á»Ø¾í¡£
- 491           * ÕâÀï×öÁË»Ø¾í´¦Àí¡£
- 492           *
- 493           * ·çÏÕµã£º
- 494           * Èç¹û ADC ´°¿Ú¿í¶È½Ó½ü»ò³¬¹ý¶¨Ê±Æ÷ÖÜÆÚ£¬¼ÆËã»á²»¿É¿¿¡£
- 495           * µ±Ç° 100us Ô¶Ð¡ÓÚ 1000us£¬ËùÒÔÕý³£¡£
- 496           */
- 497          static uint16_t rx_timer_elapsed_from(uint16_t start_tick)
- 498          {
- 499   1          uint16_t now_tick;
- 500   1          uint16_t elapsed;
- 501   1      
- 502   1          now_tick = rx_timer_get_count();
- 503   1      
- 504   1          if (now_tick >= start_tick)
- 505   1          {
- 506   2              elapsed = (uint16_t)(now_tick - start_tick);
- 507   2          }
- 508   1          else
- 509   1          {
- 510   2              /* GTIMER0 ÔÚ RX_WINDOW_INTERVAL_TICK ÖÜÆÚ»Ø¾í¡£ */
- 511   2              elapsed = (uint16_t)((RX_WINDOW_INTERVAL_TICK - start_tick) + now_tick);
- 512   2          }
- 513   1      
- 514   1          return elapsed;
- 515   1      }
- 516          
- 517          
- 518          /*
- 519           * »ñÈ¡²¢±£»¤µÚÒ»´Î´°¿ÚÑÓ³Ù¡£
- 520           *
- 521           * ×÷ÓÃ£º
- 522           * RX_FIRST_WINDOW_DELAY_TICK ÊÇºêÅäÖÃ£¬ÀíÂÛÉÏÓÃ»§¿ÉÄÜÅä³É 0 »ò´óÓÚÖÜÆÚ¡£
- 523           * ÕâÀïÏÞÖÆµ½ 1~RX_WINDOW_INTERVAL_TICK ·¶Î§ÄÚ¡£
- 524           */
- 525          static uint16_t rx_first_delay_get(void)
- 526          {
- 527   1          uint16_t first_delay_tick;
- 528   1      
- 529   1          first_delay_tick = RX_FIRST_WINDOW_DELAY_TICK;//== ´°¿ÚµÈ´ýÊ±¼ä
- 530   1      
- 531   1          /*
- 532   1           * 0us ÈÝÒ×Ôì³É¶¨Ê±Æ÷ÖØ×°Òì³£¡£
- 533   1           * Èç¹ûÈ·ÊµÒªÍ¬²½ºóÂíÉÏ²¹²É£¬Ê¹ÓÃ RX_FIRST_WINDOW_IMMEDIATE¡£
- 534   1           */
- 535   1          if (first_delay_tick == 0U)//== ²»ÄÜÁ¢¿Ì¾Í¿ª´°
- 536   1          {
- 537   2              first_delay_tick = 1U;
- 538   2          }
- 539   1      
- 540   1          /*
- 541   1           * ÕâÀï×ö±£»¤£ºÆðµã¼ä¸ô×î´ó²»³¬¹ýºóÐøÖÜÆÚ¡£
- 542   1           * ±¾ÐèÇóÖ÷ÒªÓÃÓÚ¡°Ç°ÒÆÒ»µã¡±£¬ËùÒÔÍ¨³£Ó¦Ð¡ÓÚ 1000us¡£
- 543   1           */
- 544   1          if (first_delay_tick > RX_WINDOW_INTERVAL_TICK)//== µÚÒ»´ÎµÄ¼ä¸ô²»ÄÜ±ÈÖÜÆÚ»¹³¤
- 545   1          {
- 546   2              first_delay_tick = RX_WINDOW_INTERVAL_TICK;
- 547   2          }
- 548   1      
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 10  
+ 425          static uint16_t rx_timer_elapsed_from(uint16_t start_tick)
+ 426          {
+ 427   1          uint16_t now_tick;
+ 428   1          uint16_t elapsed;
+ 429   1      
+ 430   1          now_tick = rx_timer_get_count();
+ 431   1      
+ 432   1          if (now_tick >= start_tick)
+ 433   1          {
+ 434   2              elapsed = (uint16_t)(now_tick - start_tick);
+ 435   2          }
+ 436   1          else
+ 437   1          {
+ 438   2              /* GTIMER0 ÔÚ RX_WINDOW_INTERVAL_TICK ÖÜÆÚ»Ø¾í¡£ */
+ 439   2              elapsed = (uint16_t)((RX_WINDOW_INTERVAL_TICK - start_tick) + now_tick);
+ 440   2          }
+ 441   1      
+ 442   1          return elapsed;
+ 443   1      }
+ 444          
+ 445          
+ 446          /*
+ 447           * »ñÈ¡²¢±£»¤µÚÒ»´Î´°¿ÚÑÓ³Ù¡£
+ 448           *
+ 449           * ×÷ÓÃ£º
+ 450           * RX_FIRST_WINDOW_DELAY_TICK ÊÇºêÅäÖÃ£¬ÀíÂÛÉÏÓÃ»§¿ÉÄÜÅä³É 0 »ò´óÓÚÖÜÆÚ¡£
+ 451           * ÕâÀïÏÞÖÆµ½ 1~RX_WINDOW_INTERVAL_TICK ·¶Î§ÄÚ¡£
+ 452           */
+ 453          static uint16_t rx_first_delay_get(void)
+ 454          {
+ 455   1          uint16_t first_delay_tick;
+ 456   1      
+ 457   1          first_delay_tick = RX_FIRST_WINDOW_DELAY_TICK;//== ´°¿ÚµÈ´ýÊ±¼ä
+ 458   1      
+ 459   1          /*
+ 460   1           * 0us ÈÝÒ×Ôì³É¶¨Ê±Æ÷ÖØ×°Òì³£¡£
+ 461   1           * Èç¹ûÈ·ÊµÒªÍ¬²½ºóÂíÉÏ²¹²É£¬Ê¹ÓÃ RX_FIRST_WINDOW_IMMEDIATE¡£
+ 462   1           */
+ 463   1          if (first_delay_tick == 0U)//== ²»ÄÜÁ¢¿Ì¾Í¿ª´°
+ 464   1          {
+ 465   2              first_delay_tick = 1U;
+ 466   2          }
+ 467   1      
+ 468   1          /*
+ 469   1           * ÕâÀï×ö±£»¤£ºÆðµã¼ä¸ô×î´ó²»³¬¹ýºóÐøÖÜÆÚ¡£
+ 470   1           * ±¾ÐèÇóÖ÷ÒªÓÃÓÚ¡°Ç°ÒÆÒ»µã¡±£¬ËùÒÔÍ¨³£Ó¦Ð¡ÓÚ 1000us¡£
+ 471   1           */
+ 472   1          if (first_delay_tick > RX_WINDOW_INTERVAL_TICK)//== µÚÒ»´ÎµÄ¼ä¸ô²»ÄÜ±ÈÖÜÆÚ»¹³¤
+ 473   1          {
+ 474   2              first_delay_tick = RX_WINDOW_INTERVAL_TICK;
+ 475   2          }
+ 476   1      
+ 477   1          return first_delay_tick;
+ 478   1      }
+ 479          
+ 480          
+ 481          /*
+ 482           * °Ñ¡°µÚÒ»´Î´°¿ÚÑÓ³Ù¡±»»Ëã³É GTIMER0 µÄ CNT Ô¤×°Öµ¡£
+ 483           *
+ 484           * Ô­Àí£º
+ 485           * GTIMER0 ×Ô¶¯ÖØ×°ÖÜÆÚÊÇ 1000us¡£
+ 486           * Èç¹ûÏ£ÍûµÚÒ»´Î 880us ºóÒç³ö£¬¾Í°Ñ CNT Ô¤×°³É 1000-880=120¡£
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 9   
 
- 549   1          return first_delay_tick;
- 550   1      }
- 551          
- 552          
- 553          /*
- 554           * °Ñ¡°µÚÒ»´Î´°¿ÚÑÓ³Ù¡±»»Ëã³É GTIMER0 µÄ CNT Ô¤×°Öµ¡£
- 555           *
- 556           * Ô­Àí£º
- 557           * GTIMER0 ×Ô¶¯ÖØ×°ÖÜÆÚÊÇ 1000us¡£
- 558           * Èç¹ûÏ£ÍûµÚÒ»´Î 880us ºóÒç³ö£¬¾Í°Ñ CNT Ô¤×°³É 1000-880=120¡£
- 559           * ÕâÑù´Ó 120 ¼Æµ½ 1000 Ö»ÐèÒª 880us¡£
- 560           */
- 561          static uint16_t rx_first_delay_to_timer_preload(uint16_t first_delay_tick)
- 562          {
- 563   1          /*
- 564   1           * GTIMER0 µÄ×Ô¶¯ÖØ×°ÖÜÆÚÈÔÈ»±£³Ö RX_WINDOW_INTERVAL_TICK¡£
- 565   1           * ÏëÈÃµÚÒ»´ÎÒç³öÌáÇ°µ½ first_delay_tick£¬
- 566   1           * Ö»ÐèÒªÔÚÆô¶¯¶¨Ê±Æ÷Ê±°Ñ CNT Ô¤×°µ½£º
- 567   1           *
- 568   1           *     RX_WINDOW_INTERVAL_TICK - first_delay_tick
- 569   1           *
- 570   1           * ÕâÑùµÚÒ»´ÎÒç³öºó£¬Ó²¼þ×ÔÈ»»Øµ½ 0£¬
- 571   1           * ºóÐø¾Í¼ÌÐøÃ¿ RX_WINDOW_INTERVAL_TICK Òç³öÒ»´Î¡£
- 572   1           */
- 573   1          if (first_delay_tick >= RX_WINDOW_INTERVAL_TICK)
- 574   1          {
- 575   2              return 0U;
- 576   2          }
- 577   1      
- 578   1          return (uint16_t)(RX_WINDOW_INTERVAL_TICK - first_delay_tick);
- 579   1      }
- 580          
- 581          
- 582          /*
- 583           * Í£Ö¹²¢ÇåÁã GTIMER0¡£
- 584           *
- 585           * Ó°Ïì£º
- 586           * Ò»µ©µ÷ÓÃÕâ¸öº¯Êý£¬ADC ÖÜÆÚ´°¿Ú¾ÍÍ£Ö¹ÁË¡£
- 587           * ÕÚ¹âÅÐ¶Ï²»ÔÙÍ¨¹ý rx_process_adc_window() ½øÐÐ¡£
- 588           *
- 589           * ÅÅ²éÕÚ¹â²»ÅÐ¶ÏÊ±£¬ÖØµã¿´Ë­µ÷ÓÃÁËËü£º
- 590           * - rx_enter_block_state()£ºÕý³£ÕÚ¹âºóÍ£Ö¹¡£
- 591           * - rx_force_resync_from_main()£ºÇ¿ÖÆÖØÍ¬²½Ê±Í£Ö¹£¬ÕâÊÇ¿ÉÒÉÂ·¾¶¡£
- 592           */
- 593          static void rx_timer_stop_clear(void)
- 594          {
- 595   1          REG_GTIM0_CR0 &= ~(1 << 0);
- 596   1      
- 597   1          REG_GTIM0_CNT0 = 0x00;
- 598   1          REG_GTIM0_CNT1 = 0x00;
- 599   1      }
- 600          
- 601          
- 602          
- 603          /*
- 604           * ÓÃÖ¸¶¨ CNT Ô¤×°ÖµÆô¶¯ GTIMER0¡£
- 605           *
- 606           * ×¢Òâ£º
- 607           * ÕâÀïÖ»¸Ä CNT£¬²»¸Ä×Ô¶¯ÖØ×°ÖÜÆÚ¡£
- 608           * µÚÒ»´ÎÒç³öÊ±¼äÓÉ preload_tick ¾ö¶¨£¬ºóÐøÈÔÈ»»Øµ½ 1000us ÖÜÆÚ¡£
- 609           */
- 610          static void rx_timer_restart_with_preload(uint16_t preload_tick)
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 11  
+ 487           * ÕâÑù´Ó 120 ¼Æµ½ 1000 Ö»ÐèÒª 880us¡£
+ 488           */
+ 489          static uint16_t rx_first_delay_to_timer_preload(uint16_t first_delay_tick)
+ 490          {
+ 491   1          /*
+ 492   1           * GTIMER0 µÄ×Ô¶¯ÖØ×°ÖÜÆÚÈÔÈ»±£³Ö RX_WINDOW_INTERVAL_TICK¡£
+ 493   1           * ÏëÈÃµÚÒ»´ÎÒç³öÌáÇ°µ½ first_delay_tick£¬
+ 494   1           * Ö»ÐèÒªÔÚÆô¶¯¶¨Ê±Æ÷Ê±°Ñ CNT Ô¤×°µ½£º
+ 495   1           *
+ 496   1           *     RX_WINDOW_INTERVAL_TICK - first_delay_tick
+ 497   1           *
+ 498   1           * ÕâÑùµÚÒ»´ÎÒç³öºó£¬Ó²¼þ×ÔÈ»»Øµ½ 0£¬
+ 499   1           * ºóÐø¾Í¼ÌÐøÃ¿ RX_WINDOW_INTERVAL_TICK Òç³öÒ»´Î¡£
+ 500   1           */
+ 501   1          if (first_delay_tick >= RX_WINDOW_INTERVAL_TICK)
+ 502   1          {
+ 503   2              return 0U;
+ 504   2          }
+ 505   1      
+ 506   1          return (uint16_t)(RX_WINDOW_INTERVAL_TICK - first_delay_tick);
+ 507   1      }
+ 508          
+ 509          
+ 510          /*
+ 511           * Í£Ö¹²¢ÇåÁã GTIMER0¡£
+ 512           *
+ 513           * Ó°Ïì£º
+ 514           * Ò»µ©µ÷ÓÃÕâ¸öº¯Êý£¬ADC ÖÜÆÚ´°¿Ú¾ÍÍ£Ö¹ÁË¡£
+ 515           * ÕÚ¹âÅÐ¶Ï²»ÔÙÍ¨¹ý rx_process_adc_window() ½øÐÐ¡£
+ 516           *
+ 517           * ÅÅ²éÕÚ¹â²»ÅÐ¶ÏÊ±£¬ÖØµã¿´Ë­µ÷ÓÃÁËËü£º
+ 518           * - rx_enter_block_state()£ºÕý³£ÕÚ¹âºóÍ£Ö¹¡£
+ 519           * - rx_force_resync_from_main()£ºÇ¿ÖÆÖØÍ¬²½Ê±Í£Ö¹£¬ÕâÊÇ¿ÉÒÉÂ·¾¶¡£
+ 520           */
+ 521          static void rx_timer_stop_clear(void)
+ 522          {
+ 523   1          REG_GTIM0_CR0 &= ~(1 << 0);
+ 524   1      
+ 525   1          REG_GTIM0_CNT0 = 0x00;
+ 526   1          REG_GTIM0_CNT1 = 0x00;
+ 527   1      }
+ 528          
+ 529          
+ 530          
+ 531          /*
+ 532           * ÓÃÖ¸¶¨ CNT Ô¤×°ÖµÆô¶¯ GTIMER0¡£
+ 533           *
+ 534           * ×¢Òâ£º
+ 535           * ÕâÀïÖ»¸Ä CNT£¬²»¸Ä×Ô¶¯ÖØ×°ÖÜÆÚ¡£
+ 536           * µÚÒ»´ÎÒç³öÊ±¼äÓÉ preload_tick ¾ö¶¨£¬ºóÐøÈÔÈ»»Øµ½ 1000us ÖÜÆÚ¡£
+ 537           */
+ 538          static void rx_timer_restart_with_preload(uint16_t preload_tick)
+ 539          {
+ 540   1          REG_GTIM0_CR0 &= ~(1 << 0);
+ 541   1      
+ 542   1          REG_GTIM0_CNT0 = (uint8_t)(preload_tick & 0x00FFU);
+ 543   1          REG_GTIM0_CNT1 = (uint8_t)((preload_tick >> 8) & 0x00FFU);
+ 544   1      
+ 545   1          REG_GTIM0_CR0 |= (1 << 0);
+ 546   1      }
+ 547          
+ 548          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 10  
 
- 611          {
- 612   1          REG_GTIM0_CR0 &= ~(1 << 0);
- 613   1      
- 614   1          REG_GTIM0_CNT0 = (uint8_t)(preload_tick & 0x00FFU);
- 615   1          REG_GTIM0_CNT1 = (uint8_t)((preload_tick >> 8) & 0x00FFU);
- 616   1      
- 617   1          REG_GTIM0_CR0 |= (1 << 0);
- 618   1      }
- 619          
- 620          
- 621          /*
- 622           * °´ RX_FIRST_WINDOW_DELAY_TICK Æô¶¯ GTIMER0¡£
- 623           *
- 624           * ÓÃÓÚ£º
- 625           * Ã¿´Î P1_4 Í¬²½³É¹¦ºó£¬ÖØÐÂ½¨Á¢ ADC ´°¿ÚÏàÎ»¡£
- 626           */
- 627          static void rx_timer_restart_with_first_delay(void)
- 628          {
- 629   1          uint16_t first_delay_tick;
- 630   1          uint16_t preload_tick;
- 631   1      
- 632   1          first_delay_tick = rx_first_delay_get();//== »ñÈ¡µÚÒ»´ÎÑÓ³Ù¼ÆÊýÖµ880us
- 633   1          preload_tick     = rx_first_delay_to_timer_preload(first_delay_tick);//== CNT¼ÆÊýÔ¤ÏÈ×°Ò»µãÈÃËû¼ÆÊý¸ü¿
+ 549          /*
+ 550           * °´ RX_FIRST_WINDOW_DELAY_TICK Æô¶¯ GTIMER0¡£
+ 551           *
+ 552           * ÓÃÓÚ£º
+ 553           * Ã¿´Î P1_4 Í¬²½³É¹¦ºó£¬ÖØÐÂ½¨Á¢ ADC ´°¿ÚÏàÎ»¡£
+ 554           */
+ 555          static void rx_timer_restart_with_first_delay(void)
+ 556          {
+ 557   1          uint16_t first_delay_tick;
+ 558   1          uint16_t preload_tick;
+ 559   1      
+ 560   1          first_delay_tick = rx_first_delay_get();//== »ñÈ¡µÚÒ»´ÎÑÓ³Ù¼ÆÊýÖµ880us
+ 561   1          preload_tick     = rx_first_delay_to_timer_preload(first_delay_tick);//== CNT¼ÆÊýÔ¤ÏÈ×°Ò»µãÈÃËû¼ÆÊý¸ü¿
              -ì£¬ÕâÑùµÚÒ»´ÎÒç³ö¾Í»áÐ¡ÓÚÉè¶¨Ê±¼ä£¬Ê¹µÃÖÜÆÚÇ¨ÒÆ
- 634   1      
- 635   1          rx_first_delay_cached_tick = first_delay_tick;//== ¼ÇÂ¼µÚÒ»´ÎÇ¨ÒÆÖÜÆÚµÄ¼ä¸ô
- 636   1          rx_last_trigger_interval_tick = 0U;
- 637   1      
- 638   1          rx_timer_restart_with_preload(preload_tick);//== °ÑÇ¨ÒÆµÄÉè¶¨ÖµÐ´Èë
+ 562   1      
+ 563   1          rx_first_delay_cached_tick = first_delay_tick;//== ¼ÇÂ¼µÚÒ»´ÎÇ¨ÒÆÖÜÆÚµÄ¼ä¸ô
+ 564   1          rx_last_trigger_interval_tick = 0U;
+ 565   1      
+ 566   1          rx_timer_restart_with_preload(preload_tick);//== °ÑÇ¨ÒÆµÄÉè¶¨ÖµÐ´Èë
+ 567   1      }
+ 568          
+ 569          
+ 570          /* 
+ 571           * Í£Ö¹²¢ÇåÁã GTIMER1 Í¬²½µÈ´ý³¬Ê±¶¨Ê±Æ÷¡£
+ 572           *
+ 573           * ÓÃÓÚ£º
+ 574           * - ÊÕµ½ÐÂµÄÍ¬²½±ßÑØºó£¬ËµÃ÷Ã»ÓÐ³¬Ê±£¬¹Ø±Õ GTIMER1¡£
+ 575           * - ½øÈëÕÚ¹â×´Ì¬Ê±£¬ÇåÀíËùÓÐµÈ´ý×´Ì¬¡£
+ 576           */
+ 577          static void rx_sync_timeout_timer_stop_clear(void)
+ 578          {
+ 579   1          rx_sync_wait_timer_running   = 0U;
+ 580   1          rx_sync_wait_timeout_pending = 0U;
+ 581   1      
+ 582   1          REG_GTIM1_CR0 &= ~(1 << 0);
+ 583   1          REG_GTIM1_CNT0 = 0x00;
+ 584   1          REG_GTIM1_CNT1 = 0x00;
+ 585   1      }
+ 586          
+ 587          
+ 588          /*
+ 589           * Æô¶¯ GTIMER1 2ms Ò»´ÎÐÔ³¬Ê±¡£
+ 590           *
+ 591           * Ö»ÓÐÇ¿ÖÆÖØÍ¬²½²¢ÇÒµ±Ç°ÒÑ¾­´¦ÓÚÓÐ¹âÊä³öÊ±²ÅÆô¶¯¡£
+ 592           *
+ 593           * ÅÅ²éµã£º
+ 594           * Èç¹ûÕÚ¹â·¢ÉúÔÚÇ¿ÖÆÖØÍ¬²½µÈ´ýÆÚ£¬×îÖÕÄÜ²»ÄÜÕÚ¹â£¬È¡¾öÓÚ£º
+ 595           * - GTIMER1 ÊÇ·ñÕæµÄÖÐ¶Ï£»
+ 596           * - gtimer1_UECallBack() ÊÇ·ñÖÃÎ» rx_sync_wait_timeout_pending£»
+ 597           * - Ö÷Ñ­»·ÊÇ·ñµ÷ÓÃ rx_handle_sync_wait_timeout_from_main()¡£
+ 598           */
+ 599          static void rx_sync_timeout_timer_start(void)
+ 600          {
+ 601   1          rx_sync_wait_timeout_pending = 0U;
+ 602   1          rx_sync_wait_timer_running   = 1U;
+ 603   1      
+ 604   1          REG_GTIM1_CR0 &= ~(1 << 0);
+ 605   1          REG_GTIM1_CNT0 = 0x00;
+ 606   1          REG_GTIM1_CNT1 = 0x00;
+ 607   1          REG_GTIM1_CR0 |= (1 << 0);
+ 608   1      }
+ 609          
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 11  
+
+ 610          
+ 611          /*
+ 612           * ´ò¿ª P1_4 Í¬²½ÖÐ¶Ï¡£
+ 613           *
+ 614           * ÓÃÓÚ£º
+ 615           * - ÉÏµçµÈ´ýµÚÒ»´ÎÀ´¹âÍ¬²½¡£
+ 616           * - ÕÚ¹âºóµÈ´ýÏÂÒ»´ÎÀ´¹âÍ¬²½¡£
+ 617           * - Ç¿ÖÆÖØÍ¬²½Ê±µÈ´ýÏÂÒ»´Î±ßÑØÐ£×¼ÏàÎ»¡£
+ 618           *
+ 619           * ·çÏÕµã£º
+ 620           * ÕÚ¹â×´Ì¬ÏÂÈç¹û P1_4 ÓÐÃ«´Ì£¬¿ÉÄÜÎóÈÏÎªÖØÐÂÍ¬²½¡£
+ 621           */
+ 622          static void rx_sync_irq_enable(void)
+ 623          {
+ 624   1          gpio_irq_clr(P1_4);
+ 625   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
+ 626   1      }
+ 627          
+ 628          
+ 629          /*
+ 630           * ¹Ø±Õ P1_4 Í¬²½ÖÐ¶Ï¡£
+ 631           *
+ 632           * Õý³£Í¬²½³É¹¦ºó¹Ø±Õ£¬·ÀÖ¹Ã¿¸ö·¢ÉäÂö³å¶¼½ø GPIO ÖÐ¶Ï¡£
+ 633           * ºóÐø¼ì²âÍêÈ«½»¸ø GTIMER0 + ADC ´°¿Ú¡£
+ 634           */
+ 635          static void rx_sync_irq_disable(void)
+ 636          {
+ 637   1          gpio_irq_clr(P1_4);
+ 638   1          gpio_irq_set(P1_4, GPIO_IRQ_DISABLE, gpio_UECallBack);
  639   1      }
  640          
  641          
- 642          /* 
- 643           * Í£Ö¹²¢ÇåÁã GTIMER1 Í¬²½µÈ´ý³¬Ê±¶¨Ê±Æ÷¡£
- 644           *
- 645           * ÓÃÓÚ£º
- 646           * - ÊÕµ½ÐÂµÄÍ¬²½±ßÑØºó£¬ËµÃ÷Ã»ÓÐ³¬Ê±£¬¹Ø±Õ GTIMER1¡£
- 647           * - ½øÈëÕÚ¹â×´Ì¬Ê±£¬ÇåÀíËùÓÐµÈ´ý×´Ì¬¡£
- 648           */
- 649          static void rx_sync_timeout_timer_stop_clear(void)
- 650          {
- 651   1          rx_sync_wait_timer_running   = 0U;
- 652   1          rx_sync_wait_timeout_pending = 0U;
- 653   1      
- 654   1          REG_GTIM1_CR0 &= ~(1 << 0);
- 655   1          REG_GTIM1_CNT0 = 0x00;
- 656   1          REG_GTIM1_CNT1 = 0x00;
- 657   1      }
- 658          
- 659          
- 660          /*
- 661           * Æô¶¯ GTIMER1 2ms Ò»´ÎÐÔ³¬Ê±¡£
- 662           *
- 663           * Ö»ÓÐÇ¿ÖÆÖØÍ¬²½²¢ÇÒµ±Ç°ÒÑ¾­´¦ÓÚÓÐ¹âÊä³öÊ±²ÅÆô¶¯¡£
- 664           *
- 665           * ÅÅ²éµã£º
- 666           * Èç¹ûÕÚ¹â·¢ÉúÔÚÇ¿ÖÆÖØÍ¬²½µÈ´ýÆÚ£¬×îÖÕÄÜ²»ÄÜÕÚ¹â£¬È¡¾öÓÚ£º
- 667           * - GTIMER1 ÊÇ·ñÕæµÄÖÐ¶Ï£»
- 668           * - gtimer1_UECallBack() ÊÇ·ñÖÃÎ» rx_sync_wait_timeout_pending£»
- 669           * - Ö÷Ñ­»·ÊÇ·ñµ÷ÓÃ rx_handle_sync_wait_timeout_from_main()¡£
- 670           */
- 671          static void rx_sync_timeout_timer_start(void)
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 12  
+ 642          /*======================================================================
+ 643           * Æß¡¢Êä³ö¿ØÖÆ
+ 644           *====================================================================*/
+ 645          
+ 646          /*
+ 647           * Êä³öÓÐ¹â×´Ì¬¡£
+ 648           * µ±Ç° P1_2/P1_3 ¶¼À­¸ß¡£
+ 649           *
+ 650           * ×¢Òâ£º
+ 651           * ÕâÀïÃ»ÓÐÐÞ¸Ä rx_light_state£¬Ö»¸ÄÎïÀíÊä³ö¡£
+ 652           * rx_light_state ÔÚ rx_process_adc_window() ÖÐÖÃ 1¡£
+ 653           */
+ 654          static void rx_output_light(void)
+ 655          {
+ 656   1          gpio_io_set(P1_2, GPIO_HIGH);
+ 657   1          gpio_io_set(P1_3, GPIO_HIGH);
+ 658   1      //    gpio_io_set(P1_0, GPIO_LOW);
+ 659   1      }
+ 660          
+ 661          
+ 662          /*
+ 663           * Êä³öÕÚ¹â×´Ì¬¡£
+ 664           * µ±Ç° P1_2/P1_3 ¶¼À­µÍ¡£
+ 665           *
+ 666           * ×¢Òâ£º
+ 667           * ÕâÀïÃ»ÓÐÐÞ¸Ä rx_light_state£¬Ö»¸ÄÎïÀíÊä³ö¡£
+ 668           * rx_light_state ÔÚ rx_enter_block_state() ÖÐÇå 0¡£
+ 669           */
+ 670          static void rx_output_block(void)
+ 671          {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 12  
 
- 672          {
- 673   1          rx_sync_wait_timeout_pending = 0U;
- 674   1          rx_sync_wait_timer_running   = 1U;
- 675   1      
- 676   1          REG_GTIM1_CR0 &= ~(1 << 0);
- 677   1          REG_GTIM1_CNT0 = 0x00;
- 678   1          REG_GTIM1_CNT1 = 0x00;
- 679   1          REG_GTIM1_CR0 |= (1 << 0);
- 680   1      }
+ 672   1          gpio_io_set(P1_2, GPIO_LOW);
+ 673   1          gpio_io_set(P1_3, GPIO_LOW);
+ 674   1      //    gpio_io_set(P1_0, GPIO_HIGH);
+ 675   1      }
+ 676          
+ 677          
+ 678          /*======================================================================
+ 679           * °Ë¡¢ADC ¶ÁÈ¡¡¢´°¿Ú»ý·ÖÆ½¾ùÓë³ÙÖÍÅÐ¶Ï
+ 680           *====================================================================*/
  681          
- 682          
- 683          /*
- 684           * ´ò¿ª P1_4 Í¬²½ÖÐ¶Ï¡£
- 685           *
- 686           * ÓÃÓÚ£º
- 687           * - ÉÏµçµÈ´ýµÚÒ»´ÎÀ´¹âÍ¬²½¡£
- 688           * - ÕÚ¹âºóµÈ´ýÏÂÒ»´ÎÀ´¹âÍ¬²½¡£
- 689           * - Ç¿ÖÆÖØÍ¬²½Ê±µÈ´ýÏÂÒ»´Î±ßÑØÐ£×¼ÏàÎ»¡£
- 690           *
- 691           * ·çÏÕµã£º
- 692           * ÕÚ¹â×´Ì¬ÏÂÈç¹û P1_4 ÓÐÃ«´Ì£¬¿ÉÄÜÎóÈÏÎªÖØÐÂÍ¬²½¡£
- 693           */
- 694          static void rx_sync_irq_enable(void)
- 695          {
- 696   1          gpio_irq_clr(P1_4);
- 697   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
- 698   1      }
- 699          
- 700          
- 701          /*
- 702           * ¹Ø±Õ P1_4 Í¬²½ÖÐ¶Ï¡£
- 703           *
- 704           * Õý³£Í¬²½³É¹¦ºó¹Ø±Õ£¬·ÀÖ¹Ã¿¸ö·¢ÉäÂö³å¶¼½ø GPIO ÖÐ¶Ï¡£
- 705           * ºóÐø¼ì²âÍêÈ«½»¸ø GTIMER0 + ADC ´°¿Ú¡£
- 706           */
- 707          static void rx_sync_irq_disable(void)
- 708          {
- 709   1          gpio_irq_clr(P1_4);
- 710   1          gpio_irq_set(P1_4, GPIO_IRQ_DISABLE, gpio_UECallBack);
- 711   1      }
- 712          
- 713          
- 714          /*======================================================================
- 715           * Æß¡¢Êä³ö¿ØÖÆ
- 716           *====================================================================*/
+ 682          /*
+ 683           * µ¥´Î ADC ¶ÁÈ¡¡£
+ 684           *
+ 685           * Á÷³Ì£º
+ 686           * 1. Æô¶¯Ö¸¶¨Í¨µÀ×ª»»¡£
+ 687           * 2. µÈ´ý ADC Ó²¼þÃ¦±êÖ¾Çå³ý¡£
+ 688           * 3. µÈ´ý×ª»»Íê³É±êÖ¾¡£
+ 689           * 4. ÇåÍê³É±êÖ¾¡£
+ 690           * 5. ¶ÁÈ¡ ADC Öµ¡£
+ 691           *
+ 692           * ÅÅ²éµã£º
+ 693           * ÕâÀïÊÇ×èÈûµÈ´ý¡£Èç¹û ADC Òì³£¿¨×¡£¬Ö÷Ñ­»·»á¿¨ËÀ£¬
+ 694           * GTIMER0/GTIMER1 ÖÐ¶ÏËäÈ»¿ÉÄÜÖÃÎ»£¬µ«Ö÷Ñ­»·ÎÞ·¨´¦Àí×´Ì¬»ú¡£
+ 695           */
+ 696          static uint16_t rx_adc_read_once(uint8_t ch)
+ 697          {
+ 698   1          uint16_t value;
+ 699   1      
+ 700   1          adc_convert_start(ch);
+ 701   1      
+ 702   1          while ((ADCGCR1 & 0x04) != 0);
+ 703   1          while (!(ADCCSTAT & 0x01));
+ 704   1      
+ 705   1          ADCCSTAT = 0x01;
+ 706   1      
+ 707   1          value = adc_get_value();
+ 708   1      
+ 709   1          if (value > ADC_MAX_VALUE)
+ 710   1          {
+ 711   2              value = ADC_MAX_VALUE;
+ 712   2          }
+ 713   1      
+ 714   1          return value;
+ 715   1      }
+ 716          
  717          
  718          /*
- 719           * Êä³öÓÐ¹â×´Ì¬¡£
- 720           * µ±Ç° P1_2/P1_3 ¶¼À­¸ß¡£
- 721           *
- 722           * ×¢Òâ£º
- 723           * ÕâÀïÃ»ÓÐÐÞ¸Ä rx_light_state£¬Ö»¸ÄÎïÀíÊä³ö¡£
- 724           * rx_light_state ÔÚ rx_process_adc_window() ÖÐÖÃ 1¡£
- 725           */
- 726          static void rx_output_light(void)
- 727          {
- 728   1          gpio_io_set(P1_2, GPIO_HIGH);
- 729   1          gpio_io_set(P1_3, GPIO_HIGH);
- 730   1      //    gpio_io_set(P1_0, GPIO_LOW);
- 731   1      }
- 732          
- 733          
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 13  
+ 719           * ÔÚÒ»¸ö¹Ì¶¨Ê±¼ä´°¿ÚÄÚÁ¬Ðø¶ÁÈ¡ ADC£¬²¢ÇóÆ½¾ùÖµ¡£
+ 720           *
+ 721           * ÊäÈë£º
+ 722           * - ch£ºADC Í¨µÀ¡£
+ 723           * - window_tick£º´°¿Ú¿í¶È£¬µ¥Î» us¡£
+ 724           * - sample_count£º·µ»Ø±¾´°¿ÚÓÐÐ§²ÉÑù´ÎÊý¡£
+ 725           *
+ 726           * Êä³ö£º
+ 727           * - ·µ»Ø´°¿ÚÆ½¾ù ADC¡£
+ 728           * - Èç¹û´°¿ÚÄÚÃ»ÓÐÓÐÐ§²ÉÑù£¬·µ»Ø ADC_INVALID¡£
+ 729           *
+ 730           * ÖØÒªÀí½â£º
+ 731           * ÕâÀïÇóµÄÊÇ¡°´°¿ÚÆ½¾ùÖµ¡±£¬²»ÊÇ·åÖµ¡£
+ 732           * ËùÒÔ¼´Ê¹ÕæÊµÂö³å·åÖµºÜ¸ß£¬Ö»ÒªÓÐÐ§Âö¿íÐ¡ÓÚ´°¿Ú¿í¶È£¬
+ 733           * Æ½¾ùÖµ¾Í»á±»µÍµçÆ½²¿·ÖÀ­µÍ¡£
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 13  
 
- 734          /*
- 735           * Êä³öÕÚ¹â×´Ì¬¡£
- 736           * µ±Ç° P1_2/P1_3 ¶¼À­µÍ¡£
- 737           *
- 738           * ×¢Òâ£º
- 739           * ÕâÀïÃ»ÓÐÐÞ¸Ä rx_light_state£¬Ö»¸ÄÎïÀíÊä³ö¡£
- 740           * rx_light_state ÔÚ rx_enter_block_state() ÖÐÇå 0¡£
- 741           */
- 742          static void rx_output_block(void)
- 743          {
- 744   1          gpio_io_set(P1_2, GPIO_LOW);
- 745   1          gpio_io_set(P1_3, GPIO_LOW);
- 746   1      //    gpio_io_set(P1_0, GPIO_HIGH);
- 747   1      }
- 748          
- 749          
- 750          /*======================================================================
- 751           * °Ë¡¢ADC ¶ÁÈ¡¡¢´°¿Ú»ý·ÖÆ½¾ùÓë³ÙÖÍÅÐ¶Ï
- 752           *====================================================================*/
- 753          
- 754          /*
- 755           * µ¥´Î ADC ¶ÁÈ¡¡£
- 756           *
- 757           * Á÷³Ì£º
- 758           * 1. Æô¶¯Ö¸¶¨Í¨µÀ×ª»»¡£
- 759           * 2. µÈ´ý ADC Ó²¼þÃ¦±êÖ¾Çå³ý¡£
- 760           * 3. µÈ´ý×ª»»Íê³É±êÖ¾¡£
- 761           * 4. ÇåÍê³É±êÖ¾¡£
- 762           * 5. ¶ÁÈ¡ ADC Öµ¡£
- 763           *
- 764           * ÅÅ²éµã£º
- 765           * ÕâÀïÊÇ×èÈûµÈ´ý¡£Èç¹û ADC Òì³£¿¨×¡£¬Ö÷Ñ­»·»á¿¨ËÀ£¬
- 766           * GTIMER0/GTIMER1 ÖÐ¶ÏËäÈ»¿ÉÄÜÖÃÎ»£¬µ«Ö÷Ñ­»·ÎÞ·¨´¦Àí×´Ì¬»ú¡£
- 767           */
- 768          static uint16_t rx_adc_read_once(uint8_t ch)
- 769          {
- 770   1          uint16_t value;
- 771   1      
- 772   1          adc_convert_start(ch);
- 773   1      
- 774   1          while ((ADCGCR1 & 0x04) != 0);
- 775   1          while (!(ADCCSTAT & 0x01));
- 776   1      
- 777   1          ADCCSTAT = 0x01;
- 778   1      
- 779   1          value = adc_get_value();
- 780   1      
- 781   1          if (value > ADC_MAX_VALUE)
- 782   1          {
- 783   2              value = ADC_MAX_VALUE;
- 784   2          }
- 785   1      
- 786   1          return value;
- 787   1      }
- 788          
- 789          
- 790          /*
- 791           * ÔÚÒ»¸ö¹Ì¶¨Ê±¼ä´°¿ÚÄÚÁ¬Ðø¶ÁÈ¡ ADC£¬²¢ÇóÆ½¾ùÖµ¡£
- 792           *
- 793           * ÊäÈë£º
- 794           * - ch£ºADC Í¨µÀ¡£
- 795           * - window_tick£º´°¿Ú¿í¶È£¬µ¥Î» us¡£
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 14  
+ 734           *
+ 735           * ÅÅ²éÕÚ¹â²»ÅÐ¶ÏÊ±¿´Á½µã£º
+ 736           * - ÕÚ¹âºó avg_adc ÊÇ·ñÈÔÈ»´óÓÚ¹Ø±ÕãÐÖµ£»
+ 737           * - sample_count ÊÇ·ñÒì³£Îª 0 »òÒì³£ºÜÉÙ¡£
+ 738           */
+ 739          static uint16_t rx_adc_scan_window_average(uint8_t ch, uint16_t window_tick, uint16_t *sample_count)
+ 740          {
+ 741   1          uint16_t start_tick;
+ 742   1          uint16_t value;
+ 743   1          uint16_t count;
+ 744   1          uint32_t sum;
+ 745   1      
+ 746   1          sum   = 0U;
+ 747   1          count = 0U;
+ 748   1      
+ 749   1          start_tick = rx_timer_get_count();
+ 750   1      
+ 751   1          /* P1_0 À­µÍÓÃÓÚÊ¾²¨Æ÷¹Û²ì ADC É¨Ãè´°¿Ú¡£ */
+ 752   1          gpio_io_set(P1_0, GPIO_LOW);
+ 753   1      
+ 754   1          do
+ 755   1          {
+ 756   2              value = rx_adc_read_once(ch);
+ 757   2      
+ 758   2              if (value < RX_ADC_MAX_VALID)
+ 759   2              {
+ 760   3                  sum += value;
+ 761   3                  count++;
+ 762   3              }
+ 763   2          }
+ 764   1          while (rx_timer_elapsed_from(start_tick) < window_tick);
+ 765   1      
+ 766   1          gpio_io_set(P1_0, GPIO_HIGH);
+ 767   1      
+ 768   1          if (sample_count != 0)
+ 769   1          {
+ 770   2              *sample_count = count;
+ 771   2          }
+ 772   1      
+ 773   1          if (count == 0U)
+ 774   1          {
+ 775   2              return ADC_INVALID;
+ 776   2          }
+ 777   1      
+ 778   1          return (uint16_t)(sum / count);
+ 779   1      }
+ 780          
+ 781          
+ 782          /*
+ 783           * ¼ÆËã ADC ³ÙÖÍ¹Ø±ÕãÐÖµ¡£
+ 784           *
+ 785           * Èç¹û adc_set=200£¬RX_ADC_HYS_VALUE=30£¬Ôò¹Ø±ÕãÐÖµÎª 170¡£
+ 786           *
+ 787           * ³ÙÖÍº¬Òå£º
+ 788           * - ÎÞÐ§ -> ÓÐÐ§£º±ØÐë >= 200¡£
+ 789           * - ÓÐÐ§ -> ÎÞÐ§£º±ØÐë <= 170¡£
+ 790           *
+ 791           * ËùÒÔÕÚ¹âºó ADC Èç¹ûÂäÔÚ 171~199£¬×´Ì¬ÈÔ»áÎ¬³ÖÓÐÐ§¡£
+ 792           */
+ 793          static uint16_t rx_adc_calc_off_threshold(void)
+ 794          {
+ 795   1          if (adc_set > RX_ADC_HYS_VALUE)
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 14  
 
- 796           * - sample_count£º·µ»Ø±¾´°¿ÚÓÐÐ§²ÉÑù´ÎÊý¡£
- 797           *
- 798           * Êä³ö£º
- 799           * - ·µ»Ø´°¿ÚÆ½¾ù ADC¡£
- 800           * - Èç¹û´°¿ÚÄÚÃ»ÓÐÓÐÐ§²ÉÑù£¬·µ»Ø ADC_INVALID¡£
- 801           *
- 802           * ÖØÒªÀí½â£º
- 803           * ÕâÀïÇóµÄÊÇ¡°´°¿ÚÆ½¾ùÖµ¡±£¬²»ÊÇ·åÖµ¡£
- 804           * ËùÒÔ¼´Ê¹ÕæÊµÂö³å·åÖµºÜ¸ß£¬Ö»ÒªÓÐÐ§Âö¿íÐ¡ÓÚ´°¿Ú¿í¶È£¬
- 805           * Æ½¾ùÖµ¾Í»á±»µÍµçÆ½²¿·ÖÀ­µÍ¡£
+ 796   1          {
+ 797   2              return (uint16_t)(adc_set - RX_ADC_HYS_VALUE);
+ 798   2          }
+ 799   1      
+ 800   1          return 0U;
+ 801   1      }
+ 802          
+ 803          
+ 804          /*
+ 805           * ADC ³ÙÖÍÅÐ¶Ï¡£
  806           *
- 807           * ÅÅ²éÕÚ¹â²»ÅÐ¶ÏÊ±¿´Á½µã£º
- 808           * - ÕÚ¹âºó avg_adc ÊÇ·ñÈÔÈ»´óÓÚ¹Ø±ÕãÐÖµ£»
- 809           * - sample_count ÊÇ·ñÒì³£Îª 0 »òÒì³£ºÜÉÙ¡£
- 810           */
- 811          static uint16_t rx_adc_scan_window_average(uint8_t ch, uint16_t window_tick, uint16_t *sample_count)
- 812          {
- 813   1          uint16_t start_tick;
- 814   1          uint16_t value;
- 815   1          uint16_t count;
- 816   1          uint32_t sum;
- 817   1      
- 818   1          sum   = 0U;
- 819   1          count = 0U;
- 820   1      
- 821   1          start_tick = rx_timer_get_count();
- 822   1      
- 823   1          /* P1_0 À­µÍÓÃÓÚÊ¾²¨Æ÷¹Û²ì ADC É¨Ãè´°¿Ú¡£ */
- 824   1          gpio_io_set(P1_0, GPIO_LOW);
- 825   1      
- 826   1          do
- 827   1          {
- 828   2              value = rx_adc_read_once(ch);
- 829   2      
- 830   2              if (value < RX_ADC_MAX_VALID)
- 831   2              {
- 832   3                  sum += value;
- 833   3                  count++;
- 834   3              }
- 835   2          }
- 836   1          while (rx_timer_elapsed_from(start_tick) < window_tick);
- 837   1      
- 838   1          gpio_io_set(P1_0, GPIO_HIGH);
- 839   1      
- 840   1          if (sample_count != 0)
+ 807           * ·µ»Ø£º
+ 808           * - 1£ºµ±Ç°´°¿ÚÈÏÎªÓÐÐ§¡£
+ 809           * - 0£ºµ±Ç°´°¿ÚÈÏÎªÎÞÐ§¡£
+ 810           *
+ 811           * ¹Ø¼ü±äÁ¿£ºrx_adc_valid_state
+ 812           * - ²»ÊÇÃ¿´Î¼òµ¥±È½Ï adc_set¡£
+ 813           * - Ò»µ©½øÈëÓÐÐ§×´Ì¬£¬±ØÐëµÍÓÚ off_threshold ²Å»áÍË³ö¡£
+ 814           *
+ 815           * ÅÅ²éµã£º
+ 816           * ÕÚ¹âºóÈç¹û avg_adc Ã»ÓÐ½µµ½ adc_set - RX_ADC_HYS_VALUE ÒÔÏÂ£¬
+ 817           * adc_ok »á¼ÌÐøÎª 1£¬rx_lost_window_count ÓÀÔ¶²»»áÀÛ¼Æ¡£
+ 818           */
+ 819          static uint8_t rx_adc_hysteresis_check(uint16_t adc)
+ 820          {
+ 821   1          uint16_t adc_on_th;
+ 822   1          uint16_t adc_off_th;
+ 823   1      
+ 824   1          if (adc >= RX_ADC_MAX_VALID)
+ 825   1          {
+ 826   2              rx_adc_valid_state = 0;
+ 827   2              return 0;
+ 828   2          }
+ 829   1      
+ 830   1          adc_on_th  = adc_set;
+ 831   1          adc_off_th = rx_adc_calc_off_threshold();
+ 832   1      
+ 833   1          if (rx_adc_valid_state == 0)
+ 834   1          {
+ 835   2              if (adc >= adc_on_th)
+ 836   2              {
+ 837   3                  rx_adc_valid_state = 1;
+ 838   3              }
+ 839   2          }
+ 840   1          else
  841   1          {
- 842   2              *sample_count = count;
- 843   2          }
- 844   1      
- 845   1          if (count == 0U)
- 846   1          {
- 847   2              return ADC_INVALID;
- 848   2          }
- 849   1      
- 850   1          return (uint16_t)(sum / count);
- 851   1      }
- 852          
- 853          
- 854          /*
- 855           * ¼ÆËã ADC ³ÙÖÍ¹Ø±ÕãÐÖµ¡£
- 856           *
- 857           * Èç¹û adc_set=200£¬RX_ADC_HYS_VALUE=30£¬Ôò¹Ø±ÕãÐÖµÎª 170¡£
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 15  
+ 842   2              if (adc <= adc_off_th)
+ 843   2              {
+ 844   3                  rx_adc_valid_state = 0;
+ 845   3              }
+ 846   2          }
+ 847   1      
+ 848   1          return rx_adc_valid_state;
+ 849   1      }
+ 850          
+ 851          
+ 852          /*======================================================================
+ 853           * ¾Å¡¢½ÓÊÕ×´Ì¬»ú
+ 854           *====================================================================*/
+ 855          
+ 856          /*
+ 857           * ÊÕµ½ P1_4 Í¬²½±ßÑØºó£¬Æô¶¯ÖÜÆÚ ADC ´°¿Ú²ÉÑù¡£
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 15  
 
  858           *
- 859           * ³ÙÖÍº¬Òå£º
- 860           * - ÎÞÐ§ -> ÓÐÐ§£º±ØÐë >= 200¡£
- 861           * - ÓÐÐ§ -> ÎÞÐ§£º±ØÐë <= 170¡£
- 862           *
- 863           * ËùÒÔÕÚ¹âºó ADC Èç¹ûÂäÔÚ 171~199£¬×´Ì¬ÈÔ»áÎ¬³ÖÓÐÐ§¡£
- 864           */
- 865          static uint16_t rx_adc_calc_off_threshold(void)
- 866          {
- 867   1          if (adc_set > RX_ADC_HYS_VALUE)
- 868   1          {
- 869   2              return (uint16_t)(adc_set - RX_ADC_HYS_VALUE);
- 870   2          }
- 871   1      
- 872   1          return 0U;
- 873   1      }
- 874          
- 875          
- 876          /*
- 877           * ADC ³ÙÖÍÅÐ¶Ï¡£
- 878           *
- 879           * ·µ»Ø£º
- 880           * - 1£ºµ±Ç°´°¿ÚÈÏÎªÓÐÐ§¡£
- 881           * - 0£ºµ±Ç°´°¿ÚÈÏÎªÎÞÐ§¡£
- 882           *
- 883           * ¹Ø¼ü±äÁ¿£ºrx_adc_valid_state
- 884           * - ²»ÊÇÃ¿´Î¼òµ¥±È½Ï adc_set¡£
- 885           * - Ò»µ©½øÈëÓÐÐ§×´Ì¬£¬±ØÐëµÍÓÚ off_threshold ²Å»áÍË³ö¡£
- 886           *
- 887           * ÅÅ²éµã£º
- 888           * ÕÚ¹âºóÈç¹û avg_adc Ã»ÓÐ½µµ½ adc_set - RX_ADC_HYS_VALUE ÒÔÏÂ£¬
- 889           * adc_ok »á¼ÌÐøÎª 1£¬rx_lost_window_count ÓÀÔ¶²»»áÀÛ¼Æ¡£
- 890           */
- 891          static uint8_t rx_adc_hysteresis_check(uint16_t adc)
- 892          {
- 893   1          uint16_t adc_on_th;
- 894   1          uint16_t adc_off_th;
- 895   1      
- 896   1          if (adc >= RX_ADC_MAX_VALID)
- 897   1          {
- 898   2              rx_adc_valid_state = 0;
- 899   2              return 0;
- 900   2          }
- 901   1      
- 902   1          adc_on_th  = adc_set;
- 903   1          adc_off_th = rx_adc_calc_off_threshold();
- 904   1      
- 905   1          if (rx_adc_valid_state == 0)
- 906   1          {
- 907   2              if (adc >= adc_on_th)
- 908   2              {
- 909   3                  rx_adc_valid_state = 1;
- 910   3              }
- 911   2          }
- 912   1          else
- 913   1          {
- 914   2              if (adc <= adc_off_th)
- 915   2              {
- 916   3                  rx_adc_valid_state = 0;
- 917   3              }
- 918   2          }
- 919   1      
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 16  
-
- 920   1          return rx_adc_valid_state;
- 921   1      }
- 922          
- 923          
- 924          /*======================================================================
- 925           * ¾Å¡¢½ÓÊÕ×´Ì¬»ú
- 926           *====================================================================*/
- 927          
- 928          /*
- 929           * ÊÕµ½ P1_4 Í¬²½±ßÑØºó£¬Æô¶¯ÖÜÆÚ ADC ´°¿Ú²ÉÑù¡£
- 930           *
- 931           * ×´Ì¬±ä»¯£º
- 932           * - Í£Ö¹ GTIMER1 Í¬²½µÈ´ý³¬Ê±¡£
- 933           * - rx_seen_once = 1£¬±íÊ¾½øÈë¡°ÒÑÍ¬²½²ÉÑù×´Ì¬¡±¡£
- 934           * - Çå¿ÕÓÐÐ§/ÎÞÐ§Á¬Ðø¼ÆÊý¡£
- 935           * - ¹Ø±Õ P1_4 ÖÐ¶Ï£¬±ÜÃâºóÐøÃ¿¸öÂö³å¶¼½ø GPIO ÖÐ¶Ï¡£
- 936           * - Æô¶¯ GTIMER0£¬µÈ´ýµÚÒ»´Î ADC ´°¿Ú¡£
- 937           *
- 938           * ÅÅ²éµã£º
- 939           * Ö»ÒªÕâ¸öº¯Êý±»µ÷ÓÃ£¬rx_lost_window_count »á±»ÇåÁã£¬
- 940           * ËùÒÔÕÚ¹âÊ±Èç¹û P1_4 Ã«´ÌÎó´¥·¢Í¬²½£¬»á´ò¶ÏÕÚ¹âÀÛ¼Æ¡£
- 941           */
- 942          static void rx_start_periodic_window_from_sync(void)
- 943          {
- 944   1          /* ÒÑ¾­ÊÕµ½Í¬²½±ßÑØ£¬¹Ø±Õ 2ms Í¬²½µÈ´ý³¬Ê±¶¨Ê±Æ÷¡£ */
- 945   1          rx_sync_timeout_timer_stop_clear();//== ¹Øµô¶¨Ê±Æ÷1
- 946   1      
- 947   1          rx_seen_once         = 1U;//== Í¬²½³É¹¦
- 948   1          rx_window_pending    = 0U;
- 949   1          rx_sync_pending      = 0U;
- 950   1          rx_resync_pending    = 0U;
- 951   1          rx_resync_window_count = 0U;
- 952   1          rx_valid_count       = 0U;//== Çå³ýÎÞÐ§¼ÆÊý
- 953   1          rx_lost_window_count = 0U;
- 954   1          rx_adc_valid_state   = 0U;
- 955   1          rx_first_interval_pending = 1U;//== ¸æËßÏµÍ³ÊÇµÚÒ»´Î´°¿Ú
- 956   1          rx_last_trigger_interval_tick = 0U;
- 957   1          g_dbg_last_adc_ok    = 0U;
- 958   1      
- 959   1          /* Í¬²½Íê³Éºó£¬P1_4 ²»ÔÙ·´¸´½øÖÐ¶Ï£¬ºóÐøÓÉ GTIMER0 ÖÜÆÚ´°¿Ú²ÉÑù¡£ */
- 960   1          rx_sync_irq_disable();//== ¹Ø±ÕÍ¬²½ÖÐ¶Ï
- 961   1      
- 962   1      #if RX_FIRST_WINDOW_IMMEDIATE
+ 859           * ×´Ì¬±ä»¯£º
+ 860           * - Í£Ö¹ GTIMER1 Í¬²½µÈ´ý³¬Ê±¡£
+ 861           * - rx_seen_once = 1£¬±íÊ¾½øÈë¡°ÒÑÍ¬²½²ÉÑù×´Ì¬¡±¡£
+ 862           * - Çå¿ÕÓÐÐ§/ÎÞÐ§Á¬Ðø¼ÆÊý¡£
+ 863           * - ¹Ø±Õ P1_4 ÖÐ¶Ï£¬±ÜÃâºóÐøÃ¿¸öÂö³å¶¼½ø GPIO ÖÐ¶Ï¡£
+ 864           * - Æô¶¯ GTIMER0£¬µÈ´ýµÚÒ»´Î ADC ´°¿Ú¡£
+ 865           *
+ 866           * ÅÅ²éµã£º
+ 867           * Ö»ÒªÕâ¸öº¯Êý±»µ÷ÓÃ£¬rx_lost_window_count »á±»ÇåÁã£¬
+ 868           * ËùÒÔÕÚ¹âÊ±Èç¹û P1_4 Ã«´ÌÎó´¥·¢Í¬²½£¬»á´ò¶ÏÕÚ¹âÀÛ¼Æ¡£
+ 869           */
+ 870          static void rx_start_periodic_window_from_sync(void)
+ 871          {
+ 872   1          /* ÒÑ¾­ÊÕµ½Í¬²½±ßÑØ£¬¹Ø±Õ 2ms Í¬²½µÈ´ý³¬Ê±¶¨Ê±Æ÷¡£ */
+ 873   1          rx_sync_timeout_timer_stop_clear();//== ¹Øµô¶¨Ê±Æ÷1
+ 874   1      
+ 875   1          rx_seen_once         = 1U;//== Í¬²½³É¹¦
+ 876   1          rx_window_pending    = 0U;
+ 877   1          rx_sync_pending      = 0U;
+ 878   1          rx_resync_pending    = 0U;
+ 879   1          rx_resync_window_count = 0U;
+ 880   1          rx_valid_count       = 0U;//== Çå³ýÎÞÐ§¼ÆÊý
+ 881   1          rx_lost_window_count = 0U;
+ 882   1          rx_adc_valid_state   = 0U;
+ 883   1          rx_first_interval_pending = 1U;//== ¸æËßÏµÍ³ÊÇµÚÒ»´Î´°¿Ú
+ 884   1          rx_last_trigger_interval_tick = 0U;
+ 885   1          g_dbg_last_adc_ok    = 0U;
+ 886   1          rx_group_window_count = 0U;
+ 887   1      
+ 888   1          /* Í¬²½Íê³Éºó£¬P1_4 ²»ÔÙ·´¸´½øÖÐ¶Ï£¬ºóÐøÓÉ GTIMER0 ÖÜÆÚ´°¿Ú²ÉÑù¡£ */
+ 889   1          rx_sync_irq_disable();//== ¹Ø±ÕÍ¬²½ÖÐ¶Ï
+ 890   1      
+ 891   1      #if RX_FIRST_WINDOW_IMMEDIATE
                   /*
                    * Õâ¸öÁ¢¼´²¹²É´°¿Ú²»Ó°ÏìºóÐø¶¨Ê±Æ÷ÏàÎ»¡£
                    */
                   rx_window_pending = 1U;
               #endif
- 968   1      
- 969   1          /*
- 970   1           * ¹Ø¼üÐÞ¸Ä£º
- 971   1           * GTIMER0 µÄÖÜÆÚÈÔÈ»ÊÇ 1000us£¬Ö»ÊÇÆô¶¯Ê±Ô¤×° CNT£¬
- 972   1           * ÈÃ¡°µÚÒ»´ÎÒç³ö¡±·¢ÉúÔÚ RX_FIRST_WINDOW_DELAY_TICK ºó¡£
- 973   1           * µÚÒ»´ÎÒç³öÒÔºó£¬Ó²¼þ×Ô¶¯»Øµ½ 1ms ÖÜÆÚ£¬²»ÐèÒªÔÚÖÐ¶ÏÀï¸ÄÖÜÆÚ¡£
- 974   1           */
- 975   1          rx_timer_restart_with_first_delay();//== ÉèÖÃµÚÒ»´ÎÒç³öµÄÖÜÆÚÇ¨ÒÆ
- 976   1      }
- 977          
- 978          
- 979          /*
- 980           * ½øÈëÕÚ¹â×´Ì¬µÄÍ³Ò»³ö¿Ú¡£
- 981           *
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 17  
+ 897   1      
+ 898   1          /*
+ 899   1           * ¹Ø¼üÐÞ¸Ä£º
+ 900   1           * GTIMER0 µÄÖÜÆÚÈÔÈ»ÊÇ 1000us£¬Ö»ÊÇÆô¶¯Ê±Ô¤×° CNT£¬
+ 901   1           * ÈÃ¡°µÚÒ»´ÎÒç³ö¡±·¢ÉúÔÚ RX_FIRST_WINDOW_DELAY_TICK ºó¡£
+ 902   1           * µÚÒ»´ÎÒç³öÒÔºó£¬Ó²¼þ×Ô¶¯»Øµ½ 1ms ÖÜÆÚ£¬²»ÐèÒªÔÚÖÐ¶ÏÀï¸ÄÖÜÆÚ¡£
+ 903   1           */
+ 904   1          rx_timer_restart_with_first_delay();//== ÉèÖÃµÚÒ»´ÎÒç³öµÄÖÜÆÚÇ¨ÒÆ
+ 905   1      }
+ 906          
+ 907          
+ 908          /*
+ 909           * ½øÈëÕÚ¹â×´Ì¬µÄÍ³Ò»³ö¿Ú¡£
+ 910           *
+ 911           * Ö»ÓÐÁ½ÌõÕý³£Â·¾¶»áµ÷ÓÃ£º
+ 912           * 1. ADC Á¬ÐøÎÞÐ§´°¿Ú´ïµ½ RX_LOST_WINDOW_COUNT¡£
+ 913           * 2. Ç¿ÖÆÖØÍ¬²½µÈ´ý P1_4 ³¬Ê±¡£
+ 914           *
+ 915           * ¶¯×÷£º
+ 916           * - ÇåËùÓÐ¼ÆÊýºÍ pending ±êÖ¾¡£
+ 917           * - Í£ GTIMER0/GTIMER1¡£
+ 918           * - Êä³öÕÚ¹â¡£
+ 919           * - rx_light_state Çå 0¡£
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 16  
 
- 982           * Ö»ÓÐÁ½ÌõÕý³£Â·¾¶»áµ÷ÓÃ£º
- 983           * 1. ADC Á¬ÐøÎÞÐ§´°¿Ú´ïµ½ RX_LOST_WINDOW_COUNT¡£
- 984           * 2. Ç¿ÖÆÖØÍ¬²½µÈ´ý P1_4 ³¬Ê±¡£
- 985           *
- 986           * ¶¯×÷£º
- 987           * - ÇåËùÓÐ¼ÆÊýºÍ pending ±êÖ¾¡£
- 988           * - Í£ GTIMER0/GTIMER1¡£
- 989           * - Êä³öÕÚ¹â¡£
- 990           * - rx_light_state Çå 0¡£
- 991           * - ÖØÐÂ´ò¿ª P1_4£¬µÈ´ýÏÂÒ»´ÎÀ´¹âÍ¬²½¡£
- 992           */
- 993          static void rx_enter_block_state(uint8_t debug_reason)
- 994          {
- 995   1          debug_reason=0;
- 996   1          rx_valid_count       = 0U;
- 997   1          rx_lost_window_count = 0U;
- 998   1          rx_seen_once         = 0U;
- 999   1          rx_window_pending    = 0U;
-1000   1          rx_sync_pending      = 0U;
-1001   1          rx_resync_pending    = 0U;
-1002   1          rx_sync_wait_timeout_pending = 0U;
-1003   1          rx_sync_wait_timer_running   = 0U;
-1004   1          rx_resync_window_count = 0U;
-1005   1          rx_adc_valid_state   = 0U;
-1006   1          rx_first_interval_pending = 0U;
-1007   1          rx_last_trigger_interval_tick = 0U;
-1008   1          g_dbg_last_adc_ok    = 0U;
-1009   1      
-1010   1          rx_timer_stop_clear();//== Í£Ö¹²¢ÇåÁã GTIMER0
-1011   1          rx_sync_timeout_timer_stop_clear();//== Í£Ö¹²¢ÇåÁã GTIMER1 Í¬²½µÈ´ý³¬Ê±¶¨Ê±Æ÷ÎªÏÂÒ»´ÎÍ¬²½×¼±¸
-1012   1              
-1013   1          rx_output_block();//== ÕÚ¹âÊä³ö
-1014   1      
-1015   1          if (rx_light_state)//== ÕÚ¹â×´Ì¬
-1016   1          {
-1017   2              rx_light_state = 0U;
-1018   2          }
-1019   1      
-1020   1          /* ÕÚ¹âºóÖØÐÂ´ò¿ª P1_4 ÖÐ¶Ï£¬µÈ´ýÏÂÒ»´ÎÀ´¹âÖØÐÂÍ¬²½¡£ */
-1021   1          rx_sync_irq_enable();
-1022   1      
-1023   1      }
-1024          
-1025          
-1026          /*
-1027           * Ö÷Ñ­»·ÉÏÏÂÎÄÀïµÄÇ¿ÖÆÖØÍ¬²½¡£
-1028           *
-1029           * Õâ¸öº¯Êý²»ÄÜ·ÅÔÚ GTIMER0 ÖÐ¶Ï»ò GPIO ÖÐ¶ÏÀïµ÷ÓÃ£¬Ô­ÒòÊÇÀïÃæ»áÖØÐÂ´ò¿ª
-1030           * P1_4 Í¬²½ÖÐ¶Ï£¬×îÖÕ»áµ÷ÓÃ gpio_irq_set()£¬C51 »á¶Ô ISR ºÍÖ÷Á÷³ÌË«Èë¿Ú
-1031           * µ÷ÓÃ¿âº¯Êý±¨ L15 ¾¯¸æ¡£
-1032           *
-1033           * Ç¿ÖÆÖØÍ¬²½Ö»ÖØÐÂÐ£×¼²ÉÑùÏàÎ»£¬²»¸Ä±äµ±Ç°Êä³ö×´Ì¬£º
-1034           * - µ±Ç°ÒÑ¾­ÓÐ¹â£ºÊä³ö¼ÌÐø±£³ÖÓÐ¹â£¬µÈ´ýÏÂÒ»´Î P1_4 ±ßÑØºó»Ö¸´ 1ms ´°¿Ú¡£
-1035           * - µ±Ç°Êµ¼ÊÕÚ¹â£ºÒòÎªÃ»ÓÐÐÂµÄ P1_4 ±ßÑØ£¬ºóÐø²»»áÎóÈ·ÈÏÓÐ¹â£»ÕÚ¹âÕý³£ÓÉ
-1036           *   ÎÞÐ§´°¿ÚÂß¼­´¦Àí£¬ËùÒÔÕâÀï²»Ö÷¶¯À­µÍÊä³ö¡£
-1037           */
-1038          static void rx_force_resync_from_main(void)
-1039          {
-1040   1          rx_resync_pending = 0U;
-1041   1          rx_resync_window_count = 0U;
-1042   1          rx_seen_once = 0U;
-1043   1          rx_window_pending = 0U;
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 18  
+ 920           * - ÖØÐÂ´ò¿ª P1_4£¬µÈ´ýÏÂÒ»´ÎÀ´¹âÍ¬²½¡£
+ 921           */
+ 922          static void rx_enter_block_state(uint8_t debug_reason)
+ 923          {
+ 924   1          debug_reason=0;
+ 925   1          rx_valid_count       = 0U;
+ 926   1          rx_lost_window_count = 0U;
+ 927   1          rx_seen_once         = 0U;
+ 928   1          rx_window_pending    = 0U;
+ 929   1          rx_sync_pending      = 0U;
+ 930   1          rx_resync_pending    = 0U;
+ 931   1          rx_sync_wait_timeout_pending = 0U;
+ 932   1          rx_sync_wait_timer_running   = 0U;
+ 933   1          rx_resync_window_count = 0U;
+ 934   1          rx_adc_valid_state   = 0U;
+ 935   1          rx_first_interval_pending = 0U;
+ 936   1          rx_last_trigger_interval_tick = 0U;
+ 937   1          g_dbg_last_adc_ok    = 0U;
+ 938   1          rx_group_window_count = 0U;
+ 939   1      
+ 940   1          rx_timer_stop_clear();//== Í£Ö¹²¢ÇåÁã GTIMER0
+ 941   1          rx_sync_timeout_timer_stop_clear();//== Í£Ö¹²¢ÇåÁã GTIMER1 Í¬²½µÈ´ý³¬Ê±¶¨Ê±Æ÷ÎªÏÂÒ»´ÎÍ¬²½×¼±¸
+ 942   1              
+ 943   1          rx_output_block();//== ÕÚ¹âÊä³ö
+ 944   1      
+ 945   1          if (rx_light_state)//== ÕÚ¹â×´Ì¬
+ 946   1          {
+ 947   2              rx_light_state = 0U;
+ 948   2          }
+ 949   1      
+ 950   1          /* ÕÚ¹âºóÖØÐÂ´ò¿ª P1_4 ÖÐ¶Ï£¬µÈ´ýÏÂÒ»´ÎÀ´¹âÖØÐÂÍ¬²½¡£ */
+ 951   1          rx_sync_irq_enable();
+ 952   1      
+ 953   1      }
+ 954          
+ 955          
+ 956          /*
+ 957           * Ö÷Ñ­»·ÉÏÏÂÎÄÀïµÄÇ¿ÖÆÖØÍ¬²½¡£
+ 958           *
+ 959           * Õâ¸öº¯Êý²»ÄÜ·ÅÔÚ GTIMER0 ÖÐ¶Ï»ò GPIO ÖÐ¶ÏÀïµ÷ÓÃ£¬Ô­ÒòÊÇÀïÃæ»áÖØÐÂ´ò¿ª
+ 960           * P1_4 Í¬²½ÖÐ¶Ï£¬×îÖÕ»áµ÷ÓÃ gpio_irq_set()£¬C51 »á¶Ô ISR ºÍÖ÷Á÷³ÌË«Èë¿Ú
+ 961           * µ÷ÓÃ¿âº¯Êý±¨ L15 ¾¯¸æ¡£
+ 962           *
+ 963           * Ç¿ÖÆÖØÍ¬²½Ö»ÖØÐÂÐ£×¼²ÉÑùÏàÎ»£¬²»¸Ä±äµ±Ç°Êä³ö×´Ì¬£º
+ 964           * - µ±Ç°ÒÑ¾­ÓÐ¹â£ºÊä³ö¼ÌÐø±£³ÖÓÐ¹â£¬µÈ´ýÏÂÒ»´Î P1_4 ±ßÑØºó»Ö¸´ 1ms ´°¿Ú¡£
+ 965           * - µ±Ç°Êµ¼ÊÕÚ¹â£ºÒòÎªÃ»ÓÐÐÂµÄ P1_4 ±ßÑØ£¬ºóÐø²»»áÎóÈ·ÈÏÓÐ¹â£»ÕÚ¹âÕý³£ÓÉ
+ 966           *   ÎÞÐ§´°¿ÚÂß¼­´¦Àí£¬ËùÒÔÕâÀï²»Ö÷¶¯À­µÍÊä³ö¡£
+ 967           */
+ 968          static void rx_force_resync_from_main(void)
+ 969          {
+ 970   1          rx_resync_pending = 0U;
+ 971   1          rx_resync_window_count = 0U;
+ 972   1          rx_seen_once = 0U;
+ 973   1          rx_window_pending = 0U;
+ 974   1          rx_sync_pending = 0U;
+ 975   1          rx_sync_wait_timeout_pending = 0U;
+ 976   1          rx_sync_wait_timer_running   = 0U;
+ 977   1          rx_adc_valid_state = 0U;
+ 978   1          rx_first_interval_pending = 0U;
+ 979   1          rx_last_trigger_interval_tick = 0U;
+ 980   1          rx_group_window_count = 0U;
+ 981   1      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 17  
 
-1044   1          rx_sync_pending = 0U;
-1045   1          rx_sync_wait_timeout_pending = 0U;
-1046   1          rx_sync_wait_timer_running   = 0U;
-1047   1          rx_adc_valid_state = 0U;
-1048   1          rx_first_interval_pending = 0U;
-1049   1          rx_last_trigger_interval_tick = 0U;
-1050   1      
-1051   1          /*
-1052   1           * Í£Ö¹ GTIMER0£ºÕâÊÇÇ¿ÖÆÖØÍ¬²½µÄºËÐÄ¶¯×÷¡£
-1053   1           */
-1054   1          rx_timer_stop_clear();
-1055   1          
-1056   1          /*
-1057   1           * µ±Ç°ÈÔÈ»´¦ÓÚÓÐ¹âÊä³ö×´Ì¬£¬¿ªÊ¼ 2ms Í¬²½µÈ´ý³¬Ê±¡£
-1058   1           * Èç¹û 2ms ÄÚÃ»ÓÐÐÂµÄ P1_4 Í¬²½±ßÑØ£¬Ö÷Ñ­»·»áÅÐ¶¨ÕÚ¹â¡£
-1059   1           */
-1060   1          if (rx_light_state != 0U)
-1061   1          {
-1062   2              rx_sync_timeout_timer_start();
-1063   2          }
-1064   1          
-1065   1          /* ÖØÐÂ´ò¿ª P1_4£¬µÈ´ýÏÂÒ»´Î·¢ÉäÂö³å±ßÑØÖØÐÂÍ¬²½¡£ */
-1066   1          rx_sync_irq_enable();
-1067   1                      
-1068   1         
-1069   1      }
-1070          
-1071          
-1072          /*
-1073           * ´¦ÀíÇ¿ÖÆÖØÍ¬²½ÆÚ¼äµÄ 2ms ³¬Ê±¡£
-1074           *
-1075           * Ìõ¼þ£º
-1076           * - rx_sync_wait_timeout_pending = 1£¬ËµÃ÷ GTIMER1 ÒÑ¾­³¬Ê±¡£
-1077           * - rx_seen_once == 0£¬ËµÃ÷»¹Ã»ÓÐÖØÐÂÍ¬²½³É¹¦¡£
-1078           * - rx_light_state != 0£¬ËµÃ÷Êä³öÖ®Ç°»¹±£³ÖÓÐ¹â¡£
-1079           *
-1080           * Âú×ãºóµ÷ÓÃ rx_enter_block_state() ÅÐ¶¨ÕÚ¹â¡£
-1081          ¡¢
-1082           */
-1083          static void rx_handle_sync_wait_timeout_from_main(void)
-1084          {
-1085   1          if (rx_sync_wait_timeout_pending == 0U)
-1086   1          {
-1087   2              return;
-1088   2          }
-1089   1      
-1090   1          rx_sync_wait_timeout_pending = 0U;
-1091   1          rx_sync_wait_timer_running   = 0U;
-1092   1      
-1093   1          if ((rx_seen_once == 0U) && (rx_light_state != 0U))
-1094   1          {
-1095   2              /*
-1096   2               * ÈÔÎ´ÖØÐÂÍ¬²½£¬²¢ÇÒÊä³ö»¹±£³ÖÓÐ¹â£º
-1097   2               * ÕâÊ±Í¬²½µÈ´ý³¬Ê±Ó¦µ±Ö±½ÓÅÐ¶¨ÕÚ¹â¡£
-1098   2               */
-1099   2      
-1100   2              rx_enter_block_state(UART_DBG_REASON_SYNC_TIMEOUT);
-1101   2          }
-1102   1      }
-1103          
-1104          
-1105          /*
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 19  
+ 982   1          /*
+ 983   1           * Í£Ö¹ GTIMER0£ºÕâÊÇÇ¿ÖÆÖØÍ¬²½µÄºËÐÄ¶¯×÷¡£
+ 984   1           */
+ 985   1          rx_timer_stop_clear();
+ 986   1          
+ 987   1          /*
+ 988   1           * µ±Ç°ÈÔÈ»´¦ÓÚÓÐ¹âÊä³ö×´Ì¬£¬¿ªÊ¼ 2ms Í¬²½µÈ´ý³¬Ê±¡£
+ 989   1           * Èç¹û 2ms ÄÚÃ»ÓÐÐÂµÄ P1_4 Í¬²½±ßÑØ£¬Ö÷Ñ­»·»áÅÐ¶¨ÕÚ¹â¡£
+ 990   1           */
+ 991   1          if (rx_light_state != 0U)
+ 992   1          {
+ 993   2              rx_sync_timeout_timer_start();
+ 994   2          }
+ 995   1          
+ 996   1          /* ÖØÐÂ´ò¿ª P1_4£¬µÈ´ýÏÂÒ»´Î·¢ÉäÂö³å±ßÑØÖØÐÂÍ¬²½¡£ */
+ 997   1          rx_sync_irq_enable();
+ 998   1                      
+ 999   1         
+1000   1      }
+1001          
+1002          
+1003          /*
+1004           * ´¦ÀíÇ¿ÖÆÖØÍ¬²½ÆÚ¼äµÄ 2ms ³¬Ê±¡£
+1005           *
+1006           * Ìõ¼þ£º
+1007           * - rx_sync_wait_timeout_pending = 1£¬ËµÃ÷ GTIMER1 ÒÑ¾­³¬Ê±¡£
+1008           * - rx_seen_once == 0£¬ËµÃ÷»¹Ã»ÓÐÖØÐÂÍ¬²½³É¹¦¡£
+1009           * - rx_light_state != 0£¬ËµÃ÷Êä³öÖ®Ç°»¹±£³ÖÓÐ¹â¡£
+1010           *
+1011           * Âú×ãºóµ÷ÓÃ rx_enter_block_state() ÅÐ¶¨ÕÚ¹â¡£
+1012          ¡¢
+1013           */
+1014          static void rx_handle_sync_wait_timeout_from_main(void)
+1015          {
+1016   1          if (rx_sync_wait_timeout_pending == 0U)
+1017   1          {
+1018   2              return;
+1019   2          }
+1020   1      
+1021   1          rx_sync_wait_timeout_pending = 0U;
+1022   1          rx_sync_wait_timer_running   = 0U;
+1023   1      
+1024   1          if ((rx_seen_once == 0U) && (rx_light_state != 0U))
+1025   1          {
+1026   2              /*
+1027   2               * ÈÔÎ´ÖØÐÂÍ¬²½£¬²¢ÇÒÊä³ö»¹±£³ÖÓÐ¹â£º
+1028   2               * ÕâÊ±Í¬²½µÈ´ý³¬Ê±Ó¦µ±Ö±½ÓÅÐ¶¨ÕÚ¹â¡£
+1029   2               */
+1030   2      
+1031   2              rx_enter_block_state(UART_DBG_REASON_SYNC_TIMEOUT);
+1032   2          }
+1033   1      }
+1034          
+1035          
+1036          /*
+1037           * Ã¿´¦ÀíÒ»¸ö ADC ´°¿ÚºóÀÛ¼ÆÒ»´Î¡£
+1038           *
+1039           * ÎªÁË±ÜÃâÕæÊµÕÚ¹âÊ±¸ÕºÃÅöµ½ÖØÍ¬²½ÖÜÆÚ£¬µ¼ÖÂÊä³ö±£³ÖÓÐ¹âµÈ´ýÍ¬²½£¬
+1040           * ÕâÀïÖ»ÔÚ¡°±¾´°¿ÚÈÔÈ»ÓÐÐ§ adc_ok=1¡±Ê±´¥·¢Ç¿ÖÆÖØÍ¬²½¡£
+1041           * Èç¹ûÒÑ¾­¿ªÊ¼Á¬ÐøÎÞÐ§£¬ÓÅÏÈ×ß RX_LOST_WINDOW_COUNT ÕÚ¹âÅÐ¶¨¡£
+1042           */
+1043          /*
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 18  
 
-1106           * Ã¿´¦ÀíÒ»¸ö ADC ´°¿ÚºóÀÛ¼ÆÒ»´Î¡£
-1107           *
-1108           * ÎªÁË±ÜÃâÕæÊµÕÚ¹âÊ±¸ÕºÃÅöµ½ÖØÍ¬²½ÖÜÆÚ£¬µ¼ÖÂÊä³ö±£³ÖÓÐ¹âµÈ´ýÍ¬²½£¬
-1109           * ÕâÀïÖ»ÔÚ¡°±¾´°¿ÚÈÔÈ»ÓÐÐ§ adc_ok=1¡±Ê±´¥·¢Ç¿ÖÆÖØÍ¬²½¡£
-1110           * Èç¹ûÒÑ¾­¿ªÊ¼Á¬ÐøÎÞÐ§£¬ÓÅÏÈ×ß RX_LOST_WINDOW_COUNT ÕÚ¹âÅÐ¶¨¡£
-1111           */
-1112          /*
-1113           * Ã¿´¦ÀíÍêÒ»¸ö ADC ´°¿Úºó£¬ÀÛ¼ÆÇ¿ÖÆÖØÍ¬²½¼ÆÊý¡£
-1114           *
-1115           * µ±Ç°´úÂëÂß¼­£º
-1116           * - Ö»Òª rx_seen_once=1£¬¾ÍÀÛ¼Æ rx_resync_window_count¡£
-1117           * - µ±ÀÛ¼Æµ½ RX_RESYNC_WINDOW_COUNT£¬¾ÍÖÃÎ» rx_resync_pending¡£
-1118           */
-1119          static void rx_resync_count_after_window(void)
-1120          {
-1121   1      #if RX_RESYNC_ENABLE
-1122   1          if (RX_RESYNC_WINDOW_COUNT == 0U)//== ´ÎÊýÉÏÏÞ0²»¼ÆÊý
-1123   1          {
-1124   2              return;
-1125   2          }
-1126   1      
-1127   1          if (rx_seen_once == 0U)//== Ã»Í¬²½²»¼ÆÊý
-1128   1          {
-1129   2              rx_resync_window_count = 0U;
-1130   2              return;
-1131   2          }
-1132   1      
-1133   1          if (rx_resync_window_count < 65535U)//== ´ÎÊý×·¼Ó
-1134   1          {
-1135   2              rx_resync_window_count++;
-1136   2          }
-1137   1      
-1138   1          if ((rx_resync_window_count >= RX_RESYNC_WINDOW_COUNT))//== ´óÓÚÇ¿ÖÆÍ¬²½´ÎÊýÉèÖÃÇ¿ÖÆÍ¬²½±êÖ¾
-1139   1          {
-1140   2              rx_resync_pending = 1U;
-1141   2              
-1142   2              rx_valid_count=0;
-1143   2              rx_lost_window_count=0;
-1144   2          }
-1145   1      #else
+1044           * Ã¿´¦ÀíÍêÒ»¸ö ADC ´°¿Úºó£¬ÀÛ¼ÆÇ¿ÖÆÖØÍ¬²½¼ÆÊý¡£
+1045           *
+1046           * µ±Ç°´úÂëÂß¼­£º
+1047           * - Ö»Òª rx_seen_once=1£¬¾ÍÀÛ¼Æ rx_resync_window_count¡£
+1048           * - µ±ÀÛ¼Æµ½ RX_RESYNC_WINDOW_COUNT£¬¾ÍÖÃÎ» rx_resync_pending¡£
+1049           */
+1050          static void rx_resync_count_after_window(void)
+1051          {
+1052   1      #if RX_RESYNC_ENABLE
+1053   1          if (RX_RESYNC_WINDOW_COUNT == 0U)//== ´ÎÊýÉÏÏÞ0²»¼ÆÊý
+1054   1          {
+1055   2              return;
+1056   2          }
+1057   1      
+1058   1          if (rx_seen_once == 0U)//== Ã»Í¬²½²»¼ÆÊý
+1059   1          {
+1060   2              rx_resync_window_count = 0U;
+1061   2              return;
+1062   2          }
+1063   1      
+1064   1          if (rx_resync_window_count < 65535U)//== ´ÎÊý×·¼Ó
+1065   1          {
+1066   2              rx_resync_window_count++;
+1067   2          }
+1068   1      
+1069   1          if ((rx_resync_window_count >= RX_RESYNC_WINDOW_COUNT))//== ´óÓÚÇ¿ÖÆÍ¬²½´ÎÊýÉèÖÃÇ¿ÖÆÍ¬²½±êÖ¾
+1070   1          {
+1071   2              rx_resync_pending = 1U;
+1072   2              
+1073   2          }
+1074   1      #else
                   (void)0;
               #endif
-1148   1      }
-1149          
-1150          
-1151          /*
-1152           * ´¦ÀíÒ»´Î ADC ´°¿Ú£¬ÊÇÕû¸öÕÚ¹â/ÓÐ¹âÅÐ¶ÏµÄºËÐÄº¯Êý¡£
-1153           *
-1154           * Õý³£ÕÚ¹âÂ·¾¶£º
-1155           * 1. É¨ÃèÒ»¸ö ADC ´°¿Ú£¬µÃµ½ avg_adc¡£
-1156           * 2. ³ÙÖÍÅÐ¶ÏµÃµ½ adc_ok¡£
-1157           * 3. adc_ok=0£ºrx_lost_window_count++¡£
-1158           * 4. Á¬ÐøÎÞÐ§´ïµ½ RX_LOST_WINDOW_COUNT£ºµ÷ÓÃ rx_enter_block_state()¡£
-1159           *
-1160           * Èç¹ûÃ÷Ã÷ÕÚµ²µ«²»ÕÚ¹â£¬ÖØµã¿´£º
-1161           * - Õâ¸öº¯ÊýÓÐÃ»ÓÐ³ÖÐøÖ´ÐÐ£»
-1162           * - adc_ok ÊÇ·ñÕæµÄ±ä³É 0£»
-1163           * - rx_lost_window_count ÓÐÃ»ÓÐ±»ÇåÁã£»
-1164           * - ÊÇ·ñÖ´ÐÐÍê´°¿ÚºóÂíÉÏ´¥·¢ÁË rx_resync_pending¡£
-1165           */
-1166          static void rx_process_adc_window(void)
-1167          {
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 20  
+1077   1      }
+1078          
+1079          
+1080          /*
+1081           * ´¦ÀíÒ»´Î ADC ´°¿Ú£¬ÊÇÕû¸öÕÚ¹â/ÓÐ¹âÅÐ¶ÏµÄºËÐÄº¯Êý¡£
+1082           *
+1083           * Õý³£ÕÚ¹âÂ·¾¶£º
+1084           * 1. É¨ÃèÒ»¸ö ADC ´°¿Ú£¬µÃµ½ avg_adc¡£
+1085           * 2. ³ÙÖÍÅÐ¶ÏµÃµ½ adc_ok¡£
+1086           * 3. adc_ok=0£ºrx_lost_window_count++¡£
+1087           * 4. Á¬ÐøÎÞÐ§´ïµ½ RX_LOST_WINDOW_COUNT£ºµ÷ÓÃ rx_enter_block_state()¡£
+1088           *
+1089           * Èç¹ûÃ÷Ã÷ÕÚµ²µ«²»ÕÚ¹â£¬ÖØµã¿´£º
+1090           * - Õâ¸öº¯ÊýÓÐÃ»ÓÐ³ÖÐøÖ´ÐÐ£»
+1091           * - adc_ok ÊÇ·ñÕæµÄ±ä³É 0£»
+1092           * - rx_lost_window_count ÓÐÃ»ÓÐ±»ÇåÁã£»
+1093           * - ÊÇ·ñÖ´ÐÐÍê´°¿ÚºóÂíÉÏ´¥·¢ÁË rx_resync_pending¡£
+1094           */
+1095          static void rx_process_adc_window(void)
+1096          {
+1097   1          uint16_t avg_adc;
+1098   1          uint16_t sample_count;
+1099   1          uint8_t adc_ok;
+1100   1      
+1101   1          if (rx_seen_once == 0U)//== Ã»Í¬²½ÍË³ö
+1102   1          {
+1103   2              return;
+1104   2          }
+1105   1      
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 19  
 
-1168   1          uint16_t avg_adc;
-1169   1          uint16_t sample_count;
-1170   1          uint8_t adc_ok;
-1171   1      
-1172   1          if (rx_seen_once == 0U)//== Ã»Í¬²½ÍË³ö
-1173   1          {
-1174   2              return;
-1175   2          }
-1176   1      
-1177   1          sample_count = 0U;
-1178   1          avg_adc = rx_adc_scan_window_average(ADC_CHANNEL_1,
-1179   1                                               RX_ADC_WINDOW_WIDTH_TICK,
-1180   1                                               &sample_count);//== »ñÈ¡Æ½¾ùÖµ
-1181   1      
-1182   1          adc_data  = avg_adc;//== ´°¿ÚÆ½¾ù
-1183   1          adc_data1 = sample_count;//== ²ÉÑùÊýÁ¿
-1184   1          adcount   = sample_count;
-1185   1          g_dbg_last_elapsed_tick = rx_last_trigger_interval_tick;//== ²ÉÑù´°¿Ú¼ä¸ô
-1186   1      
-1187   1      #if RX_ADC_HYS_ENABLE
-1188   1          adc_ok = rx_adc_hysteresis_check(avg_adc);//== Ó¦²îÅÐ¶Ï
-1189   1      #else
+1106   1          sample_count = 0U;
+1107   1          avg_adc = rx_adc_scan_window_average(ADC_CHANNEL_1,
+1108   1                                               RX_ADC_WINDOW_WIDTH_TICK,
+1109   1                                               &sample_count);//== »ñÈ¡Æ½¾ùÖµ
+1110   1      
+1111   1          adc_data  = avg_adc;//== ´°¿ÚÆ½¾ù
+1112   1          adc_data1 = sample_count;//== ²ÉÑùÊýÁ¿
+1113   1          adcount   = sample_count;
+1114   1          g_dbg_last_elapsed_tick = rx_last_trigger_interval_tick;//== ²ÉÑù´°¿Ú¼ä¸ô
+1115   1      
+1116   1      #if RX_ADC_HYS_ENABLE
+1117   1          adc_ok = rx_adc_hysteresis_check(avg_adc);//== Ó¦²îÅÐ¶Ï
+1118   1      #else
                   if ((avg_adc < RX_ADC_MAX_VALID) && (avg_adc >= adc_set))
                   {
                       adc_ok = 1U;
@@ -1247,53 +1174,87 @@ line level    source
                       adc_ok = 0U;
                   }
               #endif
-1199   1      
-1200   1          g_dbg_last_adc_ok = adc_ok;//== ¼ÇÂ¼adcÊÇ·ñÅÐ¶ÏÓÐÐ§
-1201   1      
-1202   1          if (adc_ok)
-1203   1          {
-1204   2              if (rx_valid_count < RX_CONFIRM_COUNT)//== ×·¼ÓÓÐÐ§¼ÆÊý
-1205   2              {
-1206   3                  rx_valid_count++;
-1207   3              }
-1208   2      
-1209   2              if ((!rx_light_state) && (rx_valid_count >= RX_CONFIRM_COUNT))//== Èç¹ûÊÇÕÚ¹â²¢ÇÒÓÐÐ§¼ÆÊý´óÓÚÓÐÐ§Ö
-             -µ
-1210   2              {
-1211   3                  rx_light_state = 1U;
-1212   3                  rx_output_light();//== Êä³ö
-1213   3              }
-1214   2          }
-1215   1          else//== Ð¡ÓÚ±È½ÏÓ¦²îÅÐ¶ÏÕÚ¹â
-1216   1          {
-1217   2              if (rx_lost_window_count < RX_LOST_WINDOW_COUNT)//== ÎÞÐ§¼ÆÊý´ïµ½Ò»¶¨ÊýÁ¿ÅÐ¶ÏÊä³ö
-1218   2              {
-1219   3                  rx_lost_window_count++;
-1220   3              }
-1221   2      
-1222   2              if (rx_lost_window_count >= RX_LOST_WINDOW_COUNT)
-1223   2              {
-1224   3                  /*
-1225   3                   * Õý³£ ADC ÕÚ¹âÂ·¾¶×îÖÕµ½ÕâÀï¡£
-1226   3                   */
-1227   3                  rx_enter_block_state(UART_DBG_REASON_TIMEOUT);//== ÕÚ¹â×´Ì¬ÖØÐÂµÈÍ¬²½
-1228   3              }
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 21  
+1128   1      
+1129   1          g_dbg_last_adc_ok = adc_ok;//== ¼ÇÂ¼adcÊÇ·ñÅÐ¶ÏÓÐÐ§
+1130   1      
+1131   1              /*
+1132   1           * µ±Ç°Õâ 3 ¸ö´°¿Ú×÷ÎªÒ»¸öÅÐ¶Ï×é£º
+1133   1           * - valid_count£º±¾×éÓÐÐ§´°¿ÚÊýÁ¿
+1134   1           * - lost_count £º±¾×éÎÞÐ§´°¿ÚÊýÁ¿
+1135   1           */
+1136   1          if (adc_ok != 0U)
+1137   1          {
+1138   2              if (rx_valid_count < RX_DECISION_GROUP_WINDOW_COUNT)
+1139   2              {
+1140   3                  rx_valid_count++;
+1141   3              }
+1142   2          }
+1143   1          else
+1144   1          {
+1145   2              if (rx_lost_window_count < RX_DECISION_GROUP_WINDOW_COUNT)
+1146   2              {
+1147   3                  rx_lost_window_count++;
+1148   3              }
+1149   2          }
+1150   1      
+1151   1          /*
+1152   1           * Ã¿ 3 ¸ö´°¿ÚÍ³Ò»ÅÐ¶¨Ò»´Î¡£
+1153   1           */
+1154   1          rx_group_window_count++;
+1155   1      
+1156   1          if (rx_group_window_count >= RX_DECISION_GROUP_WINDOW_COUNT)
+1157   1          {
+1158   2              rx_group_window_count = 0U;
+1159   2      
+1160   2              /*
+1161   2               * ÎÞ¹â×´Ì¬ÏÂ£º
+1162   2               * ±ØÐë 3 ¸ö´°¿ÚÈ«²¿ÓÐÐ§£¬²ÅÈ·ÈÏÓÐ¹â¡£
+1163   2               */
+1164   2              if (rx_light_state == 0U)
+1165   2              {
+1166   3                  if (rx_valid_count >= RX_CONFIRM_COUNT)
+1167   3                  {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 20  
 
-1229   2          }
-1230   1          
-1231   1          if (rx_seen_once != 0U)//== ÒÑ¾­Í¬²½¼ÇÂ¼´°¿Ú´ÎÊý£¬³¬¹ý´°¿Ú´ÎÊýÇ¿ÖÆÍ¬²½
-1232   1          {
-1233   2              rx_resync_count_after_window();
-1234   2          }
-1235   1      }
-1236          
-1237          
-1238          /*======================================================================
-1239           * Ê®¡¢´®¿Úµ÷ÊÔº¯Êý
-1240           *====================================================================*/
-1241          
-1242          #if UART_ADC_DEBUG_ENABLE
+1168   4                      rx_light_state = 1U;
+1169   4                      rx_output_light();
+1170   4                  }
+1171   3              }
+1172   2              /*
+1173   2               * ÓÐ¹â×´Ì¬ÏÂ£º
+1174   2               * ±¾×éÖ»Òª³öÏÖÒ»¸öÎÞÐ§´°¿Ú£¬¾ÍÅÐ¶¨ÕÚ¹â¡£
+1175   2               *
+1176   2               * ÈôÄãÏ£Íû±ØÐë¡°3 ¸ö¶¼ÎÞÐ§¡±²ÅÕÚ¹â£¬
+1177   2               * ¸Ä³É rx_lost_window_count >= RX_RESYNC_WINDOW_COUNT¡£
+1178   2               */
+1179   2              else
+1180   2              {
+1181   3      //            if (rx_lost_window_count != 0U)
+1182   3      //            {
+1183   3      //                rx_enter_block_state(UART_DBG_REASON_TIMEOUT);
+1184   3      //                return;
+1185   3      //            }
+1186   3              }
+1187   2      
+1188   2              /*
+1189   2               * µ±Ç°Ò»×éÅÐ¶Ï½áÊø£¬ÇåÁã£¬×¼±¸Í³¼ÆÏÂÒ»×é¡£
+1190   2               */
+1191   2              rx_valid_count       = 0U;
+1192   2              rx_lost_window_count = 0U;
+1193   2          }
+1194   1          
+1195   1          if (rx_seen_once != 0U)//== ÒÑ¾­Í¬²½¼ÇÂ¼´°¿Ú´ÎÊý£¬³¬¹ý´°¿Ú´ÎÊýÇ¿ÖÆÍ¬²½
+1196   1          {
+1197   2              rx_resync_count_after_window();
+1198   2          }
+1199   1      }
+1200          
+1201          
+1202          /*======================================================================
+1203           * Ê®¡¢´®¿Úµ÷ÊÔº¯Êý
+1204           *====================================================================*/
+1205          
+1206          #if UART_ADC_DEBUG_ENABLE
               
               /* µ÷ÊÔ¼ÆÊýÆ÷°²È«×ÔÔö£¬·ÀÖ¹ uint16_t Òç³ö»Ø 0¡£ */
               static void uart_debug_inc16(volatile uint16_t *value)
@@ -1317,6 +1278,8 @@ line level    source
                   (void)force;
               
                   /*
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 21  
+
                    * Ö»ÔÊÐí ADC ´°¿Ú´¦ÀíÍê³ÉºóµÄÊÂ¼þ´¥·¢´òÓ¡¡£
                    * ÉÏµç¡¢Í¬²½¡¢ÖØÍ¬²½¡¢´°¿Ú»ýÑ¹µÈ×´Ì¬ÊÂ¼þ²»´òÓ¡£¬±ÜÃâË¢ÆÁ¶ÂÖ÷Ñ­»·¡£
                    */
@@ -1342,8 +1305,6 @@ line level    source
               
               /*
                * Ö÷Ñ­»·ÀïÕæÕýÖ´ÐÐ printf¡£
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 22  
-
                *
                * ÕâÑù±ÜÃâÔÚÖÐ¶ÏÀï´òÓ¡¡£
                * µ«Èç¹û´òÓ¡¹ý¶à£¬ÈÔÈ»»á¶ÂÖ÷Ñ­»·¡£
@@ -1368,303 +1329,303 @@ line level    source
               }
               
               #endif
-1315          
-1316          
-1317          /*======================================================================
-1318           * Ê®Ò»¡¢Ö÷º¯Êý
-1319           *====================================================================*/
-1320          
-1321          void main(void)
-1322          {
-1323   1          system_init();
-1324   1      
-1325   1          GPIO_Init();
-1326   1      
-1327   1          uart_init();
-1328   1      
-1329   1          /*
-1330   1           * GTIMER0 ×÷Îª ADC É¨Ãè´°¿ÚÖÜÆÚ¶¨Ê±Æ÷¡£
-1331   1           * 24MHz / 24 = 1MHz£¬1 tick = 1us¡£
-1332   1           * RX_WINDOW_INTERVAL_TICK = 1000 ±íÊ¾ºóÐøÃ¿ 1ms ²úÉúÒ»´Î´°¿Ú´¥·¢¡£
-1333   1           * Í¬²½ºóµÄµÚÒ»´Î´¥·¢Ê±¼äÓÉ RX_FIRST_WINDOW_DELAY_TICK Í¨¹ý CNT Ô¤×°ÊµÏÖ¡£
-1334   1           */
-1335   1          gtimer0_count_init(RX_WINDOW_INTERVAL_TICK, 24 - 1);
-1336   1          gtimer0_irq_init(GTIMER_IRQ_ENABLE, GTIMER0_UIE_IRQ, gtimer0_UECallBack);
-1337   1      
-1338   1          /*
-1339   1           * GTIMER1 ×÷ÎªÇ¿ÖÆÖØÍ¬²½µÈ´ýÍ¬²½±ßÑØµÄ 2ms Ò»´ÎÐÔ³¬Ê±¶¨Ê±Æ÷¡£
-1340   1           * Ö»ÔÚÖÜÆÚÐÔÇ¿ÖÆÖØÍ¬²½Ê±Æô¶¯£¬ÊÕµ½ P1_4 ºóÁ¢¼´¹Ø±Õ¡£
-1341   1           */
-1342   1          gtimer1_count_init(RX_SYNC_WAIT_TIMEOUT_TICK, 24 - 1);
-1343   1          gtimer1_irq_init(GTIMER_IRQ_ENABLE, GTIMER1_UIE_IRQ, gtimer1_UECallBack);
-1344   1      
-1345   1          /* ÉÏµçÏÈ²»Æô¶¯¶¨Ê±Æ÷£¬µÈ´ýµÚÒ»´Î P1_4 Í¬²½±ßÑØ¡£ */
-1346   1          rx_timer_stop_clear();//== ÇåÁã²¢Í£Ö¹¶¨Ê±Æ÷
-1347   1          rx_sync_timeout_timer_stop_clear();//== Í£Ö¹²¢ÇåÁã GTIMER1 Í¬²½µÈ´ý³¬Ê±¶¨Ê±Æ÷
-1348   1      
-1349   1          /* ADC_CHANNEL_1£º½ÓÊÕÐÅºÅ ADC£»ADC_CHANNEL_2£ºÔ¤Áô ADJ µçÎ»Æ÷¡£ */
-1350   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 4, ADC_ENABLE);
-1351   1          adc_sample_clk_config(ADC_SAMPCLK_4);
-1352   1          adc_io_config(ADC_CHANNEL_1 | ADC_CHANNEL_2);
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 23  
+1279          
+1280          
+1281          /*======================================================================
+1282           * Ê®Ò»¡¢Ö÷º¯Êý
+1283           *====================================================================*/
+1284          
+1285          void main(void)
+1286          {
+1287   1          system_init();
+1288   1      
+1289   1          GPIO_Init();
+1290   1      
+1291   1          uart_init();
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 22  
 
-1353   1          adc_scan_mode_config(ADC_MODE_SINGLE);
-1354   1          adc_power_config(ADC_ENABLE);
-1355   1          adc_controller_config(ADC_ENABLE);
-1356   1      
-1357   1          rx_output_block();//== Ä¬ÈÏÕÚ¹âÊä³ö
-1358   1          rx_sync_irq_enable();//== ´ò¿ªÍ¬²½ÖÐ¶Ï
-1359   1      
-1360   1          while (1)
-1361   1          {
-1362   2              /*
-1363   2               * P1_4 interrupt ÉèÖÃÍ¬²½ rx_sync_pending.
-1364   2                                       * ÔÚÖÐ¶ÏºóÐÞ¸ÄµÚÒ»´ÎÇ¨ÒÆÊ±¼ä
-1365   2               */
-1366   2              if (rx_sync_pending != 0U)//== Í¬²½³É¹¦Éè¶¨µÚÒ»´Î¶¨Ê±Æ÷Òç³öÊ±¼äÇ¨ÒÆ
-1367   2              {
-1368   3                  rx_sync_pending = 0U;
-1369   3      
-1370   3                  if (rx_seen_once == 0U)
-1371   3                  {
-1372   4                      rx_start_periodic_window_from_sync();
-1373   4                  }
-1374   3              }
-1375   2      
-1376   2       
-1377   2               /*
-1378   2               * ´°¿Ú¼ÆÊýºóÆô¶¯Ç¿ÖÆÍ¬²½ÊÂ¼þ¡£
-1379   2               */
-1380   2              if (rx_resync_pending != 0U)
-1381   2              {
-1382   3                  rx_force_resync_from_main();
-1383   3              }
-1384   2              /*
-1385   2               * Ç¿ÖÆÖØÍ¬²½µÈ´ýÆÚµÄ 2ms ³¬Ê±ºó´¦Àí½á¹û¡£
-1386   2               * ·ÅÔÚÍ¬²½´¦ÀíºóÃæ£ºÈç¹ûÍ¬²½±ßÑØºÍ³¬Ê±¼¸ºõÍ¬Ê±·¢Éú£¬ÓÅÏÈÈÏÎªÍ¬²½³É¹¦¡£
-1387   2               */
-1388   2              if (rx_sync_wait_timeout_pending != 0U)
-1389   2              {
-1390   3                  rx_handle_sync_wait_timeout_from_main();
-1391   3              }
-1392   2      
-1393   2              /*
-1394   2               * ¶¨Ê±Æ÷ÖÐ¶ÏÖ»ÖÃÎ»£¬²»ÔÚÖÐ¶ÏÀï×ö ADC Á¬ÐøÉ¨ÃèÅÐ¶ÏÊä³ö¡£
-1395   2               */
-1396   2              if (rx_window_pending != 0U)
-1397   2              {
-1398   3                  /*
-1399   3                   * ´¦Àí ADC ´°¿Ú¡£
-1400   3                   * ÕâÀïÊÇÕý³£ÓÐ¹â/ÕÚ¹âÅÐ¶ÏµÄÖ÷Â·¾¶¡£
-1401   3                   */
-1402   3                  rx_window_pending = 0U;
-1403   3                  rx_process_adc_window();
-1404   3              }
-1405   2      
-1406   2             
-1407   2          }
-1408   1      }
-1409          
-1410          
-1411          /*======================================================================
-1412           * Ê®¶þ¡¢GTIMER0 ÖÜÆÚ´°¿Ú´¥·¢»Øµ÷
-1413           *====================================================================*/
-1414          
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 24  
+1292   1      
+1293   1          /*
+1294   1           * GTIMER0 ×÷Îª ADC É¨Ãè´°¿ÚÖÜÆÚ¶¨Ê±Æ÷¡£
+1295   1           * 24MHz / 24 = 1MHz£¬1 tick = 1us¡£
+1296   1           * RX_WINDOW_INTERVAL_TICK = 1000 ±íÊ¾ºóÐøÃ¿ 1ms ²úÉúÒ»´Î´°¿Ú´¥·¢¡£
+1297   1           * Í¬²½ºóµÄµÚÒ»´Î´¥·¢Ê±¼äÓÉ RX_FIRST_WINDOW_DELAY_TICK Í¨¹ý CNT Ô¤×°ÊµÏÖ¡£
+1298   1           */
+1299   1          gtimer0_count_init(RX_WINDOW_INTERVAL_TICK, 24 - 1);
+1300   1          gtimer0_irq_init(GTIMER_IRQ_ENABLE, GTIMER0_UIE_IRQ, gtimer0_UECallBack);
+1301   1      
+1302   1          /*
+1303   1           * GTIMER1 ×÷ÎªÇ¿ÖÆÖØÍ¬²½µÈ´ýÍ¬²½±ßÑØµÄ 2ms Ò»´ÎÐÔ³¬Ê±¶¨Ê±Æ÷¡£
+1304   1           * Ö»ÔÚÖÜÆÚÐÔÇ¿ÖÆÖØÍ¬²½Ê±Æô¶¯£¬ÊÕµ½ P1_4 ºóÁ¢¼´¹Ø±Õ¡£
+1305   1           */
+1306   1          gtimer1_count_init(RX_SYNC_WAIT_TIMEOUT_TICK, 24 - 1);
+1307   1          gtimer1_irq_init(GTIMER_IRQ_ENABLE, GTIMER1_UIE_IRQ, gtimer1_UECallBack);
+1308   1      
+1309   1          /* ÉÏµçÏÈ²»Æô¶¯¶¨Ê±Æ÷£¬µÈ´ýµÚÒ»´Î P1_4 Í¬²½±ßÑØ¡£ */
+1310   1          rx_timer_stop_clear();//== ÇåÁã²¢Í£Ö¹¶¨Ê±Æ÷
+1311   1          rx_sync_timeout_timer_stop_clear();//== Í£Ö¹²¢ÇåÁã GTIMER1 Í¬²½µÈ´ý³¬Ê±¶¨Ê±Æ÷
+1312   1      
+1313   1          /* ADC_CHANNEL_1£º½ÓÊÕÐÅºÅ ADC£»ADC_CHANNEL_2£ºÔ¤Áô ADJ µçÎ»Æ÷¡£ */
+1314   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK, ADC_VREFSOURCE_AVDD33, 4, ADC_ENABLE);
+1315   1          adc_sample_clk_config(ADC_SAMPCLK_4);
+1316   1          adc_io_config(ADC_CHANNEL_1 | ADC_CHANNEL_2);
+1317   1          adc_scan_mode_config(ADC_MODE_SINGLE);
+1318   1          adc_power_config(ADC_ENABLE);
+1319   1          adc_controller_config(ADC_ENABLE);
+1320   1      
+1321   1          rx_output_block();//== Ä¬ÈÏÕÚ¹âÊä³ö
+1322   1          rx_sync_irq_enable();//== ´ò¿ªÍ¬²½ÖÐ¶Ï
+1323   1      
+1324   1          while (1)
+1325   1          {
+1326   2              /*
+1327   2               * P1_4 interrupt ÉèÖÃÍ¬²½ rx_sync_pending.
+1328   2                                       * ÔÚÖÐ¶ÏºóÐÞ¸ÄµÚÒ»´ÎÇ¨ÒÆÊ±¼ä
+1329   2               */
+1330   2              if (rx_sync_pending != 0U)//== Í¬²½³É¹¦Éè¶¨µÚÒ»´Î¶¨Ê±Æ÷Òç³öÊ±¼äÇ¨ÒÆ
+1331   2              {
+1332   3                  rx_sync_pending = 0U;
+1333   3      
+1334   3                  if (rx_seen_once == 0U)
+1335   3                  {
+1336   4                      rx_start_periodic_window_from_sync();
+1337   4                  }
+1338   3              }
+1339   2      
+1340   2       
+1341   2               /*
+1342   2               * ´°¿Ú¼ÆÊýºóÆô¶¯Ç¿ÖÆÍ¬²½ÊÂ¼þ¡£
+1343   2               */
+1344   2              if (rx_resync_pending != 0U)
+1345   2              {
+1346   3                  rx_force_resync_from_main();
+1347   3              }
+1348   2              /*
+1349   2               * Ç¿ÖÆÖØÍ¬²½µÈ´ýÆÚµÄ 2ms ³¬Ê±ºó´¦Àí½á¹û¡£
+1350   2               * ·ÅÔÚÍ¬²½´¦ÀíºóÃæ£ºÈç¹ûÍ¬²½±ßÑØºÍ³¬Ê±¼¸ºõÍ¬Ê±·¢Éú£¬ÓÅÏÈÈÏÎªÍ¬²½³É¹¦¡£
+1351   2               */
+1352   2              if (rx_sync_wait_timeout_pending != 0U)
+1353   2              {
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 23  
 
-1415          /*
-1416           * GTIMER0 ¸üÐÂÖÐ¶Ï£ºÖÜÆÚ ADC ´°¿Ú´¥·¢¡£
-1417           *
-1418           * ×¢Òâ£º
-1419           * ÖÐ¶ÏÀï²»¶Á ADC£¬Ö»ÖÃÎ» rx_window_pending¡£
-1420           * ÕæÕý ADC É¨Ãè·ÅÔÚÖ÷Ñ­»·£¬±ÜÃâÖÐ¶ÏÕ¼ÓÃÌ«¾Ã¡£
-1421           *
-1422           * ÅÅ²éµã£º
-1423           * Èç¹û rx_seen_once=0£¬ÕâÀï»áÖ±½ÓÍ£µô GTIMER0¡£
-1424           * ËùÒÔÇ¿ÖÆÖØÍ¬²½ºó²»»áÔÙ²úÉú ADC ´°¿Ú¡£
-1425           */
-1426          void gtimer0_UECallBack(void)
-1427          {
-1428   1          if (rx_seen_once == 0U)//== Î´Í¬²½Çå³ý¼ÆÊý²»¹¤×÷
-1429   1          {
-1430   2              rx_first_interval_pending = 0U;
-1431   2              REG_GTIM0_CR0 &= ~(1 << 0);
-1432   2              REG_GTIM0_CNT0 = 0x00;
-1433   2              REG_GTIM0_CNT1 = 0x00;
-1434   2              return;
-1435   2          }
-1436   1      
-1437   1          if (rx_first_interval_pending != 0U)//== µÚÒ»´Î´°¿Úµ½À´¼ÇÂ¼880us
-1438   1          {
-1439   2              rx_first_interval_pending = 0U;
-1440   2              rx_last_trigger_interval_tick = rx_first_delay_cached_tick;//== »ñÈ¡ÉÏÒ»´Î¼ä¸ô
-1441   2          }
-1442   1          else//== ºóÐø´°¿Ú¶¼ÊÇ¼ÇÂ¼1000us
-1443   1          {
-1444   2              rx_last_trigger_interval_tick = RX_WINDOW_INTERVAL_TICK;
-1445   2          }
+1354   3                  rx_handle_sync_wait_timeout_from_main();
+1355   3              }
+1356   2      
+1357   2              /*
+1358   2               * ¶¨Ê±Æ÷ÖÐ¶ÏÖ»ÖÃÎ»£¬²»ÔÚÖÐ¶ÏÀï×ö ADC Á¬ÐøÉ¨ÃèÅÐ¶ÏÊä³ö¡£
+1359   2               */
+1360   2              if (rx_window_pending != 0U)
+1361   2              {
+1362   3                  /*
+1363   3                   * ´¦Àí ADC ´°¿Ú¡£
+1364   3                   * ÕâÀïÊÇÕý³£ÓÐ¹â/ÕÚ¹âÅÐ¶ÏµÄÖ÷Â·¾¶¡£
+1365   3                   */
+1366   3                  rx_window_pending = 0U;
+1367   3                  rx_process_adc_window();
+1368   3              }
+1369   2      
+1370   2             
+1371   2          }
+1372   1      }
+1373          
+1374          
+1375          /*======================================================================
+1376           * Ê®¶þ¡¢GTIMER0 ÖÜÆÚ´°¿Ú´¥·¢»Øµ÷
+1377           *====================================================================*/
+1378          
+1379          /*
+1380           * GTIMER0 ¸üÐÂÖÐ¶Ï£ºÖÜÆÚ ADC ´°¿Ú´¥·¢¡£
+1381           *
+1382           * ×¢Òâ£º
+1383           * ÖÐ¶ÏÀï²»¶Á ADC£¬Ö»ÖÃÎ» rx_window_pending¡£
+1384           * ÕæÕý ADC É¨Ãè·ÅÔÚÖ÷Ñ­»·£¬±ÜÃâÖÐ¶ÏÕ¼ÓÃÌ«¾Ã¡£
+1385           *
+1386           * ÅÅ²éµã£º
+1387           * Èç¹û rx_seen_once=0£¬ÕâÀï»áÖ±½ÓÍ£µô GTIMER0¡£
+1388           * ËùÒÔÇ¿ÖÆÖØÍ¬²½ºó²»»áÔÙ²úÉú ADC ´°¿Ú¡£
+1389           */
+1390          void gtimer0_UECallBack(void)
+1391          {
+1392   1          if (rx_seen_once == 0U)//== Î´Í¬²½Çå³ý¼ÆÊý²»¹¤×÷
+1393   1          {
+1394   2              rx_first_interval_pending = 0U;
+1395   2              REG_GTIM0_CR0 &= ~(1 << 0);
+1396   2              REG_GTIM0_CNT0 = 0x00;
+1397   2              REG_GTIM0_CNT1 = 0x00;
+1398   2              return;
+1399   2          }
+1400   1      
+1401   1          if (rx_first_interval_pending != 0U)//== µÚÒ»´Î´°¿Úµ½À´¼ÇÂ¼880us
+1402   1          {
+1403   2              rx_first_interval_pending = 0U;
+1404   2              rx_last_trigger_interval_tick = rx_first_delay_cached_tick;//== »ñÈ¡ÉÏÒ»´Î¼ä¸ô
+1405   2          }
+1406   1          else//== ºóÐø´°¿Ú¶¼ÊÇ¼ÇÂ¼1000us
+1407   1          {
+1408   2              rx_last_trigger_interval_tick = RX_WINDOW_INTERVAL_TICK;
+1409   2          }
+1410   1      
+1411   1          if (rx_window_pending != 0U)//== ´°¿ÚÃ»½áÊø¾Í½øÖÐ¶Ï±¨´í
+1412   1          {
+1413   2              /*
+1414   2               * ÉÏÒ»´Î´°¿Ú»¹Ã»±»Ö÷Ñ­»·´¦Àí£¬ÏÂÒ»´Î GTIMER0 ÓÖÀ´ÁË¡£
+1415   2               * ËµÃ÷Ö÷Ñ­»·Ì«Ã¦£¬¿ÉÄÜ±» ADC ×èÈû»ò´®¿Ú´òÓ¡ÍÏÂý¡£
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 24  
+
+1416   2               */
+1417   2          }
+1418   1          else//== µÚÒ»´Îµ½À´Ê±´°¿Ú½øÐÐÖÐÖ÷Ñ­»·´¦Àí´°¿Ú
+1419   1          {
+1420   2              rx_window_pending = 1U;
+1421   2          }
+1422   1      }
+1423          
+1424          
+1425          /*======================================================================
+1426           * Ê®Èý¡¢GTIMER1 Í¬²½µÈ´ý³¬Ê±»Øµ÷
+1427           *====================================================================*/
+1428          
+1429          /*
+1430           * GTIMER1 ¸üÐÂÖÐ¶Ï£ºÇ¿ÖÆÖØÍ¬²½µÈ´ý³¬Ê±¡£
+1431           *
+1432           * Ö»ÔÚ rx_sync_wait_timer_running=1 Ê±ÓÐÐ§¡£
+1433           * ÖÐ¶ÏÀïÖ»ÖÃÎ» rx_sync_wait_timeout_pending£¬
+1434           * ÕæÕýÕÚ¹â´¦Àí·Åµ½Ö÷Ñ­»·¡£
+1435           */
+1436          void gtimer1_UECallBack(void)
+1437          {
+1438   1          /*
+1439   1           * GTIMER1 Ö»×÷ÎªÒ»´ÎÐÔ 2ms ¿´ÃÅ¹·¡£
+1440   1           * ÖÐ¶ÏÀï²»µ÷ÓÃ gpio_irq_set()/rx_enter_block_state()£¬Ö»Í£±í²¢ÖÃÎ»£¬
+1441   1           * ÕæÕýÕÚ¹â´¦Àí½»¸øÖ÷Ñ­»·£¬±ÜÃâ C51 L15 ¶àÈë¿Ú¾¯¸æ¡£
+1442   1           */
+1443   1          REG_GTIM1_CR0 &= ~(1 << 0);
+1444   1          REG_GTIM1_CNT0 = 0x00;
+1445   1          REG_GTIM1_CNT1 = 0x00;
 1446   1      
-1447   1          if (rx_window_pending != 0U)//== ´°¿ÚÃ»½áÊø¾Í½øÖÐ¶Ï±¨´í
+1447   1          if (rx_sync_wait_timer_running != 0U)//== ÔËÐÐ±êÖ¾
 1448   1          {
-1449   2              /*
-1450   2               * ÉÏÒ»´Î´°¿Ú»¹Ã»±»Ö÷Ñ­»·´¦Àí£¬ÏÂÒ»´Î GTIMER0 ÓÖÀ´ÁË¡£
-1451   2               * ËµÃ÷Ö÷Ñ­»·Ì«Ã¦£¬¿ÉÄÜ±» ADC ×èÈû»ò´®¿Ú´òÓ¡ÍÏÂý¡£
-1452   2               */
-1453   2          }
-1454   1          else//== µÚÒ»´Îµ½À´Ê±´°¿Ú½øÐÐÖÐÖ÷Ñ­»·´¦Àí´°¿Ú
-1455   1          {
-1456   2              rx_window_pending = 1U;
-1457   2          }
-1458   1      }
-1459          
-1460          
-1461          /*======================================================================
-1462           * Ê®Èý¡¢GTIMER1 Í¬²½µÈ´ý³¬Ê±»Øµ÷
-1463           *====================================================================*/
-1464          
-1465          /*
-1466           * GTIMER1 ¸üÐÂÖÐ¶Ï£ºÇ¿ÖÆÖØÍ¬²½µÈ´ý³¬Ê±¡£
-1467           *
-1468           * Ö»ÔÚ rx_sync_wait_timer_running=1 Ê±ÓÐÐ§¡£
-1469           * ÖÐ¶ÏÀïÖ»ÖÃÎ» rx_sync_wait_timeout_pending£¬
-1470           * ÕæÕýÕÚ¹â´¦Àí·Åµ½Ö÷Ñ­»·¡£
-1471           */
-1472          void gtimer1_UECallBack(void)
-1473          {
-1474   1          /*
-1475   1           * GTIMER1 Ö»×÷ÎªÒ»´ÎÐÔ 2ms ¿´ÃÅ¹·¡£
-1476   1           * ÖÐ¶ÏÀï²»µ÷ÓÃ gpio_irq_set()/rx_enter_block_state()£¬Ö»Í£±í²¢ÖÃÎ»£¬
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 25  
+1449   2              rx_sync_wait_timer_running   = 0U;
+1450   2              rx_sync_wait_timeout_pending = 1U;//== ³¬Ê±µÈ´ý
+1451   2          }
+1452   1      }
+1453          
+1454          
+1455          /*======================================================================
+1456           * Ê®ËÄ¡¢P1_4 ±È½ÏÆ÷Í¬²½ÖÐ¶Ï
+1457           *====================================================================*/
+1458          
+1459          /*
+1460           * P1_4 GPIO ÖÐ¶Ï£ºÍ¬²½±ßÑØÈë¿Ú¡£
+1461           *
+1462           * ÖÐ¶ÏÀïÖ»×öÈý¼þÊÂ£º
+1463           * 1. ÅÐ¶ÏÊÇ·ñÊÇ P1_4 ÖÐ¶Ï¡£
+1464           * 2. ÇåÖÐ¶Ï±êÖ¾¡£
+1465           * 3. Èç¹ûµ±Ç°ÔÊÐíÍ¬²½£¬ÔòÖÃÎ» rx_sync_pending¡£
+1466           *
+1467           * ÅÅ²éµã£º
+1468           * ÕÚ¹âÊ±Èç¹û P1_4 ÈÔÈ»»á´¥·¢£¬ËµÃ÷Í¬²½ÊäÈëÓÐÃ«´Ì/·´Éä/±È½ÏÆ÷ÔëÉù¡£
+1469           * Õâ»áÈÃÏµÍ³ÖØÐÂ½øÈë rx_start_periodic_window_from_sync()¡£
+1470           */
+1471          void GPIO_IRQHandler(void) interrupt 0
+1472          {
+1473   1          if (gpio_irq_get(P1_4))
+1474   1          {
+1475   2              gpio_irq_clr(P1_4);
+1476   2      
+1477   2              /* ÒÑÍ¬²½ÔËÐÐÊ±²»ÔÙÓÃ P1_4 ²ÎÓëÅÐ¶Ï¡£ */
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 25  
 
-1477   1           * ÕæÕýÕÚ¹â´¦Àí½»¸øÖ÷Ñ­»·£¬±ÜÃâ C51 L15 ¶àÈë¿Ú¾¯¸æ¡£
-1478   1           */
-1479   1          REG_GTIM1_CR0 &= ~(1 << 0);
-1480   1          REG_GTIM1_CNT0 = 0x00;
-1481   1          REG_GTIM1_CNT1 = 0x00;
-1482   1      
-1483   1          if (rx_sync_wait_timer_running != 0U)//== ÔËÐÐ±êÖ¾
-1484   1          {
-1485   2              rx_sync_wait_timer_running   = 0U;
-1486   2              rx_sync_wait_timeout_pending = 1U;//== ³¬Ê±µÈ´ý
-1487   2          }
-1488   1      }
+1478   2              if ((rx_seen_once != 0U) ||
+1479   2                  (rx_sync_pending != 0U) /*||(rx_sync_wait_timeout_pending != 0U)*/
+1480   2                  )
+1481   2              {
+1482   3                  return;
+1483   3              }
+1484   2      
+1485   2              rx_sync_pending = 1U;
+1486   2          }
+1487   1      }
+1488          
 1489          
-1490          
-1491          /*======================================================================
-1492           * Ê®ËÄ¡¢P1_4 ±È½ÏÆ÷Í¬²½ÖÐ¶Ï
-1493           *====================================================================*/
-1494          
-1495          /*
-1496           * P1_4 GPIO ÖÐ¶Ï£ºÍ¬²½±ßÑØÈë¿Ú¡£
-1497           *
-1498           * ÖÐ¶ÏÀïÖ»×öÈý¼þÊÂ£º
-1499           * 1. ÅÐ¶ÏÊÇ·ñÊÇ P1_4 ÖÐ¶Ï¡£
-1500           * 2. ÇåÖÐ¶Ï±êÖ¾¡£
-1501           * 3. Èç¹ûµ±Ç°ÔÊÐíÍ¬²½£¬ÔòÖÃÎ» rx_sync_pending¡£
-1502           *
-1503           * ÅÅ²éµã£º
-1504           * ÕÚ¹âÊ±Èç¹û P1_4 ÈÔÈ»»á´¥·¢£¬ËµÃ÷Í¬²½ÊäÈëÓÐÃ«´Ì/·´Éä/±È½ÏÆ÷ÔëÉù¡£
-1505           * Õâ»áÈÃÏµÍ³ÖØÐÂ½øÈë rx_start_periodic_window_from_sync()¡£
-1506           */
-1507          void GPIO_IRQHandler(void) interrupt 0
-1508          {
-1509   1          if (gpio_irq_get(P1_4))
-1510   1          {
-1511   2              gpio_irq_clr(P1_4);
-1512   2      
-1513   2              /* ÒÑÍ¬²½ÔËÐÐÊ±²»ÔÙÓÃ P1_4 ²ÎÓëÅÐ¶Ï¡£ */
-1514   2              if ((rx_seen_once != 0U) ||
-1515   2                  (rx_sync_pending != 0U) ||
-1516   2                  (rx_sync_wait_timeout_pending != 0U))
-1517   2              {
-1518   3                  return;
-1519   3              }
-1520   2      
-1521   2              rx_sync_pending = 1U;
-1522   2          }
-1523   1      }
-1524          
-1525          
-1526          /*
-1527           * gpio_irq_set() ÒªÇó´«ÈëµÄ»Øµ÷¡£
-1528           * µ±Ç°ÏîÄ¿Êµ¼Ê²»ÓÃÕâ¸ö¶þ´Î»Øµ÷£¬ÕæÕý´¦ÀíÔÚ GPIO_IRQHandler()¡£
-1529           */
-1530          void gpio_UECallBack(void)
-1531          {
-1532   1          /* ²»ÓÃ¶þ´Î»Øµ÷¡£ */
-1533   1      }
-1534          
-1535          
-1536          /*======================================================================
-1537           * Ê®Îå¡¢GPIO ³õÊ¼»¯
-1538           *====================================================================*/
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 26  
+1490          /*
+1491           * gpio_irq_set() ÒªÇó´«ÈëµÄ»Øµ÷¡£
+1492           * µ±Ç°ÏîÄ¿Êµ¼Ê²»ÓÃÕâ¸ö¶þ´Î»Øµ÷£¬ÕæÕý´¦ÀíÔÚ GPIO_IRQHandler()¡£
+1493           */
+1494          void gpio_UECallBack(void)
+1495          {
+1496   1          /* ²»ÓÃ¶þ´Î»Øµ÷¡£ */
+1497   1      }
+1498          
+1499          
+1500          /*======================================================================
+1501           * Ê®Îå¡¢GPIO ³õÊ¼»¯
+1502           *====================================================================*/
+1503          
+1504          /*
+1505           * GPIO ³õÊ¼»¯¡£
+1506           *
+1507           * P1_0£ºÊ¾²¨Æ÷¹Û²ì ADC ´°¿Ú£¬´°¿ÚÆÚ¼äÀ­µÍ¡£
+1508           * P1_2/P1_3£ºÊä³ö½Å£¬ÓÐ¹âÀ­¸ß£¬ÕÚ¹âÀ­µÍ¡£
+1509           * P1_4£ºÍ¬²½ÊäÈëÖÐ¶Ï£¬Ö»ÓÃÓÚ²¶»ñÍ¬²½±ßÑØ¡£
+1510           * P1_5£º±£ÁôÊäÈë¡£
+1511           */
+1512          void GPIO_Init(void)
+1513          {
+1514   1          /* P1_0 Êä³ö£ºÓÃ×÷ ADC ´°¿ÚÊ¾²¨Æ÷¹Û²â½Å£¬´°¿ÚÆÚ¼äÀ­µÍ¡£ */
+1515   1          REG_P10_CFG = 0x00;
+1516   1      
+1517   1          gpio_init(P1_0);
+1518   1          gpio_dir_set(P1_0, GPIO_DIR_OUT);
+1519   1          gpio_dr_set(P1_0, GPIO_SR_HIGH);
+1520   1          gpio_io_set(P1_0, GPIO_HIGH);
+1521   1      
+1522   1          /* P1_2 Êä³ö */
+1523   1          REG_P12_CFG = 0x00;
+1524   1      
+1525   1          gpio_init(P1_2);
+1526   1          gpio_dir_set(P1_2, GPIO_DIR_OUT);
+1527   1          gpio_dr_set(P1_2, GPIO_SR_HIGH);
+1528   1          gpio_io_set(P1_2, GPIO_LOW);
+1529   1      
+1530   1          /* P1_3 Êä³ö */
+1531   1          REG_P13_CFG = 0x00;
+1532   1      
+1533   1          gpio_init(P1_3);
+1534   1          gpio_dir_set(P1_3, GPIO_DIR_OUT);
+1535   1          gpio_dr_set(P1_3, GPIO_SR_HIGH);
+1536   1          gpio_io_set(P1_3, GPIO_LOW);
+1537   1      
+1538   1          /* P1_4 ÊäÈëÖÐ¶Ï£ºÖ»ÓÃÓÚµÚÒ»´ÎÍ¬²½¡£ */
+1539   1          gpio_init(P1_4);
+C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 18:06:18 PAGE 26  
 
-1539          
-1540          /*
-1541           * GPIO ³õÊ¼»¯¡£
-1542           *
-1543           * P1_0£ºÊ¾²¨Æ÷¹Û²ì ADC ´°¿Ú£¬´°¿ÚÆÚ¼äÀ­µÍ¡£
-1544           * P1_2/P1_3£ºÊä³ö½Å£¬ÓÐ¹âÀ­¸ß£¬ÕÚ¹âÀ­µÍ¡£
-1545           * P1_4£ºÍ¬²½ÊäÈëÖÐ¶Ï£¬Ö»ÓÃÓÚ²¶»ñÍ¬²½±ßÑØ¡£
-1546           * P1_5£º±£ÁôÊäÈë¡£
-1547           */
-1548          void GPIO_Init(void)
-1549          {
-1550   1          /* P1_0 Êä³ö£ºÓÃ×÷ ADC ´°¿ÚÊ¾²¨Æ÷¹Û²â½Å£¬´°¿ÚÆÚ¼äÀ­µÍ¡£ */
-1551   1          REG_P10_CFG = 0x00;
-1552   1      
-1553   1          gpio_init(P1_0);
-1554   1          gpio_dir_set(P1_0, GPIO_DIR_OUT);
-1555   1          gpio_dr_set(P1_0, GPIO_SR_HIGH);
-1556   1          gpio_io_set(P1_0, GPIO_HIGH);
-1557   1      
-1558   1          /* P1_2 Êä³ö */
-1559   1          REG_P12_CFG = 0x00;
-1560   1      
-1561   1          gpio_init(P1_2);
-1562   1          gpio_dir_set(P1_2, GPIO_DIR_OUT);
-1563   1          gpio_dr_set(P1_2, GPIO_SR_HIGH);
-1564   1          gpio_io_set(P1_2, GPIO_LOW);
-1565   1      
-1566   1          /* P1_3 Êä³ö */
-1567   1          REG_P13_CFG = 0x00;
-1568   1      
-1569   1          gpio_init(P1_3);
-1570   1          gpio_dir_set(P1_3, GPIO_DIR_OUT);
-1571   1          gpio_dr_set(P1_3, GPIO_SR_HIGH);
-1572   1          gpio_io_set(P1_3, GPIO_LOW);
-1573   1      
-1574   1          /* P1_4 ÊäÈëÖÐ¶Ï£ºÖ»ÓÃÓÚµÚÒ»´ÎÍ¬²½¡£ */
-1575   1          gpio_init(P1_4);
-1576   1          gpio_dir_set(P1_4, GPIO_DIR_IN);
-1577   1          gpio_dr_set(P1_4, GPIO_SR_HIGH);
-1578   1          gpio_in_enable(P1_4, IN_ENABLE);
-1579   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
-1580   1      
-1581   1          /* ±£ÁôÔ­À´µÄ P1_4 ÌØÊâÅäÖÃ¡£ */
-1582   1          P1AH &= ~(0x02);
-1583   1          P1AH |=  (0x01);
-1584   1      
-1585   1          REG_P14_CFG = 0x20;
-1586   1      
-1587   1          /* P1_5 ÊäÈë£¬±£ÁôÔ­ÅäÖÃ¡£ */
-1588   1          REG_P15_CFG = 0x00;
-1589   1      
-1590   1          gpio_init(P1_5);
-1591   1          gpio_dir_set(P1_5, GPIO_DIR_IN);
-1592   1          gpio_in_enable(P1_5, IN_ENABLE);
-1593   1      }
-1594          
-1595          
+1540   1          gpio_dir_set(P1_4, GPIO_DIR_IN);
+1541   1          gpio_dr_set(P1_4, GPIO_SR_HIGH);
+1542   1          gpio_in_enable(P1_4, IN_ENABLE);
+1543   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
+1544   1      
+1545   1          /* ±£ÁôÔ­À´µÄ P1_4 ÌØÊâÅäÖÃ¡£ */
+1546   1          P1AH &= ~(0x02);
+1547   1          P1AH |=  (0x01);
+1548   1      
+1549   1          REG_P14_CFG = 0x20;
+1550   1      
+1551   1          /* P1_5 ÊäÈë£¬±£ÁôÔ­ÅäÖÃ¡£ */
+1552   1          REG_P15_CFG = 0x00;
+1553   1      
+1554   1          gpio_init(P1_5);
+1555   1          gpio_dir_set(P1_5, GPIO_DIR_IN);
+1556   1          gpio_in_enable(P1_5, IN_ENABLE);
+1557   1      }
+1558          
+1559          
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =   1598    ----
+   CODE SIZE        =   1599    ----
    CONSTANT SIZE    =   ----    ----
-C51 COMPILER V9.57.0.0   MAIN                                                              06/18/2026 10:30:59 PAGE 27  
-
-   XDATA SIZE       =     32      20
+   XDATA SIZE       =     33      20
    PDATA SIZE       =   ----    ----
    DATA SIZE        =   ----    ----
    IDATA SIZE       =   ----    ----
