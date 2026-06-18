@@ -193,7 +193,7 @@
  * 排查点：
  * 遮光后如果窗口平均值仍然在 170 以上，迟滞会继续认为有效。
  */
-#define RX_ADC_HYS_VALUE              100U
+#define RX_ADC_HYS_VALUE              25U
 
 #ifndef ADC_INVALID
 #define ADC_INVALID                   4095U
