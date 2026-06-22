@@ -193,7 +193,7 @@
  * ÅÅ²éµã£º
  * ÕÚ¹âºóÈç¹û´°¿ÚÆ½¾ùÖµÈÔÈ»ÔÚ 170 ÒÔÉÏ£¬³ÙÖÍ»á¼ÌĞøÈÏÎªÓĞĞ§¡£
  */
-#define RX_ADC_HYS_VALUE              25U
+#define RX_ADC_HYS_VALUE              100U
 
 #ifndef ADC_INVALID
 #define ADC_INVALID                   4095U
@@ -223,9 +223,13 @@
  * ÈôÒª¹Û²ìÕÚ¹âÎÊÌâ£¬½¨Òé²»Òª¸ßÆµ´òÓ¡È«×´Ì¬£¬Ö»´òÓ¡¹Ø¼üÁ¿£º
  * adc_set, adc_data, adc_ok, rx_lost_window_count, rx_seen_once, rx_light_state¡£
  */
+/*
+ * printfS() ºÜ¿ÉÄÜÊÇ×èÈûÊ½·¢ËÍ£¬²»ÄÜÔÚÃ¿¸ö 1ms ADC ´°¿ÚÖĞÖ±½Ó´òÓ¡¡£
+ * ±¾µ÷ÊÔ°æ±¾Ö»±£´æ±¾´°¿Ú¿ìÕÕ£¬²¢Ö»ÔÚÍ£Ö¹´°¿Ú¡¢µÈ´ıÏÂÒ»´ÎÍ¬²½µÄ¿Õµµ´òÓ¡¡£
+ */
 #define UART_ADC_DEBUG_ENABLE              0U
-#define UART_ADC_DEBUG_EVENT_DIV           10U
-#define UART_ADC_DEBUG_STATE_CHANGE_PRINT  0U
+#define UART_ADC_DEBUG_EVENT_DIV           50U
+#define UART_ADC_DEBUG_STATE_CHANGE_PRINT  1U
 
 #define UART_DBG_REASON_BOOT               1U
 #define UART_DBG_REASON_SYNC               2U
@@ -273,7 +277,7 @@ volatile uint16_t adc_data  = 0;      /* ×î½üÒ»´Î ADC ´°¿ÚÆ½¾ùÖµ */
 volatile uint16_t adc_data1 = 0;      /* ×î½üÒ»´Î ADC ´°¿Ú²ÉÑù´ÎÊı£¬·½±ãµ÷ÊÔ */
 
 /* µ±Ç° ADC ÓĞĞ§ãĞÖµ¡£´°¿ÚÆ½¾ùºó·ùÖµ»áµÍÓÚ·åÖµ£¬±ØÒªÊ±ĞèÒªÖØĞÂ±ê¶¨Õâ¸öÖµ¡£ */
-volatile uint16_t adc_set = 200;      
+volatile uint16_t adc_set = 500;      
 
 uint16_t status   = 0;
 uint16_t adcount  = 0;
@@ -339,6 +343,15 @@ static volatile uint16_t g_dbg_short_edge_count  = 0;  /* ÕâÀï¸Ä³É´°¿Ú¶ªÊ§/»ıÑ¹´
 static volatile uint16_t g_dbg_adc_fail_count    = 0;  /* ADC ´°¿ÚÎŞĞ§´ÎÊı */
 static volatile uint16_t g_dbg_valid_pulse_count = 0;  /* ADC ´°¿ÚÓĞĞ§´ÎÊı */
 static volatile uint16_t g_dbg_timeout_count     = 0;  /* ÕÚ¹â´ÎÊı */
+
+/* ´òÓ¡Ê±Ê¹ÓÃ¿ìÕÕ£¬±ÜÃâÏÂÒ»´°¿Ú¸²¸Ç¸Õ¸ÕÒª¹Û²ìµÄÊı¾İ¡£ */
+static volatile uint16_t g_dbg_print_adc           = 0U;
+static volatile uint16_t g_dbg_print_th_on         = 0U;
+static volatile uint16_t g_dbg_print_th_off        = 0U;
+static volatile uint16_t g_dbg_print_sample_count  = 0U;
+static volatile uint16_t g_dbg_print_interval_tick = 0U;
+static volatile uint8_t  g_dbg_print_adc_ok        = 0U;
+static volatile uint8_t  g_dbg_print_light_state   = 0U;
 
 #endif
 
@@ -879,7 +892,7 @@ static void rx_start_periodic_window_from_sync(void)
     rx_resync_window_count = 0U;
     rx_valid_count       = 0U;//== Çå³ıÎŞĞ§¼ÆÊı
     rx_lost_window_count = 0U;
-    rx_adc_valid_state   = 0U;
+//    rx_adc_valid_state   = 0U;
     rx_first_interval_pending = 1U;//== ¸æËßÏµÍ³ÊÇµÚÒ»´Î´°¿Ú
     rx_last_trigger_interval_tick = 0U;
     g_dbg_last_adc_ok    = 0U;
@@ -974,7 +987,7 @@ static void rx_force_resync_from_main(void)
     rx_sync_pending = 0U;
     rx_sync_wait_timeout_pending = 0U;
     rx_sync_wait_timer_running   = 0U;
-    rx_adc_valid_state = 0U;
+//    rx_adc_valid_state = 0U;
     rx_first_interval_pending = 0U;
     rx_last_trigger_interval_tick = 0U;
     rx_group_window_count = 0U;
@@ -1097,11 +1110,14 @@ static void rx_process_adc_window(void)
     uint16_t avg_adc;
     uint16_t sample_count;
     uint8_t adc_ok;
+    uint8_t light_state_before;
 
     if (rx_seen_once == 0U)//== Ã»Í¬²½ÍË³ö
     {
         return;
     }
+
+    light_state_before = rx_light_state;
 
     sample_count = 0U;
     avg_adc = rx_adc_scan_window_average(ADC_CHANNEL_1,
@@ -1128,11 +1144,7 @@ static void rx_process_adc_window(void)
 
     g_dbg_last_adc_ok = adc_ok;//== ¼ÇÂ¼adcÊÇ·ñÅĞ¶ÏÓĞĞ§
 
-        /*
-     * µ±Ç°Õâ 3 ¸ö´°¿Ú×÷ÎªÒ»¸öÅĞ¶Ï×é£º
-     * - valid_count£º±¾×éÓĞĞ§´°¿ÚÊıÁ¿
-     * - lost_count £º±¾×éÎŞĞ§´°¿ÚÊıÁ¿
-     */
+       
     if (adc_ok != 0U)
     {
         if (rx_valid_count < RX_DECISION_GROUP_WINDOW_COUNT)
@@ -1148,19 +1160,13 @@ static void rx_process_adc_window(void)
         }
     }
 
-    /*
-     * Ã¿ 3 ¸ö´°¿ÚÍ³Ò»ÅĞ¶¨Ò»´Î¡£
-     */
     rx_group_window_count++;
 
     if (rx_group_window_count >= RX_DECISION_GROUP_WINDOW_COUNT)
     {
         rx_group_window_count = 0U;
 
-        /*
-         * ÎŞ¹â×´Ì¬ÏÂ£º
-         * ±ØĞë 3 ¸ö´°¿ÚÈ«²¿ÓĞĞ§£¬²ÅÈ·ÈÏÓĞ¹â¡£
-         */
+    
         if (rx_light_state == 0U)
         {
             if (rx_valid_count >= RX_CONFIRM_COUNT)
@@ -1169,20 +1175,13 @@ static void rx_process_adc_window(void)
                 rx_output_light();
             }
         }
-        /*
-         * ÓĞ¹â×´Ì¬ÏÂ£º
-         * ±¾×éÖ»Òª³öÏÖÒ»¸öÎŞĞ§´°¿Ú£¬¾ÍÅĞ¶¨ÕÚ¹â¡£
-         *
-         * ÈôÄãÏ£Íû±ØĞë¡°3 ¸ö¶¼ÎŞĞ§¡±²ÅÕÚ¹â£¬
-         * ¸Ä³É rx_lost_window_count >= RX_RESYNC_WINDOW_COUNT¡£
-         */
+     
         else
         {
-//            if (rx_lost_window_count != 0U)
-//            {
-//                rx_enter_block_state(UART_DBG_REASON_TIMEOUT);
-//                return;
-//            }
+            if (rx_lost_window_count != 0U)
+            {
+                rx_enter_block_state(UART_DBG_REASON_TIMEOUT);
+            }
         }
 
         /*
@@ -1192,6 +1191,28 @@ static void rx_process_adc_window(void)
         rx_lost_window_count = 0U;
     }
     
+
+#if UART_ADC_DEBUG_ENABLE
+    /*
+     * Ã¿¸ö´°¿Ú¶¼Ö»±£´æÊı¾İ¿ìÕÕ£»Ò»°ã°´·ÖÆµµÍÆµÊä³ö¡£
+     * Êä³ö×´Ì¬±ä»¯Ê±£¬Ç¿ÖÆ±£Áô´¥·¢±¾´ÎÇĞ»»µÄ´°¿Ú¡£
+     */
+    if (adc_ok != 0U)
+    {
+        uart_debug_inc16(&g_dbg_valid_pulse_count);
+        uart_debug_request(UART_DBG_REASON_VALID_WINDOW,
+                           (uint8_t)((UART_ADC_DEBUG_STATE_CHANGE_PRINT != 0U) &&
+                                     (light_state_before != rx_light_state)));
+    }
+    else
+    {
+        uart_debug_inc16(&g_dbg_adc_fail_count);
+        uart_debug_request(UART_DBG_REASON_ADC_FAIL,
+                           (uint8_t)((UART_ADC_DEBUG_STATE_CHANGE_PRINT != 0U) &&
+                                     (light_state_before != rx_light_state)));
+    }
+#endif
+
     if (rx_seen_once != 0U)//== ÒÑ¾­Í¬²½¼ÇÂ¼´°¿Ú´ÎÊı£¬³¬¹ı´°¿Ú´ÎÊıÇ¿ÖÆÍ¬²½
     {
         rx_resync_count_after_window();
@@ -1224,11 +1245,11 @@ static void uart_debug_inc16(volatile uint16_t *value)
  */
 static void uart_debug_request(uint8_t reason, uint8_t force)
 {
-    (void)force;
+    uint16_t off_threshold;
 
     /*
-     * Ö»ÔÊĞí ADC ´°¿Ú´¦ÀíÍê³ÉºóµÄÊÂ¼ş´¥·¢´òÓ¡¡£
-     * ÉÏµç¡¢Í¬²½¡¢ÖØÍ¬²½¡¢´°¿Ú»ıÑ¹µÈ×´Ì¬ÊÂ¼ş²»´òÓ¡£¬±ÜÃâË¢ÆÁ¶ÂÖ÷Ñ­»·¡£
+     * Ã¿¸ö´°¿ÚÖ»±£´æ¿ìÕÕ£¬²»Ö±½Ó printf¡£
+     * ÕæÕıµÄÊä³öÓÉ uart_adc_debug_process() ÔÚ°²È«¿ÕµµÍê³É¡£
      */
     if ((reason != UART_DBG_REASON_VALID_WINDOW) &&
         (reason != UART_DBG_REASON_ADC_FAIL) &&
@@ -1238,23 +1259,43 @@ static void uart_debug_request(uint8_t reason, uint8_t force)
         return;
     }
 
-    g_uart_debug_reason = reason;
-
-    g_uart_debug_div_count++;
-
-    if (g_uart_debug_div_count >= UART_ADC_DEBUG_EVENT_DIV)
+    if (force == 0U)
     {
-        g_uart_debug_div_count  = 0U;
-        g_uart_debug_need_print = 1U;
+        g_uart_debug_div_count++;
+
+        if (g_uart_debug_div_count < UART_ADC_DEBUG_EVENT_DIV)
+        {
+            return;
+        }
+
+        g_uart_debug_div_count = 0U;
     }
+    else
+    {
+        /* ×´Ì¬·¢ÉúÇĞ»»Ê±£¬Ç¿ÖÆ±£ÁôÕâÒ»´°¿Ú¡£ */
+        g_uart_debug_div_count = 0U;
+    }
+
+    off_threshold = rx_adc_calc_off_threshold();
+
+    g_dbg_print_adc           = adc_data;
+    g_dbg_print_th_on         = adc_set;
+    g_dbg_print_th_off        = off_threshold;
+    g_dbg_print_sample_count  = adc_data1;
+    g_dbg_print_interval_tick = g_dbg_last_elapsed_tick;
+    g_dbg_print_adc_ok        = g_dbg_last_adc_ok;
+    g_dbg_print_light_state   = rx_light_state;
+    g_uart_debug_reason       = reason;
+    g_uart_debug_need_print   = 1U;
 }
 
 
 /*
- * Ö÷Ñ­»·ÀïÕæÕıÖ´ĞĞ printf¡£
+ * Ö»ÓĞ ADC ÖÜÆÚ´°¿ÚÒÑÍ£Ö¹¡¢ÇÒÃ»ÓĞ´ı´¦ÀíÍ¬²½±ßÑØÊ±²Å·¢ËÍ´®¿Ú¡£
  *
- * ÕâÑù±ÜÃâÔÚÖĞ¶ÏÀï´òÓ¡¡£
- * µ«Èç¹û´òÓ¡¹ı¶à£¬ÈÔÈ»»á¶ÂÖ÷Ñ­»·¡£
+ * Êä³öÇ°ÔİÊ±¹Ø±Õ P1_4 Í¬²½ÖĞ¶Ï£¬±ÜÃâ printfS() ×èÈûÆÚ¼ä²¶»ñÒ»¸ö¾É±ßÑØ£¬
+ * È´ÔÚ·¢ËÍÍê³ÉÊıºÁÃëºó²ÅÄÃËü½¨Á¢ÏàÎ»¡£·¢ËÍÍê³ÉºóÖØĞÂ¿ªÖĞ¶Ï£¬ÏÂÒ»Ìõ±ßÑØ
+ * »á×÷ÎªĞÂµÄÕæÊµÍ¬²½µã¡£
  */
 static void uart_adc_debug_process(void)
 {
@@ -1263,18 +1304,37 @@ static void uart_adc_debug_process(void)
         return;
     }
 
+    if ((rx_seen_once != 0U) ||
+        (rx_sync_pending != 0U) ||
+        (rx_window_pending != 0U))
+    {
+        return;
+    }
+
     g_uart_debug_need_print = 0U;
 
-    /*
-     * Ö»´òÓ¡Á½¸öºËĞÄÁ¿£¬CSV ¸ñÊ½¸ü¶Ì£º
-     * µÚ 1 ¸öÊı£ºµ±Ç°ÅĞ¶ÏãĞÖµ adc_set¡£
-     * µÚ 2 ¸öÊı£º×î½üÒ»´Î ADC É¨Ãè´°¿Ú»ı·ÖÆ½¾ùÖµ adc_data¡£
-     */
-    printfS("%u,%u\r\n",
-            adc_set,
-            adc_data);
-}
+    rx_sync_irq_disable();
 
+    /*
+     * A   £º´°¿ÚÆ½¾ù ADC
+     * TON £º³ÙÖÍ½øÈëÓĞ¹âµÄãĞÖµ adc_set
+     * TOF £º³ÙÖÍÍË³öÓĞ¹âµÄãĞÖµ adc_set - RX_ADC_HYS_VALUE
+     * OK  £ºµ±Ç°´°¿Ú³ÙÖÍ½á¹û£¬1 ÓĞĞ§£¬0 ÎŞĞ§
+     * L   £ºµ±Ç°Êä³ö×´Ì¬£¬1 ÓĞ¹â£¬0 ÕÚ¹â
+     * N   £º±¾´°¿ÚÄÚ ADC ²ÉÑùµãÊı
+     * DT  £º±¾´°¿Ú¾àÀëÉÏ´Î´¥·¢µÄ¼ä¸ô£¬µ¥Î» us
+     */
+    printfS("A=%u,TON=%u,TOF=%u,OK=%u,L=%u,N=%u,DT=%u\r\n",
+            g_dbg_print_adc,
+            g_dbg_print_th_on,
+            g_dbg_print_th_off,
+            (uint16_t)g_dbg_print_adc_ok,
+            (uint16_t)g_dbg_print_light_state,
+            g_dbg_print_sample_count,
+            g_dbg_print_interval_tick);
+
+    rx_sync_irq_enable();
+}
 #endif
 
 
@@ -1366,6 +1426,11 @@ void main(void)
             rx_window_pending = 0U;
             rx_process_adc_window();
         }
+
+        /*
+         * µ÷ÊÔÊä³ö±ØĞë·ÅÔÚ×´Ì¬»úÖ®ºó¡£º¯ÊıÄÚ²¿»¹»áÈ·ÈÏµ±Ç°´¦ÓÚ°²È«¿Õµµ¡£
+         */
+        uart_adc_debug_process();
 
        
     }
