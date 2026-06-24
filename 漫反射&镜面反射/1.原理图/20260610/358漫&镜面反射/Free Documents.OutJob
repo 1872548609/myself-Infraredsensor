@@ -2,9 +2,9 @@
 Version=1.0
 
 [PublishSettings]
-OutputFilePath2=C:\Users\bc\Desktop\myself-Infraredsensor\漫反射\1.原理图\20260610\358漫&镜面反射\.PDF
+OutputFilePath2=C:\Users\bc\Desktop\myself-Infraredsensor\漫反射&镜面反射\1.原理图\20260610\358漫&镜面反射\.PDF
 ReleaseManaged2=0
-OutputBasePath2=C:\Users\bc\Desktop\myself-Infraredsensor\漫反射\1.原理图\20260610\358漫&镜面反射\
+OutputBasePath2=C:\Users\bc\Desktop\myself-Infraredsensor\漫反射&镜面反射\1.原理图\20260610\358漫&镜面反射\
 OutputPathMedia2=
 OutputPathMediaValue2=
 OutputPathOutputer2=[Output Type]
@@ -81,7 +81,7 @@ WmvVideoCodecName4=Windows Media Video V7
 WmvQuality4=80
 
 [GeneratedFilesSettings]
-RelativeOutputPath2=C:\Users\bc\Desktop\myself-Infraredsensor\漫反射\1.原理图\20260610\358漫&镜面反射\.PDF
+RelativeOutputPath2=C:\Users\bc\Desktop\myself-Infraredsensor\漫反射&镜面反射\1.原理图\20260610\358漫&镜面反射\.PDF
 OpenOutputs2=1
 RelativeOutputPath3=
 OpenOutputs3=1
