@@ -35,6 +35,29 @@
 /*======================================================================
  * 一、接收算法参数
  *====================================================================*/
+/*
+ * 遮光状态下的指示灯定义。
+ *
+ * OFFLIGHT_VALIDD = 0U：遮光亮灯、有光灭灯。
+ * OFFLIGHT_VALIDD = 1U：遮光灭灯、有光亮灯。
+ *
+ * 注意：
+ * - 本宏只决定“稳定有光 / 稳定遮光”时 P1_3 的显示含义；
+ * - P1_3 的实际电平极性仍由 RX_STATUS_LED_ACTIVE_LEVEL /
+ *   RX_STATUS_LED_INACTIVE_LEVEL 决定；
+ * - 迟滞区闪烁不受本宏限制，仍然按亮/灭交替提示不稳定。
+ */
+#define OFFLIGHT_VALIDD 1U
+
+#if (OFFLIGHT_VALIDD == 0U)
+    #define RX_STATUS_LED_BLOCK_ON      1U
+    #define RX_STATUS_LED_LIGHT_ON      0U
+#elif (OFFLIGHT_VALIDD == 1U)
+    #define RX_STATUS_LED_BLOCK_ON      0U
+    #define RX_STATUS_LED_LIGHT_ON      1U
+#else
+    #error "OFFLIGHT_VALIDD must be 0U or 1U"
+#endif
 
 /*
  * 系统主频 24MHz，GTIMER0 使用 24 分频：
@@ -207,7 +230,8 @@
 
 /*
  * 迟滞区间告警灯：
- * - P1_3 才是状态指示灯，沿用原程序的输出极性：高电平亮、低电平灭。
+ * - P1_3 才是状态指示灯，物理点亮极性由下面两个电平宏决定。
+ * - 稳定有光 / 稳定遮光时的点灯含义由 OFFLIGHT_VALIDD 决定。
  * - P1_2 是实际检测输出；迟滞区闪烁只操作 P1_3，绝不改变 P1_2。
  * - P1_0 保留为 ADC 窗口示波器观测脚，可与 P1_3 状态灯同时使用。
  */
@@ -717,7 +741,8 @@ static void rx_status_led_set(uint8_t led_on)
  * hys_zone = 1：
  *   ADC 在 TOF < ADC < TON 内，输出保持上一状态，但灯以约 2Hz 闪烁。
  * hys_zone = 0：
- *   ADC 已离开迟滞区，停止闪烁，灯恢复为正常“有光亮、遮光灭”状态。
+ *   ADC 已离开迟滞区，停止闪烁，灯恢复为 OFFLIGHT_VALIDD 定义的
+ *   稳定有光 / 稳定遮光显示方式。
  *
  * 注意：本函数从不调用 rx_output_light()/rx_output_block()，因此不会切换输出。
  */
@@ -729,8 +754,21 @@ static void rx_status_led_update(uint8_t hys_zone)
         rx_led_blink_window_count = 0U;
         rx_led_blink_on           = 0U;
 
-        /* 稳定区恢复正常指示：有光亮、遮光灭。 */
-        rx_status_led_set(rx_light_state);
+        /*
+         * 稳定区恢复正常指示：
+         * - 有光时：按 RX_STATUS_LED_LIGHT_ON 显示；
+         * - 遮光时：按 RX_STATUS_LED_BLOCK_ON 显示。
+         *
+         * 两个宏由 OFFLIGHT_VALIDD 在编译期决定。
+         */
+        if (rx_light_state != 0U)
+        {
+            rx_status_led_set(RX_STATUS_LED_LIGHT_ON);
+        }
+        else
+        {
+            rx_status_led_set(RX_STATUS_LED_BLOCK_ON);
+        }
         return;
     }
 
@@ -769,30 +807,35 @@ static void rx_status_led_update(uint8_t hys_zone)
 
 /*
  * 输出有光状态。
- * P1_2 是实际检测输出；P1_3 是状态灯，稳定有光时常亮。
+ * P1_2 是实际检测输出；P1_3 的显示方式由 OFFLIGHT_VALIDD 决定。
  *
- * 注意：
- * 迟滞区的闪烁只改 P1_3，不会切换 P1_2。
+ * OFFLIGHT_VALIDD = 0U：有光灭灯。
+ * OFFLIGHT_VALIDD = 1U：有光亮灯。
+ *
+ * 注意：迟滞区的闪烁只改 P1_3，不会切换 P1_2。
  */
 static void rx_output_light(void)
 {
     gpio_io_set(P1_2, GPIO_HIGH);
     gpio_io_set(P1_0, GPIO_LOW);
 
-    rx_status_led_set(1U);
+    rx_status_led_set(RX_STATUS_LED_LIGHT_ON);
 }
 
 
 /*
  * 输出遮光状态。
- * P1_2 输出遮光；P1_3 状态灯熄灭。
+ * P1_2 输出遮光；P1_3 的显示方式由 OFFLIGHT_VALIDD 决定。
+ *
+ * OFFLIGHT_VALIDD = 0U：遮光亮灯。
+ * OFFLIGHT_VALIDD = 1U：遮光灭灯。
  */
 static void rx_output_block(void)
 {
     gpio_io_set(P1_2, GPIO_LOW);
     gpio_io_set(P1_0, GPIO_HIGH);
 
-    rx_status_led_set(0U);
+    rx_status_led_set(RX_STATUS_LED_BLOCK_ON);
 }
 
 
@@ -1095,7 +1138,7 @@ static void rx_enter_block_state(uint8_t debug_reason)
     g_dbg_last_adc_ok    = 0U;
     rx_group_window_count = 0U;
 
-    /* 已经明确遮光，停止迟滞告警闪烁，指示灯由 rx_output_block() 熄灭。 */
+    /* 已经明确遮光，停止迟滞告警闪烁，指示灯由 rx_output_block() 按 OFFLIGHT_VALIDD 更新。 */
     rx_hys_zone_active        = 0U;
     rx_led_blink_window_count = 0U;
     rx_led_blink_on           = 0U;
@@ -1734,8 +1777,10 @@ void gpio_UECallBack(void)
 /*
  * GPIO 初始化。
  *
- * P1_0：状态指示灯，稳定有光常亮、稳定遮光熄灭、迟滞区闪烁。
- * P1_2/P1_3：实际输出脚，有光拉高，遮光拉低；迟滞闪烁绝不改动这两个脚。
+ * P1_0：ADC 窗口示波器观测脚。
+ * P1_2：实际检测输出，有光拉高、遮光拉低。
+ * P1_3：状态指示灯；稳定状态的点亮方式由 OFFLIGHT_VALIDD 定义，
+ *       迟滞区闪烁绝不改动 P1_2。
  * P1_4：同步输入中断，只用于捕获同步边沿。
  * P1_5：保留输入。
  */
@@ -1757,13 +1802,28 @@ void GPIO_Init(void)
     gpio_dr_set(P1_2, GPIO_SR_HIGH);
     gpio_io_set(P1_2, GPIO_LOW);
 
-    /* P1_3 输出：状态指示灯，默认熄灭。 */
+    /*
+     * P1_3 输出：状态指示灯。
+     * 上电默认就是遮光状态，因此直接按 OFFLIGHT_VALIDD 设置其显示。
+     */
     REG_P13_CFG = 0x00;
 
     gpio_init(P1_3);
     gpio_dir_set(P1_3, GPIO_DIR_OUT);
     gpio_dr_set(P1_3, GPIO_SR_HIGH);
-    gpio_io_set(P1_3, GPIO_LOW);
+
+#if RX_STATUS_LED_ENABLE
+    if (RX_STATUS_LED_BLOCK_ON != 0U)
+    {
+        gpio_io_set(P1_3, RX_STATUS_LED_ACTIVE_LEVEL);
+    }
+    else
+    {
+        gpio_io_set(P1_3, RX_STATUS_LED_INACTIVE_LEVEL);
+    }
+#else
+    gpio_io_set(P1_3, RX_STATUS_LED_INACTIVE_LEVEL);
+#endif
 
     /* P1_4 输入中断：只用于第一次同步。 */
     gpio_init(P1_4);

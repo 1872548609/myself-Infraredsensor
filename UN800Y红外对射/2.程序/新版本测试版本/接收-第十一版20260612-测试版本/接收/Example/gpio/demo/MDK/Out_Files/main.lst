@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 18:41:03 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/30/2026 17:42:34 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -62,7 +62,7 @@ line level    source
   51   1              
   52   1              adc_io_config(ADC_CHANNEL_1|ADC_CHANNEL_2);                                                             
   53   1              
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 18:41:03 PAGE 2   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/30/2026 17:42:34 PAGE 2   
 
   54   1              adc_scan_mode_config(ADC_MODE_SINGLE);                                                                  
   55   1              
@@ -115,7 +115,7 @@ line level    source
  102   3                  REG_GTIM0_CNT1&=0x00;
  103   3                      
  104   3                  adcount++;
- 105   3                  if(adcount==4)
+ 105   3                  if(adcount==2)
  106   3                  {
  107   4                      gpio_io_set(P1_2, GPIO_HIGH);
  108   4                      gpio_io_set(P1_3, GPIO_HIGH);
@@ -126,7 +126,7 @@ line level    source
  113   3                  
  114   3              }
  115   2          }
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 18:41:03 PAGE 3   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/30/2026 17:42:34 PAGE 3   
 
  116   1                 
  117   1           //gpio_io_set(P1_0, GPIO_LOW);//ГЃБе
@@ -190,7 +190,7 @@ MODULE INFORMATION:   STATIC OVERLAYABLE
    BIT SIZE         =   ----    ----
    EDATA SIZE       =   ----    ----
    HDATA SIZE       =   ----    ----
-C51 COMPILER V9.57.0.0   MAIN                                                              06/12/2026 18:41:03 PAGE 4   
+C51 COMPILER V9.57.0.0   MAIN                                                              06/30/2026 17:42:34 PAGE 4   
 
    XDATA CONST SIZE =   ----    ----
    FAR CONST SIZE   =   ----    ----

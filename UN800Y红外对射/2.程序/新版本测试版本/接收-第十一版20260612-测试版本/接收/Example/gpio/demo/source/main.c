@@ -102,7 +102,7 @@ void GPIO_IRQHandler(void) interrupt 0
             REG_GTIM0_CNT1&=0x00;
                 
             adcount++;
-            if(adcount==4)
+            if(adcount==2)
             {
                 gpio_io_set(P1_2, GPIO_HIGH);
                 gpio_io_set(P1_3, GPIO_HIGH);
