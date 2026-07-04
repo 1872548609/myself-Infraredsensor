@@ -1,0 +1,467 @@
+C51 COMPILER V9.57.0.0   ADC                                                               07/04/2026 17:03:33 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE ADC
+OBJECT MODULE PLACED IN .\Out_Files\adc.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\adc.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INC
+                    -DIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files
+                    -\adc.lst) OBJECT(.\Out_Files\adc.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : adc.c
+   5           * Description : adc driver source file
+   6           * Author(s)   : Hackett
+   7           * version     : V1.0
+   8           * Modify date : 2021-12-21
+   9           ***********************************************************************/
+  10          #include "adc.h"
+  11          #include "gpio.h"
+  12          
+  13          void (*adcfunc)(void) = {NULL};
+  14          
+  15           /************************************************************************
+  16           * function     : ADC_IRQHandler
+  17           * Description  : ADC_IRQHandler 
+  18           * input                : none
+  19           * return               : none
+  20           ************************************************************************/
+  21          void ADC_IRQHandler(void)       interrupt 6
+  22          {
+  23   1              if((ADCCSTAT & 0x1) == 0x1)                                                             //ADC接收器BUF存有数据
+  24   1              {               
+  25   2                      if(adcfunc != NULL)             
+  26   2                      {                       
+  27   3                              (*adcfunc)();                                                                   //ADC的中断处理回调函数
+  28   3                      }               
+  29   2              }
+  30   1              ADCCSTAT = 0x1;                                                                                 //RXAVLD写1清除 
+  31   1      }
+  32          
+  33           /************************************************************************
+  34           * function     : adc_clk_config
+  35           * Description  : adc_clk_config 
+  36           * input                :       
+  37           *                              uint8_t clksource               ：ADC CLK SOURCE
+  38           *                              uint8_t vrefsource              ：ADC VREF SOURCE
+  39           *                              uint16_t clksource_div  ：fadc_clk = fpclk / clkdiv，clkdiv = {clkdiv1, clkdiv0}
+  40           *                              uint8_t newstate                ：ADC ENABLE/DISABLE
+  41           * return               : none
+  42           ************************************************************************/
+  43          void adc_clk_config(uint8_t clksource, uint8_t vrefsource, uint16_t     clksource_div, uint8_t newstate)
+  44          {
+  45   1              if(newstate == ADC_ENABLE)
+  46   1              {
+  47   2                      PCLK0 |= (1<<4);                                                                        //ADC时钟使能
+  48   2                      PRESET0 |= (1<<4);                                                                      //ADC复位释放
+  49   2                      
+  50   2                      ADCGCR0 = (ADCGCR0 & (~(1<<6))) | (clksource<<6);       //ADC时钟源选择
+  51   2                      
+  52   2                      ADCCDR0 = 0;                                                                            //清零CLKDIV
+  53   2                      ADCCDR1 = 0;
+C51 COMPILER V9.57.0.0   ADC                                                               07/04/2026 17:03:33 PAGE 2   
+
+  54   2                      ADCCDR0 = (0x00ff & clksource_div);                                     //ADC内部时钟分频倍数
+  55   2                      ADCCDR1 = (0xff00 & clksource_div)>>8;          
+  56   2                      
+  57   2                      ADCVREF = (ADCVREF & (~(1<<0)))|(vrefsource<<0);        //电压参考源选择
+  58   2              }
+  59   1              else
+  60   1              {
+  61   2                      PCLK0 &= ~(1<<4);                                                                       //ADC时钟关闭
+  62   2                      PRESET0 &= ~(1<<4);                                                                     //ADC复位
+  63   2              }
+  64   1      }
+  65          
+  66           /************************************************************************
+  67           * function     : adc_sample_clk_config
+  68           * Description  : adc_sample_clk_config 
+  69           * input                :       
+  70           *                              uint8_t sampclk ：ADC SAMPLE CLK
+  71           * return               : none
+  72           ************************************************************************/
+  73          void adc_sample_clk_config(uint8_t sampclk)
+  74          {
+  75   1              ADCSPW &= ~(0x07);
+  76   1              switch(sampclk)                                                                                 //采样时钟脉冲宽度配置
+  77   1              {
+  78   2                      case ADC_SAMPCLK_4:
+  79   2                              ADCSPW |= (ADC_SAMPCLK_4<<0);
+  80   2                              break;
+  81   2                      case ADC_SAMPCLK_5:
+  82   2                              ADCSPW |= (ADC_SAMPCLK_5<<0);                   
+  83   2                              break;
+  84   2                      case ADC_SAMPCLK_6:
+  85   2                              ADCSPW |= (ADC_SAMPCLK_6<<0);                   
+  86   2                              break;
+  87   2                      default:
+  88   2                              break;          
+  89   2              }
+  90   1      }
+  91          
+  92           /************************************************************************
+  93           * function     : adc_io_config
+  94           * Description  : adc_io_config 
+  95           * input                :       
+  96           *                              uint8_t ch      ：ADC Channel
+  97           * return               : none
+  98           ************************************************************************/
+  99          void adc_io_config(uint8_t ch)
+ 100          {
+ 101   1              if(ch & 0x80)
+ 102   1              {
+ 103   2                      ch &= ~(1<<8);
+ 104   2              }
+ 105   1      
+ 106   1              ADCHL = ch;                                                                                             //配置为ADC输入
+ 107   1              ADCGCR2 &= ~(1<<4);                                                                             //选定P1_4作为通道0的采样通道
+ 108   1      //      ADCGCR2 |= (1<<4);                                                                              //选定P1_2作为通道0的采样通道
+ 109   1      }
+ 110          
+ 111           /************************************************************************
+ 112           * function     : adc_power_config
+ 113           * Description  : adc_power_config 
+ 114           * input                :       
+ 115           *                              uint8_t newstate                ：ADC ENABLE/DISABLE
+C51 COMPILER V9.57.0.0   ADC                                                               07/04/2026 17:03:33 PAGE 3   
+
+ 116           * return               : none
+ 117           ************************************************************************/
+ 118          void adc_power_config(uint8_t newstate)
+ 119          {
+ 120   1              if(newstate == ADC_ENABLE)
+ 121   1              {
+ 122   2                      ADCGCR1 &= ~(1<<0);                                                                     //ADC上电
+ 123   2                      ADCGCR1 &= ~(1<<1);                                                                     //ADC释放
+ 124   2              }
+ 125   1              else
+ 126   1              {
+ 127   2                      ADCGCR1 |= (1<<1);                                                                      //ADC复位               
+ 128   2                      ADCGCR1 |= (1<<0);                                                                      //ADC掉电
+ 129   2              }
+ 130   1      }
+ 131          
+ 132           /************************************************************************
+ 133           * function     : adc_scan_mode_config
+ 134           * Description  : adc_scan_mode_config 
+ 135           * input                :       
+ 136           *                              uint8_t mode ：ADC CONVERT MODE
+ 137           * return               : none
+ 138           ************************************************************************/
+ 139          void adc_scan_mode_config(uint8_t mode)
+ 140          {
+ 141   1      //      ADCGCR0 &= ~(1<<5);                                                                             //禁止读取ADC数据寄存器后清除数据寄存器
+ 142   1              ADCGCR0 |= (1<<5);
+ 143   1              if(mode == ADC_MODE_SINGLE)
+ 144   1              {
+ 145   2                      ADCGCR0 &= ~(1<<1);
+ 146   2              }
+ 147   1              else
+ 148   1              {
+ 149   2                      ADCGCR0 |= (1<<1);
+ 150   2              }
+ 151   1              ADCGCR3 &= ~(1<<0);                                                                             //ADC数据在EOC的下降沿被采样(在本芯片设计中此位只能设置为0)
+ 152   1      }
+ 153          
+ 154           /************************************************************************
+ 155           * function     : adc_convert_start
+ 156           * Description  : adc_convert_start 
+ 157           * input                :       
+ 158           *                              uint8_t ch      ：ADC Channel
+ 159           * return               : none
+ 160           ************************************************************************/
+ 161          void adc_convert_start(uint8_t ch)
+ 162          {
+ 163   1              switch(ch)
+ 164   1              {
+ 165   2                      case ADC_CHANNEL_0:
+ 166   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x01);                       
+ 167   2                              break;
+ 168   2                      case ADC_CHANNEL_1:
+ 169   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x02);                       
+ 170   2                              break;
+ 171   2                      case ADC_CHANNEL_2:
+ 172   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x03);                       
+ 173   2                              break;
+ 174   2                      case ADC_CHANNEL_3:
+ 175   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x04);                       
+ 176   2                              break;
+ 177   2                      case ADC_CHANNEL_4:
+C51 COMPILER V9.57.0.0   ADC                                                               07/04/2026 17:03:33 PAGE 4   
+
+ 178   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x05);                       
+ 179   2                              break;
+ 180   2                      case ADC_CHANNEL_5:
+ 181   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x06);                       
+ 182   2                              break;
+ 183   2                      case ADC_CHANNEL_6:
+ 184   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x07);                       
+ 185   2                              break;
+ 186   2                      case ADC_CHANNEL_7:
+ 187   2                              ADCGCR2 = (ADCGCR2 & (~(0x0f))) | (0x08);                       
+ 188   2                              break;
+ 189   2                      default:
+ 190   2                              ADCGCR2 &= ~(0x0f);
+ 191   2                              break;                  
+ 192   2              }
+ 193   1      
+ 194   1              /*当信号具有从低到高的转换时，ADC转换开始*/
+ 195   1              ADCGCR1 &= ~(1<<2);
+ 196   1              ADCGCR1 |= (1<<2);
+ 197   1      }
+ 198          
+ 199           /************************************************************************
+ 200           * function     : adc_convert_stop
+ 201           * Description  : adc_convert_stop 
+ 202           * input                : none
+ 203           * return               : none
+ 204           ************************************************************************/
+ 205          void adc_convert_stop(void)
+ 206          {
+ 207   1              /*当信号具有从高到低的转换时，ADC转换操作完成*/
+ 208   1              ADCGCR1 |= (1<<2);      
+ 209   1              ADCGCR1 &= ~(1<<2);
+ 210   1      //      ADCGCR0 &= ~(1<<1);
+ 211   1      }
+ 212          
+ 213           /************************************************************************
+ 214           * function     : adc_controller_config
+ 215           * Description  : adc_controller_config 
+ 216           * input                :
+ 217           *                              uint8_t newstate ：ADC ENABLE/DISABLE
+ 218           * return               : none
+ 219           ************************************************************************/
+ 220          void adc_controller_config(uint8_t newstate)
+ 221          {
+ 222   1              if(newstate == ADC_ENABLE)
+ 223   1              {
+ 224   2                      ADCGCR0 |= (1<<0);      
+ 225   2              }
+ 226   1              else
+ 227   1              {
+ 228   2                      ADCGCR0 &= ~(1<<0);             
+ 229   2              }
+ 230   1      }
+ 231          
+ 232           /************************************************************************
+ 233           * function     : adc_irq_config
+ 234           * Description  : adc_irq_config 
+ 235           * input                :       
+ 236           *                              void (*adc_irq_pro)()   ：call back function
+ 237           *                              uint8_t newstate                ：ADC ENABLE/DISABLE
+ 238           * return               : none
+ 239           ************************************************************************/
+C51 COMPILER V9.57.0.0   ADC                                                               07/04/2026 17:03:33 PAGE 5   
+
+ 240          void adc_irq_config(void (*adc_irq_pro)(), uint8_t newstate)
+ 241          {
+ 242   1              if(newstate == ADC_ENABLE)
+ 243   1              {
+ 244   2                      adcfunc = adc_irq_pro;                                                          //注册中断回调函数              
+ 245   2                      
+ 246   2                      ADCIER |= (1<<0);       
+ 247   2                      IEN0 |= (1<<6);                                                                         //打开ADC中断
+ 248   2                      IEN0 |= (1<<7);                                                                         //打开总中断
+ 249   2              }
+ 250   1              else
+ 251   1              {
+ 252   2                      adcfunc = NULL;         
+ 253   2                      
+ 254   2                      ADCIER &= ~(1<<0);                              
+ 255   2                      IEN0 &= ~(1<<6);                                                                        //关闭ADC中断
+ 256   2                      IEN0 &= ~(1<<7);                                                                        //关闭总中断    
+ 257   2              }
+ 258   1      }
+ 259          
+ 260           /************************************************************************
+ 261           * function     : adc_priority_level_config
+ 262           * Description  : adc_priority_level_config 
+ 263           * input                :       
+ 264           *                              uint8_t level：ADC PRIORITY LEVEL
+ 265           * return               : none
+ 266           ************************************************************************/
+ 267          void adc_priority_level_config(uint8_t level)
+ 268          {
+ 269   1              switch(level)
+ 270   1              {
+ 271   2                      case ADC_PRIORITY_LEVEL0:
+ 272   2                              IP0 &= ~(1<<0);
+ 273   2                              IP1 &= ~(1<<0);
+ 274   2                              break;
+ 275   2                      case ADC_PRIORITY_LEVEL1:
+ 276   2                              IP0 |= (1<<0);
+ 277   2                              IP1 &= ~(1<<0);                                                         
+ 278   2                              break;
+ 279   2                      case ADC_PRIORITY_LEVEL2:
+ 280   2                              IP0 &= ~(1<<0);
+ 281   2                              IP1 |= (1<<0);                                                          
+ 282   2                              break;
+ 283   2                      case ADC_PRIORITY_LEVEL3:
+ 284   2                              IP0 |= (1<<0);
+ 285   2                              IP1 |= (1<<0);                                                          
+ 286   2                              break;
+ 287   2                      default:
+ 288   2                              IP0 &= ~(1<<0);
+ 289   2                              IP1 &= ~(1<<0);                                                         
+ 290   2                              break;          
+ 291   2              }
+ 292   1      }
+ 293          
+ 294           /************************************************************************
+ 295           * function     : adc_wait_state
+ 296           * Description  : adc_wait_state 
+ 297           * input                :       
+ 298           *                              uint8_t state    ：ADC STATE
+ 299           *                              uint16_t timeout ：ADC TIME OUT
+ 300           * return               : 
+ 301           *                              1：FAIL
+C51 COMPILER V9.57.0.0   ADC                                                               07/04/2026 17:03:33 PAGE 6   
+
+ 302           *                              0：SUCCESS      
+ 303           ************************************************************************/
+ 304          uint8_t adc_wait_state(uint8_t state, uint16_t timeout)
+ 305          {
+ 306   1              if(state == ADC_STATE_CONVERT)
+ 307   1              {
+ 308   2                      while(timeout--)
+ 309   2                      {
+ 310   3                              if((ADCGCR1 & 0x04) == 0)                                               //转换完成，信号置0
+ 311   3                              {
+ 312   4                                      return ADC_SUCCESS;
+ 313   4                              }
+ 314   3                      }       
+ 315   2              }
+ 316   1              else
+ 317   1              {
+ 318   2                      while(timeout--)
+ 319   2                      {
+ 320   3                              if(ADCCSTAT & 0x01)                                                             //接收器BUF存有数据，信号置1
+ 321   3                              {
+ 322   4                                      return ADC_SUCCESS;
+ 323   4                              }
+ 324   3                      }       
+ 325   2              }
+ 326   1      
+ 327   1              return ADC_FAIL;
+ 328   1      }
+ 329          
+ 330           /************************************************************************
+ 331           * function     : adc_read_buf_state
+ 332           * Description  : adc_read_buf_state 
+ 333           * input                : none
+ 334           * return               : none
+ 335           ************************************************************************/
+ 336          //uint8_t adc_read_buf_state(void)
+ 337          //{
+ 338          //      return ADCCSTAT;
+ 339          //}
+ 340          
+ 341           /************************************************************************
+ 342           * function     : adc_clear_buf_state
+ 343           * Description  : adc_clear_buf_state 
+ 344           * input                : none
+ 345           * return               : none
+ 346           ************************************************************************/
+ 347          void adc_clear_buf_state(void)
+ 348          {
+ 349   1              ADCCSTAT = 0x1;                                                                                 //RXAVLD写1清除 
+ 350   1      }
+ 351          
+ 352           /************************************************************************
+ 353           * function     : adc_get_value
+ 354           * Description  : adc_get_value 
+ 355           * input                : none
+ 356           * return               : 12bit convert value of adc
+ 357           ************************************************************************/
+ 358          uint16_t adc_get_value(void)
+ 359          {
+ 360   1              /*做速率补偿*/
+ 361   1              uint16_t temp = 0;
+ 362   1              
+ 363   1              temp = ADCDR & 0x0FFF;
+C51 COMPILER V9.57.0.0   ADC                                                               07/04/2026 17:03:33 PAGE 7   
+
+ 364   1              
+ 365   1              if(temp > 1)
+ 366   1              {
+ 367   2                      temp += 5;
+ 368   2              }
+ 369   1              if(temp > 4095)
+ 370   1              {
+ 371   2                      temp = 4095;
+ 372   2              }
+ 373   1              
+ 374   1              return temp;                                                            //12bit转换数据
+ 375   1      
+ 376   1      }
+ 377          
+ 378           /************************************************************************
+ 379           * function     : adc_get_ch_value
+ 380           * Description  : adc_get_ch_value 
+ 381           * input                :       
+ 382           *                              uint8_t ch      ：ADC Channel
+ 383           * return               : 12bit convert value of adc
+ 384           ************************************************************************/
+ 385          uint16_t adc_get_ch_value(uint8_t ch)
+ 386          {
+ 387   1              uint16_t status = 0;
+ 388   1              adc_convert_start(ch);                                                                  //选择转换通道并启动转换
+ 389   1              
+ 390   1              status = adc_wait_state(ADC_STATE_CONVERT, ADC_TIMEOUT);//等待转换结束
+ 391   1              if(status == ADC_FAIL)
+ 392   1              {
+ 393   2                      return ADC_INVALID;
+ 394   2              }
+ 395   1              
+ 396   1              status = adc_wait_state(ADC_STATE_BUF, ADC_TIMEOUT);    //等待接收器BUF存有数据
+ 397   1              if(status == ADC_FAIL)
+ 398   1              {
+ 399   2                      return ADC_INVALID;
+ 400   2              }
+ 401   1              
+ 402   1              adc_clear_buf_state();                                                                  //清除BUF状态位
+ 403   1              
+ 404   1              return adc_get_value();
+ 405   1      }
+ 406          
+ 407          
+ 408          
+ 409          
+ 410          
+ 411          
+ 412          
+ 413          
+ 414          
+ 415          
+ 416          
+ 417          
+ 418          
+ 419          
+ 420          
+ 421          
+ 422          
+ 423          
+ 424          
+
+C51 COMPILER V9.57.0.0   ADC                                                               07/04/2026 17:03:33 PAGE 8   
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    561    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      3       5
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
