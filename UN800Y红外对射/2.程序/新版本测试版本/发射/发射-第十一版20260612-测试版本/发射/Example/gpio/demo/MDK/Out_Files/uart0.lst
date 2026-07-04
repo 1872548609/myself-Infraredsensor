@@ -1,0 +1,229 @@
+C51 COMPILER V9.57.0.0   UART0                                                             07/04/2026 11:19:53 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE UART0
+OBJECT MODULE PLACED IN .\Out_Files\uart0.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\uart0.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE I
+                    -NCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Fil
+                    -es\uart0.lst) OBJECT(.\Out_Files\uart0.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2021, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : uart0.c
+   5           * Description : uart0 driver source file
+   6           * Author(s)   : Will
+   7           * version     : V1.0
+   8           * Modify date : 2021-04-27
+   9           ***********************************************************************/
+  10          #include "uart0.h"
+  11          #include "config.h"
+  12          
+  13          //#define UART0_TX_INT_MODE 1
+  14          
+  15          volatile uint8_t tx_flag = 0;
+  16          
+  17          extern uint32_t system_core_clock;
+  18          void (*uart0_func)(void) = { 0 };
+  19          
+  20          /************************************************************************
+  21           * Function     : UART0_IRQHandler
+  22           * Description  : uart interrupt handling
+  23           * Input                : none
+  24           * Output               : none   
+  25           * Return               : none
+  26           ************************************************************************/
+  27          void UART0_IRQHandler(void) interrupt 4
+  28          {
+  29   1              if(RI0)                                                                         //Rx irq
+  30   1              {       
+  31   2              if(uart0_func != NULL)
+  32   2                      {
+  33   3                              ((void(*)())(uart0_func))();                            //uart0的接收处理回调函数
+  34   3                      }       
+  35   2                      RI0 = 0;                                                                //清除接收完成标志位
+  36   2              }       
+  37   1      
+  38   1      #ifdef UART0_TX_INT_MODE                                                                //中断方式
+                  else if(TI0)                                                                //Tx irq 
+                      {
+                              tx_flag = 1;
+                              TI0     = 0;                                                                    //清除发送完成标志位
+                      }       
+              #endif          
+  45   1      } 
+  46          
+  47          /************************************************************************
+  48           * Function     : uart0_set_baud_rate
+  49           * Description  : uart0 set baud rate
+  50           * Input                : uint32_t clk_hz: cpu frequency
+  51           *                        uint32_t baud_rate: Series rate         Baud Rate = SYSCK/(16*(1024-S0REL))   SYSCK:RC16M                             
+             -                
+  52           * Output               : none  
+C51 COMPILER V9.57.0.0   UART0                                                             07/04/2026 11:19:53 PAGE 2   
+
+  53           * Return               : none
+  54           ************************************************************************/
+  55          static void uart0_set_baud_rate(uint32_t clk_hz, uint32_t baud_rate)    
+  56          {       
+  57   1              uint32_t temp;
+  58   1              uint8_t MSbyte, LSbyte;
+  59   1          
+  60   1              temp = baud_rate * 16;
+  61   1          temp = (clk_hz + (temp / 2))/ temp;
+  62   1              temp = 1024 - temp ;
+  63   1        
+  64   1              MSbyte = temp>>8;
+  65   1              LSbyte = temp;
+  66   1              
+  67   1              S0RELH = MSbyte & 0x3;
+  68   1              S0RELL = LSbyte;                
+  69   1      }
+  70          
+  71          /************************************************************************
+  72           * Function     : uart0_init
+  73           * Description  : uart0 initial for  baud_rate
+  74           * Input                : uint32_t baud_rate: Series rate 
+  75           * Output               : none
+  76           * Return               : none
+  77           ************************************************************************/
+  78          void uart0_init(uint32_t baud_rate)
+  79          {
+  80   1              
+  81   1              PCLK0 |= (1<<0);                                                                               //开UART0时钟使能        
+  82   1              PRESET0 |= (1<<0);                                                                                 //UART0正常工作
+  83   1              EUARTEN |= (1<<0);                                                                                 //打开EUART0功能，P2.6作UART0_TX，P2.7作UART0_RX
+  84   1      
+  85   1        tx_flag = 0;
+  86   1          
+  87   1              SM0 = 0;
+  88   1              SM1 = 1;                                                          //选择模式一
+  89   1                      
+  90   1              TI0 = 0;                                                  //发送完成中断状态清除
+  91   1              RI0 = 0;                                                      //接收完成中断状态清除
+  92   1              
+  93   1              uart0_set_baud_rate(system_core_clock, baud_rate);        //设置波特率
+  94   1              REN0 = 1;                                                 //使能接收    
+  95   1              
+  96   1              P2PU &= ~(3<<6);                                                                                                //使能P2.6,P2.7内部上拉  
+  97   1      }
+  98          
+  99          /************************************************************************
+ 100           * Function     : uart0_irq_init
+ 101           * Description  : uart0 interrupt enable
+ 102           * Input                : uint8_t irqstate: 0 中断失能，1 中断使能
+ 103           *                                *pfunc_recv)(): 接收处理回调函数
+ 104           * Output               : none
+ 105           * Return               : none
+ 106           ************************************************************************/
+ 107          void uart0_irq_init(uint8_t irqstate,void (*pfunc_recv)())
+ 108          {
+ 109   1          if(irqstate == UART0_IRQ_ENABLE)
+ 110   1          {
+ 111   2              EA = 1;                                         //EA总中断开启
+ 112   2              ES0 = 1;                                        //UART0中断使能   
+ 113   2              
+ 114   2              uart0_func = pfunc_recv;       
+C51 COMPILER V9.57.0.0   UART0                                                             07/04/2026 11:19:53 PAGE 3   
+
+ 115   2          } 
+ 116   1          else
+ 117   1          {
+ 118   2      //      EA = 0;                                         //EA总中断关闭
+ 119   2              ES0 = 0;                                        //UART0中断关闭   
+ 120   2          } 
+ 121   1      }
+ 122          
+ 123          /************************************************************************
+ 124           * Function     : uart0_send_byte
+ 125           * Description  : uart0 发送一个字节数据
+ 126           * Input                : char c: out byte
+ 127           * Output               : none  
+ 128           * Return               : none
+ 129           ************************************************************************/
+ 130          void uart0_send_byte(char c)
+ 131          {
+ 132   1              //输出一个字符
+ 133   1              uint16_t timeout;
+ 134   1              timeout = 65535;
+ 135   1              
+ 136   1              S0BUF = c;
+ 137   1      
+ 138   1      #ifdef UART0_TX_INT_MODE                //中断方式
+                      while(!tx_flag);
+                      tx_flag = 0; 
+              #else 
+ 142   1              //查询方式
+ 143   1          while(!(TI0))                       //等待数据发送完成
+ 144   1              {
+ 145   2                      if((timeout--) == 0)            //超时等待退出
+ 146   2              {
+ 147   3                              break;
+ 148   3              }
+ 149   2              }
+ 150   1              TI0 = 0;                                //清除发送完成标志位
+ 151   1      #endif
+ 152   1      }
+ 153          
+ 154          /************************************************************************
+ 155           * Function     : uart0_send_bytes
+ 156           * Description  : uart0 send bytes      发送多个字节
+ 157           * Input                : uint8_t* buff: out buffer
+ 158           *                        uint32_t length: buffer length
+ 159           * Output               : none  
+ 160           * Return               : none
+ 161           ************************************************************************/
+ 162          void uart0_send_bytes(uint8_t *buff, uint32_t length)
+ 163          {
+ 164   1              while(length--)
+ 165   1              {
+ 166   2                      uart0_send_byte(*buff++);
+ 167   2              }       
+ 168   1      }
+ 169          
+ 170          /************************************************************************
+ 171           * Function     : uart0_recv_byte
+ 172           * Description  : uart0 接收一个字节数据
+ 173           * Input                : none 
+ 174           * Output               : none  
+ 175          * Return                : S0BUF：返回一个byte   
+ 176           ************************************************************************/
+C51 COMPILER V9.57.0.0   UART0                                                             07/04/2026 11:19:53 PAGE 4   
+
+ 177          uint8_t uart0_recv_byte(void)
+ 178          { 
+ 179   1              return S0BUF;
+ 180   1      }
+ 181          /************************************************************************
+ 182           * Function     : putchar
+ 183           * Description  : 打印函数重映射
+ 184           * Input                : char c: 一个字符
+ 185           * Output               : none  
+ 186           * Return               : none
+ 187           ************************************************************************/
+ 188          char putchar(char c)
+ 189          {
+ 190   1              uart0_send_byte(c); 
+ 191   1              return c;
+ 192   1      }
+ 193          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    344    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      4      23
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
