@@ -1,0 +1,159 @@
+/**
+ * @file    mg32f003_it.c
+ * @author  MegawinTech Application Team
+ * @version V1.0.1
+ * @date    17-Nov-2023
+ * @brief   This file contains all the system functions
+ */
+
+/* Define to prevent recursive inclusion */
+#define _MG32F003_IT_C_
+
+/* Files include */
+#include "platform.h"
+#include "usart_synchronous_interrupt.h"
+#include "mg32f003_it.h"
+
+/**
+  * @addtogroup MG32F003_LibSamples
+  * @{
+  */
+
+/**
+  * @addtogroup Peripheral
+  * @{
+  */
+
+/**
+  * @addtogroup Peripheral_SampleFunction
+  * @{
+  */
+
+/* Private typedef ****************************************************************************************************/
+
+/* Private define *****************************************************************************************************/
+
+/* Private macro ******************************************************************************************************/
+
+/* Private variables **************************************************************************************************/
+
+/* Private functions **************************************************************************************************/
+
+/***********************************************************************************************************************
+  * @brief  This function handles NMI exception
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void NMI_Handler(void)
+{
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles Hard Fault exception
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void HardFault_Handler(void)
+{
+    /* Go to infinite loop when Hard Fault exception occurs */
+    while (1)
+    {
+    }
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles SVCall exception
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void SVC_Handler(void)
+{
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles PendSVC exception
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void PendSV_Handler(void)
+{
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles SysTick Handler
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void SysTick_Handler(void)
+{
+    if (0 != PLATFORM_DelayTick)
+    {
+        PLATFORM_DelayTick--;
+    }
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles USART2 Handler
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void USART2_IRQHandler(void)
+{
+    uint8_t RxData = 0;
+
+    if ((RESET != USART_GetITStatus(USART2, USART_IT_PE)) ||
+        (RESET != USART_GetITStatus(USART2, USART_IT_ERR)))
+    {
+        USART_ReceiveData(USART2);
+    }
+
+    if (RESET != USART_GetITStatus(USART2, USART_IT_RXNE))
+    {
+        RxData = USART_ReceiveData(USART2);
+
+        if (0 == USART_RxStruct.CompleteFlag)
+        {
+            USART_RxStruct.Buffer[USART_RxStruct.CurrentCount++] = RxData;
+
+            if (USART_RxStruct.CurrentCount == USART_RxStruct.Length)
+            {
+                USART_RxStruct.CompleteFlag = 1;
+
+                USART_ITConfig(USART2, USART_IT_RXNE, DISABLE);
+                USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
+            }
+        }
+    }
+
+    if (RESET != USART_GetITStatus(USART2, USART_IT_TXE))
+    {
+        if (0 == USART_TxStruct.CompleteFlag)
+        {
+            USART_SendData(USART2, USART_TxStruct.Buffer[USART_TxStruct.CurrentCount++]);
+
+            if (USART_TxStruct.CurrentCount == USART_TxStruct.Length)
+            {
+                USART_TxStruct.CompleteFlag = 1;
+            }
+        }
+    }
+}
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+

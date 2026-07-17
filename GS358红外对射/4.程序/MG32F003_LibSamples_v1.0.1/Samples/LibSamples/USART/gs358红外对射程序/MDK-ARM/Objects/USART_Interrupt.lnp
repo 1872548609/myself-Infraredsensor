@@ -1,0 +1,27 @@
+--cpu Cortex-M0
+".\objects\main.o"
+".\objects\usart_interrupt.o"
+".\objects\platform.o"
+".\objects\mg32f003_it.o"
+".\objects\mg32_adc.o"
+".\objects\mg32_crc.o"
+".\objects\mg32_dbg.o"
+".\objects\mg32_exti.o"
+".\objects\mg32_flash.o"
+".\objects\mg32_gpio.o"
+".\objects\mg32_i2c.o"
+".\objects\mg32_iwdg.o"
+".\objects\mg32_misc.o"
+".\objects\mg32_pwr.o"
+".\objects\mg32_rcc.o"
+".\objects\mg32_spi.o"
+".\objects\mg32_syscfg.o"
+".\objects\mg32_tim.o"
+".\objects\mg32_uid.o"
+".\objects\mg32_usart.o"
+".\objects\system_mg32f003.o"
+".\objects\startup_mg32f003_keil.o"
+--library_type=microlib --strict --scatter ".\Objects\USART_Interrupt.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\Listings\USART_Interrupt.map" -o .\Objects\USART_Interrupt.axf

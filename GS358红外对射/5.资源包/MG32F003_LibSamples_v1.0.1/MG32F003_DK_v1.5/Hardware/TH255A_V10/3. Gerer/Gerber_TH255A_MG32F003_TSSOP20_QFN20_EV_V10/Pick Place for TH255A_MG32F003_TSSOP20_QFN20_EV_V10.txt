@@ -1,0 +1,123 @@
+Designator Footprint               Mid X         Mid Y         Ref X         Ref Y         Pad X         Pad Y TB      Rotation Comment        
+
+SW4        SW_T_2P           1415.039mil    1448.74mil   1415.039mil    1448.74mil   1552.834mil    1448.74mil  T        180.00 Key1           
+SW3        SW_T_2P           1822.834mil    1448.74mil   1822.834mil    1448.74mil   1685.039mil    1448.74mil  T        360.00 Key2           
+R72        R-0603            1415.039mil    1278.74mil   1415.039mil    1278.74mil   1415.039mil    1248.74mil  T         90.00 -              
+R71        R-0603            1345.039mil    1278.74mil   1345.039mil    1278.74mil   1345.039mil    1248.74mil  T         90.00 -              
+R70        R-0603            1275.039mil    1278.74mil   1275.039mil    1278.74mil   1275.039mil    1308.74mil  T        270.00 -              
+J1         USB_CF_16_SMD     3877.984mil    729.116mil   3799.276mil    729.116mil   3763.843mil    603.116mil  T         90.00 CJ-USB3-C16P   
+D1         DIODE_SMA_SOD323       3875mil       1785mil       3875mil       1785mil       3875mil    1731.85mil  T         90.00 1N5817         
+D5         DIODE_SMA_SOD323       3240mil       2175mil       3240mil       2175mil   3186.851mil       2175mil  T        360.00 1N5817         
+D14        DIODE_SMA_SOD323       4015mil       1785mil       4015mil       1785mil       4015mil    1731.85mil  T         90.00 1N5817         
+TP10       PIN1_1H0          3260.039mil        350mil   3260.039mil        350mil   3260.039mil        350mil  B         90.00 T POINT A      
+TP9        PIN1_1H0          3350.039mil        350mil   3350.039mil        350mil   3350.039mil        350mil  B        180.00 T POINT A      
+TP8        PIN1_1H0          3170.039mil        350mil   3170.039mil        350mil   3170.039mil        350mil  B        180.00 T POINT A      
+TP7        PIN1_1H0          3100.039mil        350mil   3100.039mil        350mil   3100.039mil        350mil  B        180.00 T POINT A      
+TP6        PIN1_1H0          3890.039mil        350mil   3890.039mil        350mil   3890.039mil        350mil  B        180.00 T POINT A      
+TP5        PIN1_1H0          3800.039mil        350mil   3800.039mil        350mil   3800.039mil        350mil  B        180.00 T POINT A      
+TP4        PIN1_1H0          3620.039mil        350mil   3620.039mil        350mil   3620.039mil        350mil  B        180.00 T POINT A      
+TP3        PIN1_1H0          3440.039mil        350mil   3440.039mil        350mil   3440.039mil        350mil  B        180.00 T POINT A      
+U3         SOT23                 3130mil   1501.968mil       3130mil   1501.968mil     3092.5mil       1460mil  T        360.00 TL431A         
+U2         LQFP48_7X7_050     3406.51mil   1054.389mil    3406.51mil   1054.389mil    3237.52mil   1162.657mil  T        270.00 MG84FG516_LQFP48
+U1         SOT89              3933.15mil   2120.315mil       3880mil   2120.315mil       3880mil    2179.37mil  T        270.00 AIC1734-33(SOT-89)
+TP2        PIN1_1H0          3710.039mil        350mil   3710.039mil        350mil   3710.039mil        350mil  B         90.00 T POINT A      
+TP1        PIN1_1H0          3530.039mil        350mil   3530.039mil        350mil   3530.039mil        350mil  B         90.00 T POINT A      
+R25        0603R             3535.591mil        320mil   3535.591mil        320mil   3535.591mil        287mil  T        270.00 47K            
+R24        0603R             3770.039mil       1490mil   3770.039mil       1490mil   3770.039mil       1457mil  T        270.00 10K            
+R23        0603R             3700.039mil       1490mil   3700.039mil       1490mil   3700.039mil       1457mil  T        270.00 4.7K           
+R22        0603R             3535.591mil        490mil   3535.591mil        490mil   3535.591mil        457mil  T        270.00 47K            
+R21        0603R             3450.039mil       1620mil   3450.039mil       1620mil   3417.039mil       1620mil  T        180.00 1M             
+R20        0603R             3630.039mil       1490mil   3630.039mil       1490mil   3630.039mil       1457mil  T        270.00 10K            
+R19        0603R             3560.039mil       1490mil   3560.039mil       1490mil   3560.039mil       1457mil  T        270.00 4.7K           
+R17        0603R                 3660mil       1785mil       3660mil       1785mil       3693mil       1785mil  T        360.00 4.7K           
+R16        0603R             3715.591mil       1050mil   3715.591mil       1050mil   3715.591mil       1083mil  T         90.00 30             
+R15        0603R             3775.591mil       1050mil   3775.591mil       1050mil   3775.591mil       1083mil  T         90.00 30             
+R14        0603R                 3235mil       1490mil       3235mil       1490mil       3235mil       1457mil  T        270.00 1K             
+R13        0603R             3075.039mil       1220mil   3075.039mil       1220mil   3042.039mil       1220mil  T        180.00 1.5K           
+R11        0603R             3280.591mil     320.26mil   3280.591mil     320.26mil   3280.591mil     287.26mil  T        270.00 1K             
+R5         0603R             3825.039mil       1347mil   3825.039mil       1347mil   3825.039mil       1314mil  T        270.00 1M             
+R3         0603R             3075.039mil       1000mil   3075.039mil       1000mil   3108.039mil       1000mil  T        360.00 NC             
+Q4         SOT23_132         3740.039mil       1665mil   3740.039mil       1665mil   3702.539mil   1623.032mil  T        360.00 3904           
+Q3         SOT23_132         3600.039mil       1665mil   3600.039mil       1665mil   3562.539mil   1623.032mil  T        360.00 3904           
+Q1         SOT23             3877.539mil   1501.968mil   3877.539mil   1501.968mil   3840.039mil       1460mil  T        360.00 IRLML6402      
+D3         0805D             3430.591mil     483.26mil   3430.591mil     483.26mil   3430.591mil    434.047mil  T         90.00 Green          
+C4         0805C                 3940mil    1971.26mil       3940mil    1971.26mil   3890.788mil    1971.26mil  T        360.00 4.7uF          
+C3         0603C             3835.591mil       1050mil   3835.591mil       1050mil   3835.591mil       1017mil  T        270.00 15pF           
+R2         0603R             3075.039mil       1070mil   3075.039mil       1070mil   3108.039mil       1070mil  T        360.00 0              
+R10        0603R                 3305mil    1491.26mil       3305mil    1491.26mil       3305mil    1524.26mil  T         90.00 10             
+SW1        DIP2_SW           3292.559mil       1990mil   3135.078mil       1990mil   3135.078mil       1990mil  T        360.00 SW KEY-SPST    
+R9         0603R             3430.591mil     320.26mil   3430.591mil     320.26mil   3430.591mil     287.26mil  T        270.00 1K             
+R8         0603R             3125.039mil       1340mil   3125.039mil       1340mil   3125.039mil       1307mil  T        270.00 10K            
+R7         0603R             3055.039mil       1343mil   3055.039mil       1343mil   3055.039mil       1376mil  T         90.00 30K            
+R4         0603R             3545.039mil       2105mil   3545.039mil       2105mil   3545.039mil       2072mil  T        270.00 3.3K           
+R1         0603R             3990.039mil       1490mil   3990.039mil       1490mil   3990.039mil       1457mil  T        270.00 NC             
+D4         0805D             3280.591mil     483.26mil   3280.591mil     483.26mil   3280.591mil    434.047mil  T         90.00 Red            
+C11        0805C             3735.591mil   1221.903mil   3735.591mil   1221.903mil   3686.378mil   1221.903mil  T        360.00 4.7uF          
+C10        0603C             3234.092mil    1356.26mil   3234.092mil    1356.26mil   3267.092mil    1356.26mil  T          0.00 0.1uF          
+C9         0805C                 3480mil    1491.26mil       3480mil    1491.26mil       3480mil   1442.047mil  T         90.00 4.7uF          
+C8         0603C             3530.039mil    1356.26mil   3530.039mil    1356.26mil   3563.039mil    1356.26mil  T        360.00 0.1uF          
+C7         0603C             3380.039mil    1356.26mil   3380.039mil    1356.26mil   3413.039mil    1356.26mil  T        360.00 0.1uF          
+C6         0805C                 3385mil       1490mil       3385mil       1490mil       3385mil   1440.788mil  T         90.00 4.7uF          
+C5         0805C                 3940mil    2271.26mil       3940mil    2271.26mil   3890.788mil    2271.26mil  T        360.00 4.7uF          
+C1         0603C             3655.591mil       1050mil   3655.591mil       1050mil   3655.591mil       1017mil  T        270.00 15pF           
+R12        0603R             3075.039mil       1150mil   3075.039mil       1150mil   3042.039mil       1150mil  T        180.00 1.5K           
+J2         PS3P254           3755.039mil       2125mil   3755.039mil       2025mil   3755.039mil       2025mil  T         90.00 2&3 (0 ohm)    
+R6         0603R             3130.591mil     320.26mil   3130.591mil     320.26mil   3130.591mil     287.26mil  T        270.00 1K             
+D2         0805D             3130.591mil     483.26mil   3130.591mil     483.26mil   3130.591mil    434.047mil  T         90.00 Yellow         
+C2         0603C                 3940mil    1381.26mil       3940mil    1381.26mil       3973mil    1381.26mil  T        360.00 0.1uF          
+R18        0603R             3450.039mil       1730mil   3450.039mil       1730mil   3483.039mil       1730mil  T        360.00 1K             
+Q2         SOT23               3300.5mil       1665mil     3300.5mil       1665mil       3338mil   1706.968mil  T        180.00 2N3906         
+D11        DIODE_SMA_SOD323   3050.039mil        825mil   3050.039mil        825mil   3103.189mil        825mil  T        180.00 1N5817         
+D12        DIODE_SMA_SOD323   3050.039mil        685mil   3050.039mil        685mil    2996.89mil        685mil  T        360.00 1N5817         
+J16        PS4P254           3125.039mil       2460mil   2975.039mil       2460mil   2975.039mil       2460mil  T        360.00 When J16 Open, SW1 must be off.
+J3         PS2P254           2875.039mil        510mil   2875.039mil        560mil   2875.039mil        560mil  T        270.00 VCP Option     
+J5         PS2P254           2875.039mil       1010mil   2875.039mil        960mil   2875.039mil        960mil  T         90.00 NC             
+J6         PS6P254           3625.039mil        180mil   3375.039mil        180mil   3375.039mil        180mil  T          0.00 CON6           
+J4         PS6P254           2875.039mil       1510mil   2875.039mil       1760mil   2875.039mil       1760mil  T        270.00 OnBoard ICP/SWD Connector
+J17        PS6P254_90        3725.039mil       2460mil   3975.039mil       2460mil   3975.039mil       2460mil  T        180.00 Off Board ICP/SWD Connector
+C12        0805C             3625.591mil        480mil   3625.591mil        480mil   3625.591mil    430.788mil  T         90.00 4.7uF          
+J8         PS2P254           2675.039mil    1008.74mil   2675.039mil     958.74mil   2675.039mil     958.74mil  T         90.00 NC             
+C16        C-0603            1095.039mil    1493.74mil   1095.039mil    1493.74mil   1095.039mil    1463.74mil  T         90.00 0.1uF          
+C13        C-0603            1160.039mil    1493.74mil   1160.039mil    1493.74mil   1160.039mil    1463.74mil  T         90.00 10uF           
+C14        C-0603            1245.039mil    1098.74mil   1245.039mil    1098.74mil   1215.039mil    1098.74mil  T        360.00 10uF           
+C15        C-0603            1245.039mil    1034.34mil   1245.039mil    1034.34mil   1215.039mil    1034.34mil  T        360.00 0.1uF          
+SW2        SW_T_2P           1695.039mil     978.74mil   1695.039mil     978.74mil   1695.039mil   1116.535mil  T        270.00 SW TACT-SPST   
+X2         OSC_2.0X1.6_SMD   1385.039mil    952.933mil   1385.039mil    952.933mil   1414.039mil    976.933mil  T        180.00 OT20168MJBA4SL 
+D10        0805D             2344.252mil     128.74mil   2344.252mil     128.74mil   2393.465mil     128.74mil  T        180.00 Green          
+D9         0805D             2344.252mil     258.74mil   2344.252mil     258.74mil   2393.465mil     258.74mil  T        180.00 Yellow         
+D8         0805D             2344.252mil     388.74mil   2344.252mil     388.74mil   2393.465mil     388.74mil  T        180.00 Red            
+R69        R-0603            1345.039mil    1138.74mil   1345.039mil    1138.74mil   1345.039mil    1108.74mil  T         90.00 NC             
+R68        R-0603            1545.039mil    1808.74mil   1545.039mil    1808.74mil   1575.039mil    1808.74mil  T        180.00 10K            
+R67        R-0603             1245.04mil     928.74mil   1245.039mil     928.74mil    1215.04mil     928.74mil  T        360.00 NC             
+R66        R-0603             610.039mil    1628.74mil    610.039mil    1628.74mil    610.039mil    1598.74mil  T         90.00 NC             
+R65        R-0603             870.039mil    1628.74mil    870.039mil    1628.74mil    870.039mil    1598.74mil  T         90.00 NC             
+R64        R-0603             945.039mil    1628.74mil    945.039mil    1628.74mil    945.039mil    1598.74mil  T         90.00 NC             
+R63        R-0603             685.039mil    1628.74mil    685.039mil    1628.74mil    685.039mil    1598.74mil  T         90.00 NC             
+R62        R-0603            1325.039mil    1628.74mil   1325.039mil    1628.74mil   1325.039mil    1598.74mil  T         90.00 NC             
+R61        R-0603            1180.039mil    1628.74mil   1180.039mil    1628.74mil   1180.039mil    1598.74mil  T         90.00 NC             
+R60        R-0603             735.039mil    1978.74mil    735.039mil    1978.74mil    765.039mil    1978.74mil  T        180.00 10K            
+R59        R-0603             1080.04mil    1808.74mil   1080.039mil    1808.74mil    1050.04mil    1808.74mil  T        360.00 10K            
+R58        R-0603            2165.039mil     518.74mil    2165.04mil     518.74mil   2195.039mil     518.74mil  T        180.00 0              
+R57        R-0603            1545.039mil    1743.74mil   1545.039mil    1743.74mil   1575.039mil    1743.74mil  T        180.00 10K            
+R56        R-0603            2165.039mil     128.74mil   2165.039mil     128.74mil   2135.039mil     128.74mil  T        360.00 470            
+R55        R-0603            2165.039mil     258.74mil   2165.039mil     258.74mil   2135.039mil     258.74mil  T        360.00 470            
+R43        R-0603            2360.039mil    2258.74mil   2360.039mil    2258.74mil   2330.039mil    2258.74mil  T        360.00 1K             
+R42        R-0603             1245.04mil    1168.74mil   1245.039mil    1168.74mil    1215.04mil    1168.74mil  T        360.00 47K            
+JP3        PS2P254           1602.834mil    1648.74mil   1652.834mil    1648.74mil   1652.834mil    1648.74mil  T        180.00 JUMPER         
+D13        0805D             2545.039mil    2258.74mil   2545.039mil    2258.74mil   2594.252mil    2258.74mil  T        180.00 Yellow         
+C47        C-0603            1080.039mil    1898.74mil   1080.039mil    1898.74mil   1050.039mil    1898.74mil  T        360.00 0.1uF          
+C46        C-0603            1255.039mil    1628.74mil   1255.039mil    1628.74mil   1255.039mil    1658.74mil  T        270.00 47pF           
+C45        C-0603            1395.039mil    1628.74mil   1395.039mil    1628.74mil   1395.039mil    1658.74mil  T        270.00 47pF           
+C44        C-0603            1545.039mil    1898.74mil   1545.039mil    1898.74mil   1515.039mil    1898.74mil  T        360.00 0.1uF          
+U7         SOT89             1725.984mil    1991.89mil   1725.984mil    1938.74mil   1666.929mil    1938.74mil  T        360.00 AIC1734-33(SOT-89)
+U6         SO8_150P127       1310.039mil    1823.74mil   1191.929mil    1898.74mil   1191.929mil    1898.74mil  T        360.00 24C16-SOP8     
+U5         SO8_208P127        798.583mil    1823.74mil    798.583mil    1823.74mil    645.039mil    1898.74mil  T        270.00 MX25L3206E     
+J7         PS6P254           2675.039mil    1508.74mil   2675.039mil    1758.74mil   2675.039mil    1758.74mil  T        270.00 CON6           
+C18        C-0603            1415.039mil    1138.74mil   1415.039mil    1138.74mil   1415.039mil    1108.74mil  T         90.00 NC             
+J11        PS2X2P254         2625.039mil    2008.74mil   2575.039mil    1958.74mil   2575.039mil    1958.74mil  T          0.00 CONN SOCKET 2x2/SM
+J12        PS2X2P254             2630mil        495mil       2680mil        545mil       2680mil        545mil  T        180.00 CONN SOCKET 2x2/SM
+R54        R-0603            2165.039mil     388.74mil   2165.039mil     388.74mil   2135.039mil     388.74mil  T        360.00 470            
+U4         TSSOP20_170P065   1023.961mil     944.74mil   1144.039mil     829.54mil   1144.039mil     829.54mil  T         90.00 MG32F003_TSSOP20
+CN1        QFP122-P2.54-CKT   1275.039mil    1358.74mil   1275.039mil    1358.74mil    575.039mil     358.74mil  T        360.00 QFP122-CKT     
+U8         QFN20_3X3P040_1    991.414mil   1384.959mil    991.414mil   1384.959mil   1051.414mil   1353.463mil  T         90.00 MG32F003_QFN20  3x3P0.4mm
+
