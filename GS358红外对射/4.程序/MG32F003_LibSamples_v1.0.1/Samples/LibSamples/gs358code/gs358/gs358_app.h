@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file    gs358_app.h
  * @brief   GS358 红外对射接收板应用层
  *
@@ -43,7 +43,7 @@ extern "C" {
  *
  * 必须明显大于正常发射周期。
  */
-#define GS358_LIGHT_LOST_TIMEOUT_MS         30U
+#define GS358_LIGHT_LOST_TIMEOUT_MS         1U
 
 /* 原理图中 PA8、PA9 经电阻驱动 NPN，默认高电平表示通道动作。 */
 #define GS358_NO_OUTPUT_ACTIVE_HIGH         1U
