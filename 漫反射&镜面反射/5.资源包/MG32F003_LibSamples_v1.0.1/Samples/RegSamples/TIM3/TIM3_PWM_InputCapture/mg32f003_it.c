@@ -1,0 +1,130 @@
+/**
+ * @file    mg32f003_it.c
+ * @author  MegawinTech Application Team
+ * @version V1.0.1
+ * @date    18-Apr-2023
+ * @brief   This file contains all the system functions
+ */
+
+/* Define to prevent recursive inclusion */
+#define _MG32F003_IT_C_
+
+/* Files include */
+#include "platform.h"
+#include "tim3_pwm_inputcapture.h"
+#include "mg32f003_it.h"
+
+/**
+  * @addtogroup MG32F003_RegSamples
+  * @{
+  */
+
+/**
+  * @addtogroup TIM3
+  * @{
+  */
+
+/**
+  * @addtogroup TIM3_PWM_InputCapture
+  * @{
+  */
+
+/* Private typedef ****************************************************************************************************/
+
+/* Private define *****************************************************************************************************/
+
+/* Private macro ******************************************************************************************************/
+
+/* Private variables **************************************************************************************************/
+
+/* Private functions **************************************************************************************************/
+
+/***********************************************************************************************************************
+  * @brief  This function handles NMI exception
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void NMI_Handler(void)
+{
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles Hard Fault exception
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void HardFault_Handler(void)
+{
+    /* Go to infinite loop when Hard Fault exception occurs */
+    while (1)
+    {
+    }
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles SVCall exception
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void SVC_Handler(void)
+{
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles PendSVC exception
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void PendSV_Handler(void)
+{
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles SysTick Handler
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void SysTick_Handler(void)
+{
+    if (0 != PLATFORM_DelayTick)
+    {
+        PLATFORM_DelayTick--;
+    }
+}
+
+/***********************************************************************************************************************
+  * @brief  This function handles TIM3 Handler
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void TIM3_IRQHandler(void)
+{
+    if(READ_BIT(TIM3->SR, TIM_SR_CC1IF) && READ_BIT(TIM3->DIER, TIM_DIER_CC1IE))
+    {
+        TIM3_CC_InterruptFlag = 1;
+
+        TIM3_CC_Value1 = READ_REG(TIM3->CCR1);
+        TIM3_CC_Value2 = READ_REG(TIM3->CCR2);
+
+        CLEAR_BIT(TIM3->SR, TIM_SR_CC1IF);
+    }
+}
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+

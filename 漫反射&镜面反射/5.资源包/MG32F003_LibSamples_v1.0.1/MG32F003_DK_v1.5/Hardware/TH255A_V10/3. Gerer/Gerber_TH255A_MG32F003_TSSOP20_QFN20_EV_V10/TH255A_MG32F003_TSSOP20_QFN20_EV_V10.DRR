@@ -1,0 +1,26 @@
+---------------------------------------------------------------------------
+NCDrill File Report For: TH255A_MG32F003_TSSOP20_QFN20_EV_V10.PcbDoc   2024/6/21  ¤W¤È 09:15:46
+---------------------------------------------------------------------------
+
+Layer Pair : Top Layer to Bottom Layer
+ASCII RoundHoles File : TH255A_MG32F003_TSSOP20_QFN20_EV_V10-RoundHoles.TXT
+ASCII SlotHoles File : TH255A_MG32F003_TSSOP20_QFN20_EV_V10-SlotHoles.TXT
+EIA File   : TH255A_MG32F003_TSSOP20_QFN20_EV_V10.DRL
+
+Tool         Hole Size           Hole Type     Hole Count Plated       Tool Travel
+---------------------------------------------------------------------------
+T1        12mil (0.3048mm)         Round          176              45.24 Inch (1149.02 mm)
+T2        16mil (0.4064mm)         Round          50               10.31 Inch (261.84 mm)
+T3        20mil (0.508mm)          Round          4                1.50 Inch (38.00 mm)
+T4        24mil (0.6096mm)         Slot           4                286.62 Inch (7280.16 mm)
+T5        31mil (0.7874mm)         Round          2                0.31 Inch (8.00 mm)
+T6        37mil (0.9398mm)         Round          122              14.76 Inch (374.92 mm)
+T7        39mil (0.9906mm)         Round          48               11.42 Inch (290.07 mm)
+T8        47mil (1.1938mm)         Round          6                1.70 Inch (43.16 mm)
+T9        28mil (0.7112mm)         Round          2         NPTH   0.23 Inch (5.78 mm)
+T10       120mil (3.048mm)         Round          1         NPTH   0.00 Inch (0.00 mm)
+T11       126mil (3.2004mm)        Round          4         NPTH   7.29 Inch (185.17 mm)
+---------------------------------------------------------------------------
+Totals                                            419              379.37 Inch (9636.11 mm)
+
+Total Processing Time (hh:mm:ss) : 00:00:00

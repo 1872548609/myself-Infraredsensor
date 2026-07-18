@@ -1,0 +1,158 @@
+/**
+ * @file    adc_exti_trigger.c
+ * @author  MegawinTech Application Team
+ * @version V1.0.1
+ * @date    14-Nov-2023
+ * @brief   This file contains all the system functions
+ */
+
+/* Define to prevent recursive inclusion */
+#define _ADC_EXTI_TRIGGER_C_
+
+/* Files include */
+#include <stdio.h>
+#include "platform.h"
+#include "adc_exti_trigger.h"
+
+/**
+  * @addtogroup MG32F003_LibSamples
+  * @{
+  */
+
+/**
+  * @addtogroup ADC
+  * @{
+  */
+
+/**
+  * @addtogroup ADC_EXTI_Trigger
+  * @{
+  */
+
+/* Private typedef ****************************************************************************************************/
+
+/* Private define *****************************************************************************************************/
+
+/* Private macro ******************************************************************************************************/
+
+/* Private variables **************************************************************************************************/
+
+/* Private functions **************************************************************************************************/
+
+/***********************************************************************************************************************
+  * @brief
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void ADC_Configure(void)
+{
+    ADC_InitTypeDef  ADC_InitStruct;
+    GPIO_InitTypeDef GPIO_InitStruct;
+    EXTI_InitTypeDef EXTI_InitStruct;
+
+    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_ADC1, ENABLE);
+
+    ADC_StructInit(&ADC_InitStruct);
+    ADC_InitStruct.ADC_Resolution       = ADC_Resolution_12b;
+    ADC_InitStruct.ADC_Prescaler        = ADC_Prescaler_16;
+    ADC_InitStruct.ADC_Mode             = ADC_Mode_Scan;
+    ADC_InitStruct.ADC_DataAlign        = ADC_DataAlign_Right;
+    ADC_InitStruct.ADC_ExternalTrigConv = ADC_ExtTrig_EXTI_11;
+    ADC_Init(ADC1, &ADC_InitStruct);
+
+    ADC_SampleTimeConfig(ADC1, ADC_SampleTime_240_5);
+
+    ADC_AnyChannelNumCfg(ADC1, 2);
+    ADC_AnyChannelSelect(ADC1, ADC_AnyChannel_0, ADC_Channel_3);
+    ADC_AnyChannelSelect(ADC1, ADC_AnyChannel_1, ADC_Channel_1);
+    ADC_AnyChannelSelect(ADC1, ADC_AnyChannel_2, ADC_Channel_7);
+    ADC_AnyChannelCmd(ADC1, ENABLE);
+
+    RCC_AHBPeriphClockCmd(RCC_AHBPERIPH_GPIOA, ENABLE);
+    RCC_AHBPeriphClockCmd(RCC_AHBPERIPH_GPIOB, ENABLE);
+
+    /* PA12(RV1) PB0(RV2) PA7(RV3) */
+    GPIO_StructInit(&GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_7 | GPIO_Pin_12;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
+    GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    GPIO_StructInit(&GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_0;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_High;
+    GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_AIN;
+    GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    RCC_AHBPeriphClockCmd(RCC_AHBPERIPH_GPIOA, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_SYSCFG, ENABLE);
+
+    /* PA11->EXTI_Line11 */
+    GPIO_StructInit(&GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin  = GPIO_Pin_11;
+    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA, EXTI_PinSource11);
+
+    EXTI_StructInit(&EXTI_InitStruct);
+    EXTI_InitStruct.EXTI_Line    = EXTI_Line11;
+    EXTI_InitStruct.EXTI_Mode    = EXTI_Mode_Interrupt;
+    EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
+    EXTI_InitStruct.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStruct);
+
+    ADC_ExternalTrigConvCmd(ADC1, ENABLE);
+
+    ADC_Cmd(ADC1, ENABLE);
+}
+
+/***********************************************************************************************************************
+  * @brief
+  * @note   none
+  * @param  none
+  * @retval none
+  *********************************************************************************************************************/
+void ADC_EXTI_Trigger_Sample(void)
+{
+    float RVxVoltage[3];
+
+    printf("\r\nTest %s", __FUNCTION__);
+
+    printf("\r\nShort PA11 and PA3, press K4 to trigger adc conversion!");
+
+    ADC_Configure();
+
+    while (1)
+    {
+        if (SET == EXTI_GetFlagStatus(EXTI_Line11))
+        {
+            EXTI_ClearFlag(EXTI_Line11);
+        }
+
+        if (SET == ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC))
+        {
+            ADC_ClearFlag(ADC1, ADC_FLAG_EOC);
+
+            RVxVoltage[0] = (float)ADC_GetChannelConvertedValue(ADC1, ADC_Channel_3) * (float)3.3 / (float)4096.0;
+            RVxVoltage[1] = (float)ADC_GetChannelConvertedValue(ADC1, ADC_Channel_1) * (float)3.3 / (float)4096.0;
+            RVxVoltage[2] = (float)ADC_GetChannelConvertedValue(ADC1, ADC_Channel_7) * (float)3.3 / (float)4096.0;
+
+            printf("\r\nRV1 Voltage = %0.2f  \tRV2 Voltage = %0.2f  \tRV3 Voltage = %0.2f\t", RVxVoltage[0], RVxVoltage[1], RVxVoltage[2]);
+        }
+    }
+}
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+

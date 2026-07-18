@@ -1,0 +1,7 @@
+DRC Rules Export File for PCB: D:\DXP\EV Board_TH146--\TH255A_MG32F003_TSSOP20_QFN20_EV\TH255A_MG32F003_TSSOP20_QFN20_EV_V10\TH255A_MG32F003_TSSOP20_QFN20_EV_V10.PcbDoc
+RuleKind=Clearance|RuleName=12|Scope=Board|Minimum=12.00
+RuleKind=ShortCircuit|RuleName=ShortCircuit|Scope=Board|Allowed=0
+RuleKind=Clearance|RuleName=6|Scope=Board|Minimum=6.00
+RuleKind=Width|RuleName=Width|Scope=Board|Minimum=6.00
+RuleKind=SolderMaskExpansion|RuleName=SolderMaskExpansion|Scope=Board|Minimum=4.00
+RuleKind=Clearance|RuleName=7|Scope=Board|Minimum=7.00

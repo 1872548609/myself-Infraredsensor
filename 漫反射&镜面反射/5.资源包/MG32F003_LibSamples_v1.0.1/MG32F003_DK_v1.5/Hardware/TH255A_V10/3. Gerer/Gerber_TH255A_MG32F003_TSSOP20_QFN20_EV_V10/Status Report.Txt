@@ -1,0 +1,6 @@
+   Printed Document[TH255A_MG32F003_TSSOP20_QFN20_EV_V10.PcbDoc]
+
+Files Generated   : 0
+Documents Printed : 1
+
+Finished Output Generation At ¤W¤È 09:18:07 On 2024/6/21

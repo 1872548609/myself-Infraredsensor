@@ -1,0 +1,3 @@
+Layer Pairs Export File for PCB: D:\DXP\EV Board_TH146--\TH255A_MG32F003_TSSOP20_QFN20_EV\TH255A_MG32F003_TSSOP20_QFN20_EV_V10\TH255A_MG32F003_TSSOP20_QFN20_EV_V10.PcbDoc
+LayersSetName=Top_Bot_Thru_Holes|DrillFile=th255a_mg32f003_tssop20_qfn20_ev_v10-roundholes.txt|LayerPairs=gtl,gbl
+LayersSetName=Top_Bot_Slot_Holes|DrillFile=th255a_mg32f003_tssop20_qfn20_ev_v10-slotholes.txt|LayerPairs=gtl,gbl
