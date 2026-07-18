@@ -1,6 +1,6 @@
-/**
- * @file    mg32f003_it.c
- * @brief   GS358 红外对射接收板中断服务函数
+﻿/**
+ * @file mg32f003_it.c
+ * @brief GS358 红外对射接收板中断服务函数
  */
 
 #define _MG32F003_IT_C_
@@ -30,13 +30,14 @@ void PendSV_Handler(void)
 
 void SysTick_Handler(void)
 {
-    /* 保留原平台阻塞延时计数兼容性。 */
+    /*
+     * SysTick 只保留原平台 1 ms 阻塞延时计数。
+     * 丢光超时判断已经改由 TIM3 独立完成。
+     */
     if (PLATFORM_DelayTick != 0U)
     {
         PLATFORM_DelayTick--;
     }
-
-    GS358_1msIRQHandler();
 }
 
 void EXTI4_15_IRQHandler(void)
@@ -44,11 +45,18 @@ void EXTI4_15_IRQHandler(void)
     if (EXTI_GetITStatus(EXTI_Line7) != RESET)
     {
         /*
-         * 先清挂起位，再执行应用处理，避免处理期间再次进入同一挂起状态。
+         * 先清挂起位，再执行应用处理，
+         * 避免处理期间再次进入同一挂起状态。
          */
         EXTI_ClearITPendingBit(EXTI_Line7);
+
         GS358_ComparatorFallingIRQHandler();
     }
+}
+
+void TIM3_IRQHandler(void)
+{
+    GS358_LightLostTimerIRQHandler();
 }
 
 void ADC_IRQHandler(void)

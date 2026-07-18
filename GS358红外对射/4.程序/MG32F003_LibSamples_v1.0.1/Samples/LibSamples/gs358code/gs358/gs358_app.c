@@ -1,34 +1,43 @@
 ﻿/**
- * @file    gs358_app.c
- * @brief   GS358 红外对射接收板初版应用
+ * @file gs358_app.c
+ * @brief GS358 红外对射接收板初版应用
  */
 
 #include "platform.h"
 #include "gs358_app.h"
+#include "mg32_tim.h"
 
 /* =========================== 引脚定义 =========================== */
 
-#define GS358_COMP_PORT                   GPIOA
-#define GS358_COMP_PIN                    GPIO_Pin_7
+#define GS358_COMP_PORT              GPIOA
+#define GS358_COMP_PIN               GPIO_Pin_7
 
-#define GS358_OUTPUT_NC_PORT              GPIOA
-#define GS358_OUTPUT_NC_PIN               GPIO_Pin_8
+#define GS358_OUTPUT_NC_PORT         GPIOA
+#define GS358_OUTPUT_NC_PIN          GPIO_Pin_8
 
-#define GS358_OUTPUT_NO_PORT              GPIOA
-#define GS358_OUTPUT_NO_PIN               GPIO_Pin_9
+#define GS358_OUTPUT_NO_PORT         GPIOA
+#define GS358_OUTPUT_NO_PIN          GPIO_Pin_9
 
-#define GS358_RED_LED_PORT                GPIOA
-#define GS358_RED_LED_PIN                 GPIO_Pin_10
+#define GS358_RED_LED_PORT           GPIOA
+#define GS358_RED_LED_PIN            GPIO_Pin_10
 
-#define GS358_PWM_PORT                    GPIOA
-#define GS358_PWM_PIN                     GPIO_Pin_11
+#define GS358_PWM_PORT               GPIOA
+#define GS358_PWM_PIN                GPIO_Pin_11
 
 /* ADC 通道在芯片上的物理引脚。 */
-#define GS358_ADC_GPIOA_PINS              (GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_12)
-#define GS358_ADC_GPIOB_PINS              (GPIO_Pin_0 | GPIO_Pin_1)
+#define GS358_ADC_GPIOA_PINS         (GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_12)
+#define GS358_ADC_GPIOB_PINS         (GPIO_Pin_0 | GPIO_Pin_1)
 
 /* ADC 任意通道扫描数量寄存器填写 N-1：5 路对应 4。 */
-#define GS358_ADC_CHANNEL_NUM_FIELD       (GS358_ADC_CHANNEL_COUNT - 1U)
+#define GS358_ADC_CHANNEL_NUM_FIELD  (GS358_ADC_CHANNEL_COUNT - 1U)
+
+/* =========================== 丢光超时定时器 =========================== */
+
+/*
+ * TIM3 只作为内部 16 位计时器使用，不配置任何 TIM3 通道输出，
+ * 因此不会改变 PA7 当前的普通输入/EXTI 配置。
+ */
+#define GS358_TIMEOUT_TIMER          TIM3
 
 /* =========================== 全局状态 =========================== */
 
@@ -40,10 +49,10 @@ volatile uint8_t g_gs358_light_present = 0U;
 /* =========================== 内部状态 =========================== */
 
 static volatile uint8_t s_edge_confirm_count = 0U;
-static volatile uint16_t s_no_edge_time_ms = GS358_LIGHT_LOST_TIMEOUT_MS;
 static volatile uint8_t s_adc_eoc_count = 0U;
 
-static volatile GS358_LedMode s_led_mode = GS358_LED_BLOCKED_ON;
+static volatile GS358_LedMode s_led_mode =
+    GS358_LED_BLOCKED_ON;
 
 /* =========================== 内部函数声明 =========================== */
 
@@ -52,8 +61,12 @@ static void GS358_GPIOInit(void);
 static void GS358_EXTIInit(void);
 static void GS358_ADCInit(void);
 
+static void GS358_LightLostTimerInit(void);
+static void GS358_LightLostTimerRestart(void);
+
 static void GS358_SetLightState(uint8_t light_present);
 static void GS358_ApplyOutputs(void);
+
 static void GS358_WriteLogicalOutput(GPIO_TypeDef *port,
                                      uint16_t pin,
                                      uint8_t logical_active,
@@ -69,14 +82,23 @@ void GS358_AppInit(void)
      */
     GS358_SysTickInit();
     GS358_GPIOInit();
+
+    /*
+     * 先初始化 TIM3，再开启 PA7 外部中断。
+     * 避免 PA7 提前产生下降沿时 TIM3 尚未配置完成。
+     */
+    GS358_LightLostTimerInit();
+
     GS358_EXTIInit();
     GS358_ADCInit();
 
     s_edge_confirm_count = 0U;
-    s_no_edge_time_ms = GS358_LIGHT_LOST_TIMEOUT_MS;
     g_gs358_light_present = 0U;
 
-    /* 上电默认按“遮光/无光”状态输出。 */
+    /*
+     * 上电默认按“遮光/无光”状态输出。
+     * TIM3 此时不启动，收到第一个有效下降沿后才开始超时计时。
+     */
     GS358_ApplyOutputs();
 }
 
@@ -99,7 +121,8 @@ static void GS358_GPIOInit(void)
     GPIO_InitTypeDef gpio_init;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPERIPH_GPIOA |
-                          RCC_AHBPERIPH_GPIOB, ENABLE);
+                          RCC_AHBPERIPH_GPIOB,
+                          ENABLE);
 
     /*
      * 先写入安全初值，再切换成输出模式：
@@ -112,10 +135,11 @@ static void GS358_GPIOInit(void)
                    GS358_PWM_PIN);
 
     GPIO_StructInit(&gpio_init);
-    gpio_init.GPIO_Pin = GS358_OUTPUT_NC_PIN |
-                         GS358_OUTPUT_NO_PIN |
-                         GS358_RED_LED_PIN |
-                         GS358_PWM_PIN;
+    gpio_init.GPIO_Pin =
+        GS358_OUTPUT_NC_PIN |
+        GS358_OUTPUT_NO_PIN |
+        GS358_RED_LED_PIN |
+        GS358_PWM_PIN;
     gpio_init.GPIO_Speed = GPIO_Speed_High;
     gpio_init.GPIO_Mode = GPIO_Mode_Out_PP;
     GPIO_Init(GPIOA, &gpio_init);
@@ -154,11 +178,13 @@ static void GS358_WriteLogicalOutput(GPIO_TypeDef *port,
 
     if (active_high != 0U)
     {
-        output_level = (logical_active != 0U) ? Bit_SET : Bit_RESET;
+        output_level =
+            (logical_active != 0U) ? Bit_SET : Bit_RESET;
     }
     else
     {
-        output_level = (logical_active != 0U) ? Bit_RESET : Bit_SET;
+        output_level =
+            (logical_active != 0U) ? Bit_RESET : Bit_SET;
     }
 
     GPIO_WriteBit(port, pin, output_level);
@@ -171,14 +197,16 @@ static void GS358_ApplyOutputs(void)
     uint8_t nc_active;
     uint8_t led_active;
 
-    blocked = (g_gs358_light_present == 0U) ? 1U : 0U;
+    blocked =
+        (g_gs358_light_present == 0U) ? 1U : 0U;
 
     /*
      * 输出语义：
-     *   遮光/无光：NO 动作，NC 释放
-     *   有光：     NO 释放，NC 动作
+     * 遮光/无光：NO 动作，NC 释放
+     * 有光：     NO 释放，NC 动作
      *
-     * 若最终整机定义相反，只需要交换下面两行，或调整 *_ACTIVE_HIGH 宏。
+     * 若最终整机定义相反，只需要交换下面两行，
+     * 或调整 *_ACTIVE_HIGH 宏。
      */
     no_active = blocked;
     nc_active = (blocked == 0U) ? 1U : 0U;
@@ -212,7 +240,8 @@ static void GS358_SetLightState(uint8_t light_present)
 {
     uint8_t normalized;
 
-    normalized = (light_present != 0U) ? 1U : 0U;
+    normalized =
+        (light_present != 0U) ? 1U : 0U;
 
     if (g_gs358_light_present != normalized)
     {
@@ -236,16 +265,138 @@ GS358_LedMode GS358_GetLedMode(void)
     return s_led_mode;
 }
 
+/* =========================== TIM3 丢光超时检测 =========================== */
+
+static void GS358_LightLostTimerInit(void)
+{
+    TIM_TimeBaseInitTypeDef timer_init;
+    uint32_t timer_clock_hz;
+    uint32_t prescaler_div;
+
+    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_TIM3, ENABLE);
+
+    TIM_DeInit(GS358_TIMEOUT_TIMER);
+
+    /*
+     * 读取 TIM3 实际输入时钟，并分频到 1 MHz。
+     *
+     * 例如 TIM3 时钟为 48 MHz：
+     * prescaler_div = 48
+     * PSC = 47
+     * 计数频率 = 48 MHz / 48 = 1 MHz
+     */
+    timer_clock_hz =
+        TIM_GetTIMxClock(GS358_TIMEOUT_TIMER);
+
+    prescaler_div =
+        timer_clock_hz / GS358_TIMEOUT_TIMER_TICK_HZ;
+
+    /*
+     * TIM3 为 16 位定时器，ARR 最大为 65535，
+     * 所以 1 MHz 计数时最大单次超时为 65536 us。
+     */
+    if ((prescaler_div == 0U) ||
+        ((timer_clock_hz % GS358_TIMEOUT_TIMER_TICK_HZ) != 0U) ||
+        (GS358_LIGHT_LOST_TIMEOUT_US == 0U) ||
+        (GS358_LIGHT_LOST_TIMEOUT_US > 65536UL))
+    {
+        while (1)
+        {
+            /* TIM3 时钟或超时参数非法。 */
+        }
+    }
+
+    TIM_TimeBaseStructInit(&timer_init);
+
+    timer_init.TIM_Prescaler =
+        (uint16_t)(prescaler_div - 1U);
+
+    timer_init.TIM_CounterMode =
+        TIM_CounterMode_Up;
+
+    /*
+     * 定时器从 0 计数到 ARR 后产生更新事件。
+     *
+     * 1500 us：
+     * ARR = 1500 - 1 = 1499
+     */
+    timer_init.TIM_Period =
+        (uint32_t)(GS358_LIGHT_LOST_TIMEOUT_US - 1U);
+
+    timer_init.TIM_ClockDivision =
+        TIM_CKD_Div1;
+
+    timer_init.TIM_RepetitionCounter = 0U;
+
+    TIM_TimeBaseInit(GS358_TIMEOUT_TIMER,
+                     &timer_init);
+
+    /*
+     * 单脉冲模式：
+     * 达到超时时间产生更新事件后，硬件自动清除 CEN 并停止。
+     */
+    TIM_SelectOnePulseMode(GS358_TIMEOUT_TIMER,
+                           TIM_OPMode_Single);
+
+    /*
+     * 初始化函数会产生一次更新事件以装载 PSC。
+     * 在开启更新中断前，先停止定时器并清除这个初始化标志。
+     */
+    TIM_Cmd(GS358_TIMEOUT_TIMER, DISABLE);
+
+    TIM_ClearITPendingBit(GS358_TIMEOUT_TIMER,
+                          TIM_IT_Update);
+
+    NVIC_ClearPendingIRQ(TIM3_IRQn);
+
+    TIM_ITConfig(GS358_TIMEOUT_TIMER,
+                 TIM_IT_Update,
+                 ENABLE);
+
+    /*
+     * 中断优先级：
+     * PA7 EXTI = 0，最高，负责及时重启超时计时器；
+     * TIM3     = 1，负责精确判定丢光；
+     * ADC      = 2；
+     * SysTick  = 3。
+     */
+    NVIC_SetPriority(TIM3_IRQn, 1U);
+    NVIC_EnableIRQ(TIM3_IRQn);
+}
+
+static void GS358_LightLostTimerRestart(void)
+{
+    /*
+     * 每个比较器下降沿都将超时计时重新从 0 开始。
+     *
+     * 先停止并清除 TIM3/NVIC 的旧超时状态，
+     * 防止刚到达边界的旧更新事件在退出 EXTI 后误进入 TIM3 ISR。
+     */
+    TIM_Cmd(GS358_TIMEOUT_TIMER, DISABLE);
+
+    TIM_ClearITPendingBit(GS358_TIMEOUT_TIMER,
+                          TIM_IT_Update);
+
+    NVIC_ClearPendingIRQ(TIM3_IRQn);
+
+    TIM_SetCounter(GS358_TIMEOUT_TIMER, 0U);
+
+    /* 重新启动 1.5 ms 单次超时计数。 */
+    TIM_Cmd(GS358_TIMEOUT_TIMER, ENABLE);
+}
+
 /* =========================== PA7 外部中断 =========================== */
 
 static void GS358_EXTIInit(void)
 {
     EXTI_InitTypeDef exti_init;
 
-    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_SYSCFG, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_SYSCFG,
+                           ENABLE);
 
     /* 将 EXTI7 映射到 PA7。 */
-    SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA, EXTI_PinSource7);
+    SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,
+                          EXTI_PinSource7);
 
     EXTI_ClearITPendingBit(EXTI_Line7);
 
@@ -265,8 +416,11 @@ void GS358_ComparatorFallingIRQHandler(void)
 {
     g_gs358_compare_edge_total++;
 
-    /* 每个有效下降沿都重新开始“丢光”计时。 */
-    s_no_edge_time_ms = 0U;
+    /*
+     * 每次收到光强比较器下降沿，都重新开始计算
+     * GS358_LIGHT_LOST_TIMEOUT_US。
+     */
+    GS358_LightLostTimerRestart();
 
     if (s_edge_confirm_count < GS358_EDGE_CONFIRM_COUNT)
     {
@@ -283,7 +437,34 @@ void GS358_ComparatorFallingIRQHandler(void)
     }
 }
 
-/* =========================== 1 ms 时间基准 =========================== */
+void GS358_LightLostTimerIRQHandler(void)
+{
+    if (TIM_GetITStatus(GS358_TIMEOUT_TIMER,
+                        TIM_IT_Update) != RESET)
+    {
+        /*
+         * 先清除更新中断标志，再处理状态。
+         */
+        TIM_ClearITPendingBit(GS358_TIMEOUT_TIMER,
+                              TIM_IT_Update);
+
+        /*
+         * 单脉冲模式正常情况下已经自动停止；
+         * 再次显式停止，确保定时器状态明确。
+         */
+        TIM_Cmd(GS358_TIMEOUT_TIMER, DISABLE);
+
+        /*
+         * 从最后一次下降沿开始，已经连续 1.5 ms 没有新下降沿。
+         * 清除有光确认次数，下一次必须重新累计指定次数。
+         */
+        s_edge_confirm_count = 0U;
+
+        GS358_SetLightState(0U);
+    }
+}
+
+/* =========================== 1 ms SysTick =========================== */
 
 static void GS358_SysTickInit(void)
 {
@@ -291,6 +472,10 @@ static void GS358_SysTickInit(void)
 
     RCC_GetClocksFreq(&clocks);
 
+    /*
+     * SysTick 保持原来的 1 ms，只用于 PLATFORM_DelayTick。
+     * 丢光超时判断已经完全交给 TIM3。
+     */
     if (SysTick_Config(clocks.HCLK_Frequency / 1000U) != 0U)
     {
         while (1)
@@ -299,29 +484,7 @@ static void GS358_SysTickInit(void)
         }
     }
 
-    /*
-     * Cortex-M0 仅有 2 位优先级。
-     * EXTI=0，ADC=1，SysTick=2。
-     */
-    NVIC_SetPriority(SysTick_IRQn, 2U);
-}
-
-void GS358_1msIRQHandler(void)
-{
-    if (s_no_edge_time_ms < GS358_LIGHT_LOST_TIMEOUT_MS)
-    {
-        s_no_edge_time_ms++;
-    }
-
-    if (s_no_edge_time_ms >= GS358_LIGHT_LOST_TIMEOUT_MS)
-    {
-        /*
-         * 超时没有下降沿，认为已遮光/无光。
-         * 清除确认计数，下一次必须重新累计指定次数。
-         */
-        s_edge_confirm_count = 0U;
-        GS358_SetLightState(0U);
-    }
+    NVIC_SetPriority(SysTick_IRQn, 3U);
 }
 
 /* =========================== ADC 五通道扫描 =========================== */
@@ -331,11 +494,12 @@ static void GS358_ADCInit(void)
     ADC_InitTypeDef adc_init;
     volatile uint32_t startup_delay;
 
-    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_ADC1, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_ADC1,
+                           ENABLE);
 
     ADC_DeInit(ADC1);
-    ADC_StructInit(&adc_init);
 
+    ADC_StructInit(&adc_init);
     adc_init.ADC_Resolution = ADC_Resolution_12b;
     adc_init.ADC_Prescaler = ADC_Prescaler_16;
     adc_init.ADC_Mode = ADC_Mode_Scan;
@@ -344,37 +508,69 @@ static void GS358_ADCInit(void)
      * 软件启动时外部触发源字段不会实际触发转换，
      * 这里保留库要求的合法默认值。
      */
-    adc_init.ADC_ExternalTrigConv = ADC_ExtTrig_T1_CC1;
-    adc_init.ADC_DataAlign = ADC_DataAlign_Right;
+    adc_init.ADC_ExternalTrigConv =
+        ADC_ExtTrig_T1_CC1;
+
+    adc_init.ADC_DataAlign =
+        ADC_DataAlign_Right;
+
     ADC_Init(ADC1, &adc_init);
 
     /*
      * 使用最长采样时间，提高对板上分压、电流检测和偏置节点的兼容性。
      * 后续确认源阻抗较低后，可以缩短以提高帧率。
      */
-    ADC_SampleTimeConfig(ADC1, ADC_SampleTime_240_5);
+    ADC_SampleTimeConfig(ADC1,
+                         ADC_SampleTime_240_5);
 
     /* 固定扫描顺序：0 -> 1 -> 2 -> 3 -> 5。 */
-    ADC_AnyChannelSelect(ADC1, ADC_AnyChannel_0, ADC_Channel_0);
-    ADC_AnyChannelSelect(ADC1, ADC_AnyChannel_1, ADC_Channel_1);
-    ADC_AnyChannelSelect(ADC1, ADC_AnyChannel_2, ADC_Channel_2);
-    ADC_AnyChannelSelect(ADC1, ADC_AnyChannel_3, ADC_Channel_3);
-    ADC_AnyChannelSelect(ADC1, ADC_AnyChannel_4, ADC_Channel_5);
-    ADC_AnyChannelNumCfg(ADC1, GS358_ADC_CHANNEL_NUM_FIELD);
+    ADC_AnyChannelSelect(ADC1,
+                         ADC_AnyChannel_0,
+                         ADC_Channel_0);
+
+    ADC_AnyChannelSelect(ADC1,
+                         ADC_AnyChannel_1,
+                         ADC_Channel_1);
+
+    ADC_AnyChannelSelect(ADC1,
+                         ADC_AnyChannel_2,
+                         ADC_Channel_2);
+
+    ADC_AnyChannelSelect(ADC1,
+                         ADC_AnyChannel_3,
+                         ADC_Channel_3);
+
+    ADC_AnyChannelSelect(ADC1,
+                         ADC_AnyChannel_4,
+                         ADC_Channel_5);
+
+    ADC_AnyChannelNumCfg(ADC1,
+                         GS358_ADC_CHANNEL_NUM_FIELD);
+
     ADC_AnyChannelCmd(ADC1, ENABLE);
 
     s_adc_eoc_count = 0U;
-    ADC_ClearITPendingBit(ADC1, ADC_IT_EOC);
-    ADC_ITConfig(ADC1, ADC_IT_EOC, ENABLE);
+
+    ADC_ClearITPendingBit(ADC1,
+                          ADC_IT_EOC);
+
+    ADC_ITConfig(ADC1,
+                 ADC_IT_EOC,
+                 ENABLE);
 
     NVIC_ClearPendingIRQ(ADC1_IRQn);
-    NVIC_SetPriority(ADC1_IRQn, 1U);
+    NVIC_SetPriority(ADC1_IRQn, 2U);
     NVIC_EnableIRQ(ADC1_IRQn);
 
     ADC_Cmd(ADC1, ENABLE);
 
-    /* 手册要求 ADC 上电后等待约 200 ns；这里留出更宽裕的软件延时。 */
-    for (startup_delay = 0U; startup_delay < 64U; startup_delay++)
+    /*
+     * 手册要求 ADC 上电后等待约 200 ns；
+     * 这里留出更宽裕的软件延时。
+     */
+    for (startup_delay = 0U;
+         startup_delay < 64U;
+         startup_delay++)
     {
         __NOP();
     }
@@ -387,7 +583,8 @@ void GS358_ADC_EOCIRQHandler(void)
 {
     if ((ADC1->ADSTA & ADC_ADSTA_ADIF_Msk) != 0U)
     {
-        ADC_ClearITPendingBit(ADC1, ADC_IT_EOC);
+        ADC_ClearITPendingBit(ADC1,
+                              ADC_IT_EOC);
 
         if (s_adc_eoc_count < GS358_ADC_CHANNEL_COUNT)
         {
@@ -403,15 +600,24 @@ void GS358_ADC_EOCIRQHandler(void)
             s_adc_eoc_count = 0U;
 
             g_gs358_adc_values[0] =
-                ADC_GetChannelConvertedValue(ADC1, ADC_Channel_0);
+                ADC_GetChannelConvertedValue(ADC1,
+                                             ADC_Channel_0);
+
             g_gs358_adc_values[1] =
-                ADC_GetChannelConvertedValue(ADC1, ADC_Channel_1);
+                ADC_GetChannelConvertedValue(ADC1,
+                                             ADC_Channel_1);
+
             g_gs358_adc_values[2] =
-                ADC_GetChannelConvertedValue(ADC1, ADC_Channel_2);
+                ADC_GetChannelConvertedValue(ADC1,
+                                             ADC_Channel_2);
+
             g_gs358_adc_values[3] =
-                ADC_GetChannelConvertedValue(ADC1, ADC_Channel_3);
+                ADC_GetChannelConvertedValue(ADC1,
+                                             ADC_Channel_3);
+
             g_gs358_adc_values[4] =
-                ADC_GetChannelConvertedValue(ADC1, ADC_Channel_5);
+                ADC_GetChannelConvertedValue(ADC1,
+                                             ADC_Channel_5);
 
             g_gs358_adc_frame_count++;
 
@@ -430,11 +636,11 @@ void GS358_ADC_ScanCompleteIRQHook(void)
      * USER CODE BEGIN ADC_SCAN_COMPLETE_IRQ
      *
      * 五路 ADC 已按以下顺序保存：
-     *   g_gs358_adc_values[0] = ADC_IN0
-     *   g_gs358_adc_values[1] = ADC_IN1
-     *   g_gs358_adc_values[2] = ADC_IN2
-     *   g_gs358_adc_values[3] = ADC_IN3
-     *   g_gs358_adc_values[4] = ADC_IN5
+     * g_gs358_adc_values[0] = ADC_IN0
+     * g_gs358_adc_values[1] = ADC_IN1
+     * g_gs358_adc_values[2] = ADC_IN2
+     * g_gs358_adc_values[3] = ADC_IN3
+     * g_gs358_adc_values[4] = ADC_IN5
      *
      * 注意：本函数在 ADC 中断内运行，不要加入长延时、printf、
      * Flash 擦写或复杂排序。推荐只复制数据或置位处理标志。
@@ -446,7 +652,7 @@ void GS358_ADC_ScanCompleteIRQHook(void)
 /* =========================== PA11 PWM 预留 =========================== */
 
 void GS358_PWM_ConfigureReserved(uint32_t frequency_hz,
-                                 uint16_t duty_permille)
+                                uint16_t duty_permille)
 {
     (void)frequency_hz;
     (void)duty_permille;
@@ -456,11 +662,11 @@ void GS358_PWM_ConfigureReserved(uint32_t frequency_hz,
      *
      * 当前硬件 PA11 可复用为 TIM14_CH1（AF3）。
      * 后续需要发射 PWM 时，可在此处：
-     *   1. 关闭 PA11 普通 GPIO 输出；
-     *   2. GPIO_PinAFConfig(GPIOA, GPIO_PinSource11, GPIO_AF_3)；
-     *   3. PA11 配置为 GPIO_Mode_AF_PP；
-     *   4. 初始化 TIM14 周期、比较值及输出极性；
-     *   5. 启动 TIM14。
+     * 1. 关闭 PA11 普通 GPIO 输出；
+     * 2. GPIO_PinAFConfig(GPIOA, GPIO_PinSource11, GPIO_AF_3)；
+     * 3. PA11 配置为 GPIO_Mode_AF_PP；
+     * 4. 初始化 TIM14 周期、比较值及输出极性；
+     * 5. 启动 TIM14。
      *
      * USER CODE END PWM_RESERVED
      */
