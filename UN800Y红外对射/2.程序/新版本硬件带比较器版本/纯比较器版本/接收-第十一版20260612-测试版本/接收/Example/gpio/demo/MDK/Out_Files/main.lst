@@ -1,0 +1,240 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              07/23/2026 16:57:35 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Out_Files\main.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..
+                    -\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\main.lst) O
+                    -BJECT(.\Out_Files\main.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * 纯比较器接收版本：增加看门狗与运行健康握手
+   3           *
+   4           * 关键原则：
+   5           * 1. 不在定时器中断里直接喂狗。
+   6           * 2. GTIMER0 中断只产生“心跳”。
+   7           * 3. 主循环确认心跳后才喂狗，同时监测主循环和定时器中断是否正常。
+   8           ***********************************************************************/
+   9          #include "system_um800y.h"
+  10          #include "app.h"
+  11          #include "gtimer.h"
+  12          #include "pwm.h"
+  13          #include "common.h"
+  14          #include "config.h"
+  15          #include "gpio.h"
+  16          #include "adc.h"
+  17          #include "wdt.h"
+  18          
+  19          #define APP_WDT_TIMEOUT    WDT_ARR_1024_MS
+  20          
+  21          volatile uint16_t adc_data  = 0;
+  22          volatile uint16_t adc_data1 = 0;
+  23          volatile uint16_t adc_set   = 200;
+  24          
+  25          /* 在中断和主程序之间共享的变量必须声明为 volatile */
+  26          volatile uint16_t status   = 0;
+  27          volatile uint16_t adcount  = 0;
+  28          volatile uint16_t adcount1 = 0;
+  29          
+  30          /*中断产生心跳，主循环消费心跳后才能喂狗 */
+  31          volatile uint8_t g_wdt_run_heartbeat = 0;
+  32          
+  33          /* 便于调试：1 表示上一次复位由 WDT 溢出引起 */
+  34          volatile uint8_t g_wdt_reset_detected = 0;
+  35          
+  36          void gtimer0_UECallBack(void);
+  37          void gtimer1_UECallBack(void);
+  38          void GPIO_Init(void);
+  39          void ADC_Init(void);
+  40          void gpio_int_pro(void);
+  41          
+  42          void main(void)
+  43          {
+  44   1          system_init();
+  45   1      
+  46   1          /*
+  47   1           * WDT 复位后 WDOF 会置 1。
+  48   1           * 先保存复位原因，再清标志，便于在 Keil Watch 中观察。
+  49   1           */
+  50   1          g_wdt_reset_detected = WDOF;
+  51   1          WDOF = 0;
+  52   1      
+  53   1          /*
+C51 COMPILER V9.57.0.0   MAIN                                                              07/23/2026 16:57:35 PAGE 2   
+
+  54   1           * 尽早启动 WDT，使后续外设初始化异常也能够恢复。
+  55   1           * wdt_load()/wdt_feed() 对 RSTSTAT 的读写会同时清除 WDT 计数。
+  56   1           */
+  57   1          wdt_init();
+  58   1          wdt_load(APP_WDT_TIMEOUT);
+  59   1      
+  60   1          GPIO_Init();
+  61   1          wdt_feed(APP_WDT_TIMEOUT);
+  62   1      
+  63   1          uart_init();
+  64   1          wdt_feed(APP_WDT_TIMEOUT);
+  65   1      
+  66   1          gtimer0_count_init(2200, 24 - 1);
+  67   1          gtimer0_irq_init(GTIMER_IRQ_ENABLE,
+  68   1                           GTIMER0_UIE_IRQ,
+  69   1                           gtimer0_UECallBack);
+  70   1          gtimer0_start();
+  71   1          wdt_feed(APP_WDT_TIMEOUT);
+  72   1      
+  73   1          adc_clk_config(ADC_CLKSOURCE_SYSCLK,
+  74   1                         ADC_VREFSOURCE_AVDD33,
+  75   1                         4,
+  76   1                         ADC_ENABLE);
+  77   1          adc_sample_clk_config(ADC_SAMPCLK_4);
+  78   1          adc_io_config(ADC_CHANNEL_1 | ADC_CHANNEL_2);
+  79   1          adc_scan_mode_config(ADC_MODE_SINGLE);
+  80   1          adc_power_config(ADC_ENABLE);
+  81   1          adc_controller_config(ADC_ENABLE);
+  82   1          wdt_feed(APP_WDT_TIMEOUT);
+  83   1      
+  84   1          while (1)
+  85   1          {
+  86   2              /*
+  87   2               * 只有以下两个条件同时成立才会持续喂狗：
+  88   2               * 1. 主循环仍在运行；
+  89   2               * 2. GTIMER0 周期中断仍在运行。
+  90   2               *
+  91   2               * 如果主循环卡死、GPIO 中断风暴长期占用 CPU、
+  92   2               * GTIMER0 停止或程序跑飞，均不会继续喂狗。
+  93   2               */
+  94   2              if (g_wdt_run_heartbeat != 0)
+  95   2              {
+  96   3                  g_wdt_run_heartbeat = 0;
+  97   3                  wdt_feed(APP_WDT_TIMEOUT);
+  98   3              }
+  99   2          }
+ 100   1      }
+ 101          
+ 102          void gtimer0_UECallBack(void)
+ 103          {
+ 104   1          /* 只产生健康心跳，不在中断内直接喂狗 */
+ 105   1          g_wdt_run_heartbeat = 1;
+ 106   1      
+ 107   1          adcount = 0;
+ 108   1      
+ 109   1          gpio_io_set(P1_2, GPIO_LOW);
+ 110   1          gpio_io_set(P1_3, GPIO_LOW);
+ 111   1          gpio_io_set(P1_0, GPIO_HIGH);     /* 常闭 */
+ 112   1      }
+ 113          
+ 114          void GPIO_IRQHandler(void) interrupt 0
+ 115          {
+C51 COMPILER V9.57.0.0   MAIN                                                              07/23/2026 16:57:35 PAGE 3   
+
+ 116   1          if (gpio_irq_get(P1_4))
+ 117   1          {
+ 118   2              static uint8_t ir_wdt_feed_count = 0;
+ 119   2              /*
+ 120   2               * 先清中断标志。
+ 121   2               * 若 ISR 执行期间又出现新边沿，硬件可重新置位，
+ 122   2               * 避免在函数末尾把新到的边沿一起清掉。
+ 123   2               */
+ 124   2              gpio_irq_clr(P1_4);
+ 125   2      
+ 126   2              REG_GTIM0_CR0 &= ~(1 << 0);
+ 127   2      
+ 128   2              /*
+ 129   2               * 连续有信号时，GTIMER0 会不断清零，
+ 130   2               * 所以必须由 GPIO 中断提供运行心跳。
+ 131   2               */
+ 132   2              ir_wdt_feed_count++;
+ 133   2              if(ir_wdt_feed_count==100)
+ 134   2              {
+ 135   3                  ir_wdt_feed_count = 0;
+ 136   3                  
+ 137   3                  g_wdt_run_heartbeat = 1;
+ 138   3              }
+ 139   2              
+ 140   2              /*
+ 141   2               * 当前纯比较器版本等价于原来的 if(1)，
+ 142   2               * 即收到 P1.4 有效边沿就直接计数。
+ 143   2               */
+ 144   2              REG_GTIM0_CNT0 = 0;
+ 145   2              REG_GTIM0_CNT1 = 0;
+ 146   2      
+ 147   2              adcount++;
+ 148   2      
+ 149   2              /*
+ 150   2               * 使用 >= 而不是 ==，即使计数值因异常超过 2，
+ 151   2               * 也可以回到正常状态，不会永久失去输出切换。
+ 152   2               */
+ 153   2              if (adcount >= 2)
+ 154   2              {
+ 155   3                  gpio_io_set(P1_2, GPIO_HIGH);
+ 156   3                  gpio_io_set(P1_3, GPIO_HIGH);
+ 157   3                  gpio_io_set(P1_0, GPIO_LOW);
+ 158   3      
+ 159   3                  adcount = 0;
+ 160   3              }
+ 161   2      
+ 162   2              REG_GTIM0_CR0 |= (1 << 0);
+ 163   2          }
+ 164   1      }
+ 165          
+ 166          void gpio_UECallBack(void)
+ 167          {
+ 168   1          /* 不用二次回调 */
+ 169   1      }
+ 170          
+ 171          void GPIO_Init(void)
+ 172          {
+ 173   1          REG_P10_CFG = 0x00;
+ 174   1          gpio_init(P1_0);
+ 175   1          gpio_dir_set(P1_0, GPIO_DIR_OUT);
+ 176   1          gpio_dr_set(P1_0, GPIO_SR_HIGH);
+ 177   1          gpio_io_set(P1_0, GPIO_HIGH);
+C51 COMPILER V9.57.0.0   MAIN                                                              07/23/2026 16:57:35 PAGE 4   
+
+ 178   1      
+ 179   1          REG_P12_CFG = 0x00;
+ 180   1          gpio_init(P1_2);
+ 181   1          gpio_dir_set(P1_2, GPIO_DIR_OUT);
+ 182   1          gpio_dr_set(P1_2, GPIO_SR_HIGH);
+ 183   1          gpio_io_set(P1_2, GPIO_HIGH);
+ 184   1      
+ 185   1          REG_P13_CFG = 0x00;
+ 186   1          gpio_init(P1_3);
+ 187   1          gpio_dir_set(P1_3, GPIO_DIR_OUT);
+ 188   1          gpio_dr_set(P1_3, GPIO_SR_HIGH);
+ 189   1          gpio_io_set(P1_3, GPIO_LOW);
+ 190   1      
+ 191   1          gpio_init(P1_4);
+ 192   1          gpio_dir_set(P1_4, GPIO_DIR_IN);
+ 193   1          gpio_dr_set(P1_4, GPIO_SR_HIGH);
+ 194   1          gpio_in_enable(P1_4, IN_ENABLE);
+ 195   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
+ 196   1      
+ 197   1          P1AH &= ~(0x02);
+ 198   1          P1AH |=  (0x01);
+ 199   1          REG_P14_CFG = 0x20;
+ 200   1      
+ 201   1          REG_P15_CFG = 0x00;
+ 202   1          gpio_init(P1_5);
+ 203   1          gpio_dir_set(P1_5, GPIO_DIR_IN);
+ 204   1          gpio_in_enable(P1_5, IN_ENABLE);
+ 205   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    491    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     15    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

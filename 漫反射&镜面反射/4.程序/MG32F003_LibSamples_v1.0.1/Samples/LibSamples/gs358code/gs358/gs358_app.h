@@ -7,7 +7,7 @@
  * PA8  - 常闭判断输出 IO_OUTPUT_NC
  * PA9  - 常开判断输出 IO_OUTPUT_NO
  * PA10 - 红色指示灯，默认高电平点亮
- * PA11 - PWM_OUT，当前仅预留并保持低电平
+ * PA11 - TIM14_CH1 发射 PWM 输出
  *
  * ADC 扫描顺序：
  * result[0] = ADC_IN0 / ADC1_VIN0 / PB1
@@ -54,6 +54,44 @@ extern "C" {
  * 设置为 1 MHz 后，每个计数对应 1 us。
  */
 #define GS358_TIMEOUT_TIMER_TICK_HZ          1000000UL
+
+/**
+ * 是否启用 PA11 发射 PWM。
+ *
+ * 1：上电初始化后自动输出 PWM
+ * 0：PA11 保持低电平，不启动 TIM14
+ */
+#define GS358_PWM_ENABLE                     1U
+
+/**
+ * TIM14 的内部计数频率。
+ *
+ * 默认 1 MHz，因此每个计数为 1 us。
+ */
+#define GS358_PWM_TIMER_TICK_HZ              1000000UL
+
+/**
+ * 发射 PWM 周期，单位 us。
+ *
+ * 默认 1000 us，即输出频率为 1 kHz。
+ */
+#define GS358_PWM_PERIOD_US                  1000UL
+
+/**
+ * 发射 PWM 占空比，单位为千分比。
+ *
+ * 50 / 1000 = 0.05 = 5%，默认高电平脉宽为 50 us。
+ * 可设置范围：0～1000。
+ */
+#define GS358_PWM_DUTY_PERMILLE              50UL
+
+/**
+ * PWM 有效电平。
+ *
+ * 1：高电平为有效脉冲
+ * 0：低电平为有效脉冲
+ */
+#define GS358_PWM_ACTIVE_HIGH                1U
 
 /* 原理图中 PA8、PA9 经电阻驱动 NPN，默认高电平表示通道动作。 */
 #define GS358_NO_OUTPUT_ACTIVE_HIGH          1U
@@ -116,13 +154,12 @@ void GS358_ADC_EOCIRQHandler(void);
 void GS358_ADC_ScanCompleteIRQHook(void);
 
 /**
- * PA11 PWM 预留接口。
+ * 立即启动或停止 PA11 的 TIM14_CH1 PWM 输出。
  *
- * 当前版本不会启用定时器，只把 PA11 配置为推挽输出并保持低电平。
- * 后续需要发射信号时，可在本函数 USER CODE 区域配置 TIM14_CH1。
+ * 初始化参数由 GS358_PWM_* 宏决定。
  */
-void GS358_PWM_ConfigureReserved(uint32_t frequency_hz,
-                                uint16_t duty_permille);
+void GS358_PWM_Start(void);
+void GS358_PWM_Stop(void);
 
 #ifdef __cplusplus
 }

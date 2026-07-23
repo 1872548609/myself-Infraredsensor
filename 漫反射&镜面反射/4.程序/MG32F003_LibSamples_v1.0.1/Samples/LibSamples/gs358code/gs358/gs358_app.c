@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file gs358_app.c
  * @brief GS358 红外对射接收板初版应用
  */
@@ -39,6 +39,9 @@
  */
 #define GS358_TIMEOUT_TIMER          TIM3
 
+/* PA11 使用 TIM14_CH1（AF3）输出发射 PWM。 */
+#define GS358_PWM_TIMER              TIM14
+
 /* =========================== 全局状态 =========================== */
 
 volatile uint16_t g_gs358_adc_values[GS358_ADC_CHANNEL_COUNT] = {0U};
@@ -63,6 +66,7 @@ static void GS358_ADCInit(void);
 
 static void GS358_LightLostTimerInit(void);
 static void GS358_LightLostTimerRestart(void);
+static void GS358_PWMInit(void);
 
 static void GS358_SetLightState(uint8_t light_present);
 static void GS358_ApplyOutputs(void);
@@ -80,8 +84,8 @@ void GS358_AppInit(void)
      * 不再调用旧示例中的 PLATFORM_Init()：
      * 旧函数会按开发板 LED 逻辑重新配置 PA10，不符合本接收板原理图。
      */
-    GS358_SysTickInit();    //== 配置1ms平台中断
-    GS358_GPIOInit();       //== 配置全部io初始化
+    GS358_SysTickInit();
+    GS358_GPIOInit();
 
     /*
      * 先初始化 TIM3，再开启 PA7 外部中断。
@@ -100,6 +104,11 @@ void GS358_AppInit(void)
      * TIM3 此时不启动，收到第一个有效下降沿后才开始超时计时。
      */
     GS358_ApplyOutputs();
+
+    /*
+     * 接收端、EXTI 和超时定时器全部准备完成后再启动发射 PWM。
+     */
+    GS358_PWMInit();
 }
 
 void GS358_AppProcess(void)
@@ -125,8 +134,8 @@ static void GS358_GPIOInit(void)
                           ENABLE);
 
     /*
-     * 先写入安全初值，再切换成输出模式：
-     * PA8/PA9/PA10/PA11 上电均先保持低电平。
+     * 先写入安全初值，再切换成输出模式。
+     * PA11 在 TIM14 初始化前也先保持低电平。
      */
     GPIO_ResetBits(GPIOA,
                    GS358_OUTPUT_NC_PIN |
@@ -138,8 +147,7 @@ static void GS358_GPIOInit(void)
     gpio_init.GPIO_Pin =
         GS358_OUTPUT_NC_PIN |
         GS358_OUTPUT_NO_PIN |
-        GS358_RED_LED_PIN |
-        GS358_PWM_PIN;
+        GS358_RED_LED_PIN;
     gpio_init.GPIO_Speed = GPIO_Speed_High;
     gpio_init.GPIO_Mode = GPIO_Mode_Out_PP;
     GPIO_Init(GPIOA, &gpio_init);
@@ -165,7 +173,7 @@ static void GS358_GPIOInit(void)
     gpio_init.GPIO_Mode = GPIO_Mode_AIN;
     GPIO_Init(GPIOB, &gpio_init);
 
-    /* PA11 PWM 尚未启用，保持低电平。 */
+    /* PA11 在 GS358_PWMInit() 前保持低电平。 */
     GPIO_ResetBits(GS358_PWM_PORT, GS358_PWM_PIN);
 }
 
@@ -649,25 +657,207 @@ void GS358_ADC_ScanCompleteIRQHook(void)
      */
 }
 
-/* =========================== PA11 PWM 预留 =========================== */
+/* =========================== PA11 / TIM14_CH1 发射 PWM =========================== */
 
-void GS358_PWM_ConfigureReserved(uint32_t frequency_hz,
-                                uint16_t duty_permille)
+static void GS358_PWMInit(void)
 {
-    (void)frequency_hz;
-    (void)duty_permille;
+    GPIO_InitTypeDef gpio_init;
+    TIM_TimeBaseInitTypeDef timer_init;
+    TIM_OCInitTypeDef oc_init;
+    uint32_t timer_clock_hz;
+    uint32_t prescaler_div;
+    uint32_t period_ticks;
+    uint32_t pulse_ticks;
+    uint64_t period_scaled;
+    uint64_t duty_scaled;
 
     /*
-     * USER CODE BEGIN PWM_RESERVED
-     *
-     * 当前硬件 PA11 可复用为 TIM14_CH1（AF3）。
-     * 后续需要发射 PWM 时，可在此处：
-     * 1. 关闭 PA11 普通 GPIO 输出；
-     * 2. GPIO_PinAFConfig(GPIOA, GPIO_PinSource11, GPIO_AF_3)；
-     * 3. PA11 配置为 GPIO_Mode_AF_PP；
-     * 4. 初始化 TIM14 周期、比较值及输出极性；
-     * 5. 启动 TIM14。
-     *
-     * USER CODE END PWM_RESERVED
+     * 即使关闭 PWM，也明确将 PA11 保持为低电平普通输出。
+     */
+    if (GS358_PWM_ENABLE == 0U)
+    {
+        GPIO_PinAFConfig(GS358_PWM_PORT,
+                         GPIO_PinSource11,
+                         GPIO_AF_0);
+
+        GPIO_StructInit(&gpio_init);
+        gpio_init.GPIO_Pin = GS358_PWM_PIN;
+        gpio_init.GPIO_Speed = GPIO_Speed_High;
+        gpio_init.GPIO_Mode = GPIO_Mode_Out_PP;
+        GPIO_Init(GS358_PWM_PORT, &gpio_init);
+
+        GPIO_ResetBits(GS358_PWM_PORT,
+                       GS358_PWM_PIN);
+        return;
+    }
+
+    /*
+     * 参数检查：
+     * 1. 计数频率和周期必须能够精确换算成整数个定时器计数；
+     * 2. TIM14 为 16 位，周期计数不能超过 65536；
+     * 3. 占空比使用 0～1000 的千分比表示。
+     */
+    if ((GS358_PWM_TIMER_TICK_HZ == 0UL) ||
+        (GS358_PWM_PERIOD_US == 0UL) ||
+        (GS358_PWM_DUTY_PERMILLE > 1000UL))
+    {
+        while (1)
+        {
+            /* PWM 宏参数非法。 */
+        }
+    }
+
+    period_scaled =
+        (uint64_t)GS358_PWM_TIMER_TICK_HZ *
+        (uint64_t)GS358_PWM_PERIOD_US;
+
+    if ((period_scaled % 1000000ULL) != 0ULL)
+    {
+        while (1)
+        {
+            /* 当前计数频率无法精确生成目标 us 周期。 */
+        }
+    }
+
+    period_ticks =
+        (uint32_t)(period_scaled / 1000000ULL);
+
+    if ((period_ticks == 0UL) ||
+        (period_ticks > 65536UL))
+    {
+        while (1)
+        {
+            /* TIM14 的 ARR 范围不足。 */
+        }
+    }
+
+    duty_scaled =
+        (uint64_t)period_ticks *
+        (uint64_t)GS358_PWM_DUTY_PERMILLE;
+
+    /* 四舍五入计算 CCR1。默认 1000 × 50 / 1000 = 50。 */
+    pulse_ticks =
+        (uint32_t)((duty_scaled + 500ULL) / 1000ULL);
+
+    if (pulse_ticks > period_ticks)
+    {
+        pulse_ticks = period_ticks;
+    }
+
+    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_TIM14,
+                           ENABLE);
+
+    TIM_DeInit(GS358_PWM_TIMER);
+
+    timer_clock_hz =
+        TIM_GetTIMxClock(GS358_PWM_TIMER);
+
+    prescaler_div =
+        timer_clock_hz / GS358_PWM_TIMER_TICK_HZ;
+
+    if ((prescaler_div == 0UL) ||
+        ((timer_clock_hz % GS358_PWM_TIMER_TICK_HZ) != 0UL) ||
+        (prescaler_div > 65536UL))
+    {
+        while (1)
+        {
+            /* TIM14 无法精确分频到目标计数频率。 */
+        }
+    }
+
+    /*
+     * PA11 复用表：AF3 = TIM14_CH1。
+     */
+    GPIO_ResetBits(GS358_PWM_PORT,
+                   GS358_PWM_PIN);
+
+    GPIO_PinAFConfig(GS358_PWM_PORT,
+                     GPIO_PinSource11,
+                     GPIO_AF_3);
+
+    GPIO_StructInit(&gpio_init);
+    gpio_init.GPIO_Pin = GS358_PWM_PIN;
+    gpio_init.GPIO_Speed = GPIO_Speed_High;
+    gpio_init.GPIO_Mode = GPIO_Mode_AF_PP;
+    GPIO_Init(GS358_PWM_PORT, &gpio_init);
+
+    TIM_TimeBaseStructInit(&timer_init);
+
+    /*
+     * 默认 TIM14 输入时钟若为 48 MHz：
+     * PSC = 48 MHz / 1 MHz - 1 = 47。
+     */
+    timer_init.TIM_Prescaler =
+        (uint16_t)(prescaler_div - 1UL);
+
+    timer_init.TIM_CounterMode =
+        TIM_CounterMode_Up;
+
+    /*
+     * 默认周期 1000 us、计数频率 1 MHz：
+     * period_ticks = 1000，ARR = 999。
+     */
+    timer_init.TIM_Period =
+        period_ticks - 1UL;
+
+    timer_init.TIM_ClockDivision =
+        TIM_CKD_Div1;
+
+    timer_init.TIM_RepetitionCounter = 0U;
+
+    TIM_TimeBaseInit(GS358_PWM_TIMER,
+                     &timer_init);
+
+    TIM_OCStructInit(&oc_init);
+    oc_init.TIM_OCMode = TIM_OCMode_PWM1;
+    oc_init.TIM_OutputState = TIM_OutputState_Enable;
+    oc_init.TIM_Pulse = pulse_ticks;
+
+    if (GS358_PWM_ACTIVE_HIGH != 0U)
+    {
+        oc_init.TIM_OCPolarity = TIM_OCPolarity_High;
+    }
+    else
+    {
+        oc_init.TIM_OCPolarity = TIM_OCPolarity_Low;
+    }
+
+    TIM_OC1Init(GS358_PWM_TIMER,
+                &oc_init);
+
+    TIM_OC1PreloadConfig(GS358_PWM_TIMER,
+                         TIM_OCPreload_Enable);
+
+    TIM_ARRPreloadConfig(GS358_PWM_TIMER,
+                         ENABLE);
+
+    TIM_SetCounter(GS358_PWM_TIMER, 0UL);
+
+    /* TIM14 具有 MOE，必须开启主输出后 PA11 才能输出 PWM。 */
+    TIM_CtrlPWMOutputs(GS358_PWM_TIMER,
+                       ENABLE);
+
+    TIM_Cmd(GS358_PWM_TIMER,
+            ENABLE);
+}
+
+void GS358_PWM_Start(void)
+{
+    if (GS358_PWM_ENABLE != 0U)
+    {
+        TIM_SetCounter(GS358_PWM_TIMER, 0UL);
+        TIM_CtrlPWMOutputs(GS358_PWM_TIMER, ENABLE);
+        TIM_Cmd(GS358_PWM_TIMER, ENABLE);
+    }
+}
+
+void GS358_PWM_Stop(void)
+{
+    TIM_Cmd(GS358_PWM_TIMER, DISABLE);
+    TIM_CtrlPWMOutputs(GS358_PWM_TIMER, DISABLE);
+
+    /*
+     * 保留 PA11 的 AF3 配置，后续调用 GS358_PWM_Start() 可直接恢复。
+     * MOE 关闭后输出空闲电平由 TIM14 硬件控制。
      */
 }

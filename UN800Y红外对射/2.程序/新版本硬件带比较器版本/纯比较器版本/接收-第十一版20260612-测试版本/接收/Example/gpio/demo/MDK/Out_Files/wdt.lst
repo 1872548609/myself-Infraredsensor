@@ -1,0 +1,102 @@
+C51 COMPILER V9.57.0.0   WDT                                                               07/23/2026 16:43:56 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE WDT
+OBJECT MODULE PLACED IN .\Out_Files\wdt.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\..\..\..\Driver\src\wdt.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INC
+                    -DIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files
+                    -\wdt.lst) OBJECT(.\Out_Files\wdt.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c)  2017 - 2020, Unicmicro Co.,Ltd .
+   3           * All rights reserved.
+   4           * Filename    : wdt.c
+   5           * Description : wdt driver source file
+   6           * Author(s)   : shengyu
+   7           * version     : V1.0
+   8           * Modify date : 2021-12-30
+   9           ***********************************************************************/
+  10          #include  "wdt.h"
+  11          
+  12          /***********************************************************************
+  13           * Function     : wdt_init
+  14           * Description  : wdt init
+  15           * Input        : none
+  16           * Output               : none
+  17           * Return               : none
+  18           ***********************************************************************/
+  19          void wdt_init(void)
+  20          {
+  21   1          /*
+  22   1           * UM800Y 的 WDT 使用内部 RC38K。
+  23   1           * CLKCON bit3 = RC38KEN，必须在使能 WDT 前打开。
+  24   1           */
+  25   1          CLKCON |= (1 << 3);
+  26   1          
+  27   1              PCLK0 |= (1<<2);                                                                                                                        // 开启WDT时钟 
+  28   1              PRESET0 |= (1<<2);                                                                                              // WDT正常工作 
+  29   1              WDEN = 1;                                                                                                       // WDT使能 
+  30   1      }
+  31          
+  32          /***********************************************************************
+  33           * Function     : wdt_load
+  34           * Description  : 设置溢出周期最小值
+  35           * Input        : uint8_t arr：arr_1_ms，arr_4_ms...
+  36           * Output               : none
+  37           * Return               : none
+  38           ***********************************************************************/
+  39          void wdt_load(uint8_t arr)
+  40          {
+  41   1          arr &= 0x07;
+  42   1      
+  43   1          /*
+  44   1           * 手册说明：读或写 RSTSTAT 都会自动清除 WDT 计数。
+  45   1           * 同时更新 WDT[2:0] 超时周期。
+  46   1           */
+  47   1        RSTSTAT &= ~(7<<0);  
+  48   1              RSTSTAT |= (arr<<0);
+  49   1      }
+  50          
+  51          
+  52          /***********************************************************************
+  53           * Function     : wdt_feed
+C51 COMPILER V9.57.0.0   WDT                                                               07/23/2026 16:43:56 PAGE 2   
+
+  54           * Description  : 喂狗
+  55           * Input        : uint8_t arr：arr_1_ms，arr_4_ms...
+  56           * Output               : none
+  57           * Return               : none
+  58           ***********************************************************************/
+  59          void wdt_feed(uint8_t arr)
+  60          {
+  61   1           arr &= 0x07;
+  62   1      
+  63   1          /*
+  64   1           * 保持原驱动接口：每次喂狗时重新写入超时档位。
+  65   1           */
+  66   1          
+  67   1              RSTSTAT &= ~(7<<0); 
+  68   1              RSTSTAT |= (arr<<0);
+  69   1      }
+  70          
+  71          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     30    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
