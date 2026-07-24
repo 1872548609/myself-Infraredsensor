@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   APP                                                               07/23/2026 16:43:57 PAGE 1   
+C51 COMPILER V9.57.0.0   APP                                                               07/23/2026 17:30:32 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE APP
@@ -62,7 +62,7 @@ line level    source
   51   1          if (rx_count >= sizeof(uart0_rx_buf))
   52   1          {
   53   2              rx_count = 0;
-C51 COMPILER V9.57.0.0   APP                                                               07/23/2026 16:43:57 PAGE 2   
+C51 COMPILER V9.57.0.0   APP                                                               07/23/2026 17:30:32 PAGE 2   
 
   54   2          }
   55   1      
@@ -126,7 +126,7 @@ line level    source
  113   2                      adc_count=0;                                    //清除ad值
  114   2                              adc_controller_config(ADC_ENABLE);                                                                      //ADC控制器启动 
  115   2                              adc_convert_start(ADC_CHANNEL_1);                                                                       //启动转换      
-C51 COMPILER V9.57.0.0   APP                                                               07/23/2026 16:43:57 PAGE 3   
+C51 COMPILER V9.57.0.0   APP                                                               07/23/2026 17:30:32 PAGE 3   
 
  116   2              }
  117   1                      
