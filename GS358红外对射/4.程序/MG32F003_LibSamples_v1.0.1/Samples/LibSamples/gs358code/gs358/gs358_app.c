@@ -34,25 +34,32 @@
 /* =========================== 丢光超时定时器 =========================== */
 
 /*
- * TIM3 只作为内部 16 位计时器使用，不配置任何 TIM3 通道输出，
- * 因此不会改变 PA7 当前的普通输入/EXTI 配置。
+ * TIM3同时承担：
+ * 1. 相邻比较器下降沿的周期计时；
+ * 2. 最后一次下降沿后的丢光超时判断。
+ *
+ * TIM3配置为1 MHz，因此CNT单位为us。
  */
-#define GS358_TIMEOUT_TIMER          TIM3
+#define GS358_TIMEOUT_TIMER         TIM3
 
 /* =========================== 全局状态 =========================== */
 
 volatile uint16_t g_gs358_adc_values[GS358_ADC_CHANNEL_COUNT] = {0U};
 volatile uint32_t g_gs358_adc_frame_count = 0U;
 volatile uint32_t g_gs358_compare_edge_total = 0U;
-volatile uint8_t g_gs358_light_present = 0U;
+volatile uint8_t  g_gs358_light_present = 0U;
+
+volatile uint16_t g_gs358_last_period_us = 0U;
+volatile uint32_t g_gs358_period_valid_total = 0U;
+volatile uint32_t g_gs358_period_invalid_total = 0U;
+volatile uint8_t  g_gs358_last_period_valid = 0U;
 
 /* =========================== 内部状态 =========================== */
 
 static volatile uint8_t s_edge_confirm_count = 0U;
+static volatile uint8_t s_period_reference_ready = 0U;
 static volatile uint8_t s_adc_eoc_count = 0U;
-
-static volatile GS358_LedMode s_led_mode =
-    GS358_LED_BLOCKED_ON;
+static volatile GS358_LedMode s_led_mode = GS358_LED_BLOCKED_ON;
 
 /* =========================== 内部函数声明 =========================== */
 
@@ -63,6 +70,9 @@ static void GS358_ADCInit(void);
 
 static void GS358_LightLostTimerInit(void);
 static void GS358_LightLostTimerRestart(void);
+
+static uint8_t GS358_IsPeriodValid(uint16_t period_us);
+static void GS358_ResetPeriodFilter(void);
 
 static void GS358_SetLightState(uint8_t light_present);
 static void GS358_ApplyOutputs(void);
@@ -80,7 +90,7 @@ void GS358_AppInit(void)
      * 不再调用旧示例中的 PLATFORM_Init()：
      * 旧函数会按开发板 LED 逻辑重新配置 PA10，不符合本接收板原理图。
      */
-    GS358_SysTickInit();    //== 配置1ms平台中断
+    //GS358_SysTickInit();    //== 配置1ms平台中断
     GS358_GPIOInit();       //== 配置全部io初始化
 
     /*
@@ -93,7 +103,14 @@ void GS358_AppInit(void)
     GS358_ADCInit();
 
     s_edge_confirm_count = 0U;
+    s_period_reference_ready = 0U;
+
+    //== 周期检测初始化变量
     g_gs358_light_present = 0U;
+    g_gs358_last_period_us = 0U;
+    g_gs358_period_valid_total = 0U;
+    g_gs358_period_invalid_total = 0U;
+    g_gs358_last_period_valid = 0U;
 
     /*
      * 上电默认按“遮光/无光”状态输出。
@@ -240,8 +257,7 @@ static void GS358_SetLightState(uint8_t light_present)
 {
     uint8_t normalized;
 
-    normalized =
-        (light_present != 0U) ? 1U : 0U;
+    normalized = (light_present != 0U) ? 1U : 0U;
 
     if (g_gs358_light_present != normalized)
     {
@@ -265,7 +281,51 @@ GS358_LedMode GS358_GetLedMode(void)
     return s_led_mode;
 }
 
-/* =========================== TIM3 丢光超时检测 =========================== */
+/* =========================== 周期判断 =========================== */
+
+static uint8_t GS358_IsPeriodValid(uint16_t period_us)
+{
+    uint32_t period_min_us;
+    uint32_t period_max_us;
+    uint32_t measured_period_us;
+
+    if (GS358_SIGNAL_PERIOD_US >
+        GS358_SIGNAL_PERIOD_TOLERANCE_US)
+    {
+        period_min_us =
+            GS358_SIGNAL_PERIOD_US -
+            GS358_SIGNAL_PERIOD_TOLERANCE_US;
+    }
+    else
+    {
+        period_min_us = 0U;
+    }
+
+    period_max_us =
+        GS358_SIGNAL_PERIOD_US +
+        GS358_SIGNAL_PERIOD_TOLERANCE_US;
+
+    measured_period_us = (uint32_t)period_us;
+
+    if ((measured_period_us >= period_min_us) &&
+        (measured_period_us <= period_max_us))
+    {
+        return 1U;
+    }
+
+    return 0U;
+}
+
+static void GS358_ResetPeriodFilter(void)
+{
+    s_period_reference_ready = 0U;
+    s_edge_confirm_count = 0U;
+
+    g_gs358_last_period_us = 0U;
+    g_gs358_last_period_valid = 0U;
+}
+
+/* =========================== TIM3周期/丢光检测 =========================== */
 
 static void GS358_LightLostTimerInit(void)
 {
@@ -289,15 +349,42 @@ static void GS358_LightLostTimerInit(void)
         TIM_GetTIMxClock(GS358_TIMEOUT_TIMER);
 
     prescaler_div =
-        timer_clock_hz / GS358_TIMEOUT_TIMER_TICK_HZ;
+        timer_clock_hz /
+        GS358_TIMEOUT_TIMER_TICK_HZ;
 
     /*
      * TIM3 为 16 位定时器，ARR 最大为 65535，
      * 所以 1 MHz 计数时最大单次超时为 65536 us。
      */
     if ((prescaler_div == 0U) ||
-        ((timer_clock_hz % GS358_TIMEOUT_TIMER_TICK_HZ) != 0U) ||
+          /*
+         * 要求TIM3能够被准确分频到1 MHz，
+         * 确保一个计数严格对应1 us。
+         */
+        ((timer_clock_hz %
+          GS358_TIMEOUT_TIMER_TICK_HZ) != 0U) ||
+        /*
+         * 检测目标周期参数不能为0。
+         */
+        (GS358_SIGNAL_PERIOD_US == 0U) ||
+        /*
+         * 容差不能大于或等于目标周期，
+         * 否则最小周期会变成0或发生无符号下溢。
+         */
+        (GS358_SIGNAL_PERIOD_TOLERANCE_US >=
+         GS358_SIGNAL_PERIOD_US) ||
+        /*
+         * 丢光超时必须晚于合法周期窗口上限。
+         *
+         * 否则正常信号还没到达，
+         * TIM3就会先判定丢光。
+         */
+        (GS358_EDGE_CONFIRM_COUNT == 0U) ||
         (GS358_LIGHT_LOST_TIMEOUT_US == 0U) ||
+        (GS358_LIGHT_LOST_TIMEOUT_US <=(GS358_SIGNAL_PERIOD_US +GS358_SIGNAL_PERIOD_TOLERANCE_US)) ||
+        /*
+         * TIM3是16位定时器。
+         */
         (GS358_LIGHT_LOST_TIMEOUT_US > 65536UL))
     {
         while (1)
@@ -412,28 +499,67 @@ static void GS358_EXTIInit(void)
     NVIC_EnableIRQ(EXTI4_15_IRQn);
 }
 
+ 
 void GS358_ComparatorFallingIRQHandler(void)
 {
+    volatile uint16_t measured_period_us;
+    volatile uint8_t period_valid;
+
     g_gs358_compare_edge_total++;
 
     /*
-     * 每次收到光强比较器下降沿，都重新开始计算
-     * GS358_LIGHT_LOST_TIMEOUT_US。
+     * TIM3从上一个下降沿后开始以1 MHz计数。
+     * 必须在重启TIM3之前读取CNT。
+     */
+    measured_period_us =
+        (uint16_t)TIM_GetCounter(GS358_TIMEOUT_TIMER);
+
+    /*
+     * 出现下降沿都重新启动无边沿超时检测。
      */
     GS358_LightLostTimerRestart();
 
-    if (s_edge_confirm_count < GS358_EDGE_CONFIRM_COUNT)
+    /*
+     * 第一个下降沿只建立时间参考。
+     */
+    if (s_period_reference_ready == 0U)
     {
-        s_edge_confirm_count++;
+        s_period_reference_ready = 1U;
+        g_gs358_last_period_us = 0U;
+        g_gs358_last_period_valid = 0U;
+        return;
     }
 
-    /*
-     * 达到确认次数后，直接在中断内更新两路输出和指示灯，
-     * 满足快速响应要求。
-     */
-    if (s_edge_confirm_count >= GS358_EDGE_CONFIRM_COUNT)
+    g_gs358_last_period_us = measured_period_us;
+
+    period_valid =
+        GS358_IsPeriodValid(measured_period_us);
+
+    g_gs358_last_period_valid = period_valid;
+
+    if (period_valid != 0U)
     {
-        GS358_SetLightState(1U);
+        g_gs358_period_valid_total++;
+
+        if (s_edge_confirm_count <
+            GS358_EDGE_CONFIRM_COUNT)
+        {
+            s_edge_confirm_count++;
+        }
+
+        if (s_edge_confirm_count >=
+            GS358_EDGE_CONFIRM_COUNT)
+        {
+            GS358_SetLightState(1U);
+        }
+    }
+    else
+    {
+        g_gs358_period_invalid_total++;
+
+#if (GS358_PERIOD_ERROR_RESET_CONFIRM != 0U)
+        s_edge_confirm_count = 0U;
+#endif
     }
 }
 
@@ -458,8 +584,7 @@ void GS358_LightLostTimerIRQHandler(void)
          * 从最后一次下降沿开始，已经连续 1.5 ms 没有新下降沿。
          * 清除有光确认次数，下一次必须重新累计指定次数。
          */
-        s_edge_confirm_count = 0U;
-
+        GS358_ResetPeriodFilter();
         GS358_SetLightState(0U);
     }
 }

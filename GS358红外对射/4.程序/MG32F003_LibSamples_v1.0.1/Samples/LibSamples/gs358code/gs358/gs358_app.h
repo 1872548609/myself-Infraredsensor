@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file gs358_app.h
  * @brief GS358 红外对射接收板应用层
  *
@@ -31,46 +31,69 @@ extern "C" {
 /* =========================== 可调参数 =========================== */
 
 /**
- * 连续接收到多少个比较器下降沿后确认“有光”。
+ * 发射信号目标周期，单位：us。
  *
- * 发射周期约为 1 ms 时，默认 3 次约需 3 ms。
+ * 示例：
+ *  500 Hz -> 2000 us
+ * 1000 Hz -> 1000 us
+ * 2000 Hz ->  500 us
  */
-#define GS358_EDGE_CONFIRM_COUNT             3U
+#define GS358_SIGNAL_PERIOD_US                   70U
 
 /**
- * 从最后一次比较器下降沿开始计算的丢光超时时间。
+ * 周期允许容差，单位：us。
  *
- * 当前设置：
- * 1500 us = 1.5 ms
- *
- * 每次 PA7 比较器下降沿都会将 TIM3 清零并重新启动；
- * 连续超过该时间没有下降沿，TIM3 才产生更新中断并判定无光。
+ * 当前有效范围：
+ * 1000 us ± 100 us，即 900~1100 us。
  */
-#define GS358_LIGHT_LOST_TIMEOUT_US          1500U
+#define GS358_SIGNAL_PERIOD_TOLERANCE_US          5U
 
 /**
- * TIM3 计数频率。
+ * 连续得到多少个正确周期后确认“有光”。
  *
- * 设置为 1 MHz 后，每个计数对应 1 us。
+ * 第一个下降沿只建立时间基准，不计入正确周期。
  */
-#define GS358_TIMEOUT_TIMER_TICK_HZ          1000000UL
+#define GS358_EDGE_CONFIRM_COUNT                    7U
 
-/* 原理图中 PA8、PA9 经电阻驱动 NPN，默认高电平表示通道动作。 */
-#define GS358_NO_OUTPUT_ACTIVE_HIGH          1U
-#define GS358_NC_OUTPUT_ACTIVE_HIGH          1U
+/**
+ * 周期错误时是否清零连续有效次数。
+ *
+ * 1：错误一次即重新累计，抗干扰更强。
+ * 0：错误周期不增加计数，但不清零。
+ */
+#define GS358_PERIOD_ERROR_RESET_CONFIRM             1U
 
-/* 原理图中红灯串联电阻后接地，默认 PA10 高电平点亮。 */
-#define GS358_RED_LED_ACTIVE_HIGH            1U
+/**
+ * 从最后一个比较器下降沿开始计算的无边沿超时时间，单位：us。
+ *
+ * 必须大于：
+ * GS358_SIGNAL_PERIOD_US + GS358_SIGNAL_PERIOD_TOLERANCE_US
+ */
+#define GS358_LIGHT_LOST_TIMEOUT_US               1500U
 
-/* ADC 一帧包含 0、1、2、3、5 共五个通道。 */
-#define GS358_ADC_CHANNEL_COUNT              5U
+/**
+ * TIM3计数频率。
+ *
+ * 1 MHz时一个计数对应1 us。
+ */
+#define GS358_TIMEOUT_TIMER_TICK_HZ         1000000UL
+
+/* 原理图中PA8、PA9经电阻驱动NPN，高电平表示通道动作。 */
+#define GS358_NO_OUTPUT_ACTIVE_HIGH                  1U
+#define GS358_NC_OUTPUT_ACTIVE_HIGH                  1U
+
+/* 红灯高电平点亮。输出有效灯设置 */
+#define GS358_RED_LED_ACTIVE_HIGH                    0U
+
+/* ADC一帧包含0、1、2、3、5共五个通道。 */
+#define GS358_ADC_CHANNEL_COUNT                      5U
 
 /* =========================== 类型定义 =========================== */
 
 typedef enum
 {
-    GS358_LED_BLOCKED_ON = 0, /* 遮光/无光时亮 */
-    GS358_LED_LIGHT_ON   = 1  /* 有光时亮 */
+    GS358_LED_BLOCKED_ON = 0,
+    GS358_LED_LIGHT_ON   = 1
 } GS358_LedMode;
 
 /* =========================== 状态变量 =========================== */
@@ -92,6 +115,16 @@ extern volatile uint32_t g_gs358_compare_edge_total;
 /* 1=已确认有光，0=遮光/无光。 */
 extern volatile uint8_t g_gs358_light_present;
 
+/* 最近一次测得的相邻下降沿周期，单位us。 */
+extern volatile uint16_t g_gs358_last_period_us;
+
+/* 周期判断统计。 */
+extern volatile uint32_t g_gs358_period_valid_total;
+extern volatile uint32_t g_gs358_period_invalid_total;
+
+/* 1=最近一次周期正确；0=错误或尚未形成完整周期。 */
+extern volatile uint8_t g_gs358_last_period_valid;
+
 /* =========================== 接口函数 =========================== */
 
 void GS358_AppInit(void);
@@ -105,6 +138,7 @@ GS358_LedMode GS358_GetLedMode(void);
 void GS358_ComparatorFallingIRQHandler(void);
 void GS358_LightLostTimerIRQHandler(void);
 void GS358_ADC_EOCIRQHandler(void);
+void GS358_1msIRQHandler(void);
 
 /**
  * ADC 五通道一帧完成后的中断内回调。
