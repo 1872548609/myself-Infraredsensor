@@ -3,7 +3,7 @@
 <title>Static Call Graph - [.\Objects\USART_Interrupt.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image .\Objects\USART_Interrupt.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Fri Jul 24 12:05:14 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Fri Jul 24 18:51:02 2026
 <BR><P>
 <H3>Maximum Stack Usage =        112 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -279,12 +279,12 @@ Global Symbols
 <BR><BR>[Called By]<UL><LI><a href="#[16]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[23]"></a>GS358_ComparatorFallingIRQHandler</STRONG> (Thumb, 150 bytes, Stack size 16 bytes, gs358_app.o(i.GS358_ComparatorFallingIRQHandler))
+<P><STRONG><a name="[23]"></a>GS358_ComparatorFallingIRQHandler</STRONG> (Thumb, 138 bytes, Stack size 16 bytes, gs358_app.o(i.GS358_ComparatorFallingIRQHandler))
 <BR><BR>[Stack]<UL><LI>Max Depth = 80<LI>Call Chain = GS358_ComparatorFallingIRQHandler &rArr; GS358_SetLightState &rArr; GS358_ApplyOutputs &rArr; GS358_WriteLogicalOutput
 </UL>
-<BR>[Calls]<UL><LI><a href="#[3b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM_GetCounter
+<BR>[Calls]<UL><LI><a href="#[3c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM_GetCounter
 <LI><a href="#[3e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_SetLightState
-<LI><a href="#[3c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
+<LI><a href="#[3b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
 <LI><a href="#[3d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_IsPeriodValid
 </UL>
 <BR>[Called By]<UL><LI><a href="#[c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;EXTI4_15_IRQHandler
@@ -359,13 +359,13 @@ Global Symbols
 <BR>[Address Reference Count : 1]<UL><LI> startup_mg32f003_keil.o(RESET)
 </UL>
 <P><STRONG><a name="[48]"></a>TIM_ClearITPendingBit</STRONG> (Thumb, 6 bytes, Stack size 0 bytes, mg32_tim.o(i.TIM_ClearITPendingBit))
-<BR><BR>[Called By]<UL><LI><a href="#[3c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
+<BR><BR>[Called By]<UL><LI><a href="#[3b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
 <LI><a href="#[37]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerInit
 <LI><a href="#[46]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerIRQHandler
 </UL>
 
 <P><STRONG><a name="[49]"></a>TIM_Cmd</STRONG> (Thumb, 24 bytes, Stack size 0 bytes, mg32_tim.o(i.TIM_Cmd))
-<BR><BR>[Called By]<UL><LI><a href="#[3c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
+<BR><BR>[Called By]<UL><LI><a href="#[3b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
 <LI><a href="#[37]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerInit
 <LI><a href="#[46]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerIRQHandler
 </UL>
@@ -378,7 +378,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[37]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerInit
 </UL>
 
-<P><STRONG><a name="[3b]"></a>TIM_GetCounter</STRONG> (Thumb, 6 bytes, Stack size 0 bytes, mg32_tim.o(i.TIM_GetCounter))
+<P><STRONG><a name="[3c]"></a>TIM_GetCounter</STRONG> (Thumb, 6 bytes, Stack size 0 bytes, mg32_tim.o(i.TIM_GetCounter))
 <BR><BR>[Called By]<UL><LI><a href="#[23]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_ComparatorFallingIRQHandler
 </UL>
 
@@ -403,7 +403,7 @@ Global Symbols
 </UL>
 
 <P><STRONG><a name="[52]"></a>TIM_SetCounter</STRONG> (Thumb, 4 bytes, Stack size 0 bytes, mg32_tim.o(i.TIM_SetCounter))
-<BR><BR>[Called By]<UL><LI><a href="#[3c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
+<BR><BR>[Called By]<UL><LI><a href="#[3b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
 </UL>
 
 <P><STRONG><a name="[4f]"></a>TIM_TimeBaseInit</STRONG> (Thumb, 82 bytes, Stack size 8 bytes, mg32_tim.o(i.TIM_TimeBaseInit))
@@ -516,7 +516,7 @@ Local Symbols
 <BR>[Called By]<UL><LI><a href="#[35]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_AppInit
 </UL>
 
-<P><STRONG><a name="[3c]"></a>GS358_LightLostTimerRestart</STRONG> (Thumb, 42 bytes, Stack size 8 bytes, gs358_app.o(i.GS358_LightLostTimerRestart))
+<P><STRONG><a name="[3b]"></a>GS358_LightLostTimerRestart</STRONG> (Thumb, 42 bytes, Stack size 8 bytes, gs358_app.o(i.GS358_LightLostTimerRestart))
 <BR><BR>[Stack]<UL><LI>Max Depth = 8<LI>Call Chain = GS358_LightLostTimerRestart
 </UL>
 <BR>[Calls]<UL><LI><a href="#[52]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM_SetCounter
@@ -549,7 +549,7 @@ Local Symbols
 </UL>
 
 <P><STRONG><a name="[2e]"></a>__NVIC_ClearPendingIRQ</STRONG> (Thumb, 18 bytes, Stack size 0 bytes, gs358_app.o(i.__NVIC_ClearPendingIRQ))
-<BR><BR>[Called By]<UL><LI><a href="#[3c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
+<BR><BR>[Called By]<UL><LI><a href="#[3b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerRestart
 <LI><a href="#[37]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_LightLostTimerInit
 <LI><a href="#[38]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_EXTIInit
 <LI><a href="#[24]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_ADCInit

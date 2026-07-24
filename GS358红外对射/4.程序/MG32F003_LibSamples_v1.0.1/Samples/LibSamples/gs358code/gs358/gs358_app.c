@@ -63,7 +63,7 @@ static volatile GS358_LedMode s_led_mode = GS358_LED_BLOCKED_ON;
 
 /* =========================== 内部函数声明 =========================== */
 
-static void GS358_SysTickInit(void);
+//static void GS358_SysTickInit(void);
 static void GS358_GPIOInit(void);
 static void GS358_EXTIInit(void);
 static void GS358_ADCInit(void);
@@ -502,33 +502,39 @@ static void GS358_EXTIInit(void)
  
 void GS358_ComparatorFallingIRQHandler(void)
 {
-    volatile uint16_t measured_period_us;
-    volatile uint8_t period_valid;
+    uint16_t measured_period_us;
+    uint8_t period_valid;
 
     g_gs358_compare_edge_total++;
 
     /*
-     * TIM3从上一个下降沿后开始以1 MHz计数。
-     * 必须在重启TIM3之前读取CNT。
-     */
-    measured_period_us =
-        (uint16_t)TIM_GetCounter(GS358_TIMEOUT_TIMER);
-
-    /*
-     * 出现下降沿都重新启动无边沿超时检测。
-     */
-    GS358_LightLostTimerRestart();
-
-    /*
-     * 第一个下降沿只建立时间参考。
+     * 第一个下降沿无法形成周期。
+     * 将它作为第一个有效时间基准，并启动丢光超时定时器。
      */
     if (s_period_reference_ready == 0U)
     {
         s_period_reference_ready = 1U;
+
         g_gs358_last_period_us = 0U;
         g_gs358_last_period_valid = 0U;
+
+        /*
+         * 第一个边沿必须启动定时器。
+         * 否则 TIM3 仍处于停止状态，后续无法测量周期。
+         */
+        GS358_LightLostTimerRestart();
+
         return;
     }
+
+    /*
+     * TIM3 记录的是：
+     * 从上一个有效基准边沿到当前下降沿的时间。
+     *
+     * 无效边沿不会清零 TIM3。
+     */
+    measured_period_us =
+        (uint16_t)TIM_GetCounter(GS358_TIMEOUT_TIMER);
 
     g_gs358_last_period_us = measured_period_us;
 
@@ -539,6 +545,14 @@ void GS358_ComparatorFallingIRQHandler(void)
 
     if (period_valid != 0U)
     {
+        /*
+         * 只有周期正确的边沿才成为新的时间基准。
+         *
+         * 同时清除可能已经出现的旧更新标志，
+         * 并重新开始一次 1.5 ms 丢光超时检测。
+         */
+        GS358_LightLostTimerRestart();
+
         g_gs358_period_valid_total++;
 
         if (s_edge_confirm_count <
@@ -555,10 +569,22 @@ void GS358_ComparatorFallingIRQHandler(void)
     }
     else
     {
+        /*
+         * 无效周期只做统计，不重置 TIM3。
+         *
+         * 如果后续一直没有符合周期的边沿，
+         * TIM3 会从最后一个有效基准边沿开始累计，
+         * 最终超时并判断遮光。
+         */
         g_gs358_period_invalid_total++;
 
 #if (GS358_PERIOD_ERROR_RESET_CONFIRM != 0U)
+
+        /*
+         * 错误周期打断连续有效确认。
+         */
         s_edge_confirm_count = 0U;
+
 #endif
     }
 }
@@ -591,26 +617,26 @@ void GS358_LightLostTimerIRQHandler(void)
 
 /* =========================== 1 ms SysTick =========================== */
 
-static void GS358_SysTickInit(void)
-{
-    RCC_ClocksTypeDef clocks;
+//static void GS358_SysTickInit(void)
+//{
+//    RCC_ClocksTypeDef clocks;
 
-    RCC_GetClocksFreq(&clocks);
+//    RCC_GetClocksFreq(&clocks);
 
-    /*
-     * SysTick 保持原来的 1 ms，只用于 PLATFORM_DelayTick。
-     * 丢光超时判断已经完全交给 TIM3。
-     */
-    if (SysTick_Config(clocks.HCLK_Frequency / 1000U) != 0U)
-    {
-        while (1)
-        {
-            /* SysTick 配置失败。 */
-        }
-    }
+//    /*
+//     * SysTick 保持原来的 1 ms，只用于 PLATFORM_DelayTick。
+//     * 丢光超时判断已经完全交给 TIM3。
+//     */
+//    if (SysTick_Config(clocks.HCLK_Frequency / 1000U) != 0U)
+//    {
+//        while (1)
+//        {
+//            /* SysTick 配置失败。 */
+//        }
+//    }
 
-    NVIC_SetPriority(SysTick_IRQn, 3U);
-}
+//    NVIC_SetPriority(SysTick_IRQn, 3U);
+//}
 
 /* =========================== ADC 五通道扫描 =========================== */
 
