@@ -120,6 +120,14 @@ extern "C" {
 #error "GS358_WATCHDOG_RELOAD_VALUE must be <= 0x0FFF"
 #endif
 
+/*
+ * 一个判断窗口由有效周期和漏周期共同组成。
+ *
+ * valid + miss >= 10 时结束本轮判断。
+ * valid > 7 时认为有光，也就是至少需要8个有效周期。
+ */
+#define GS358_DETECT_WINDOW_COUNT       10U
+#define GS358_DETECT_VALID_THRESHOLD     7U
 /* =========================== 类型定义 =========================== */
 
 typedef enum
@@ -168,6 +176,15 @@ extern volatile uint16_t g_gs358_last_adjusted_period_us;
 
 /*准备带到下一条边沿的相位余量*/
 extern volatile uint16_t g_gs358_last_period_carry_us;
+
+
+extern volatile uint8_t g_gs358_last_window_valid_count;
+
+extern volatile uint8_t g_gs358_last_window_miss_count;
+
+extern volatile uint8_t g_gs358_last_window_light_present;
+
+extern volatile uint32_t g_gs358_window_complete_total;
 
 /* =========================== 接口函数 =========================== */
 

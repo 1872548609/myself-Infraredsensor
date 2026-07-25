@@ -69,6 +69,24 @@ volatile uint16_t g_gs358_last_raw_period_us = 0U;
 volatile uint16_t g_gs358_last_adjusted_period_us = 0U;
 volatile uint16_t g_gs358_last_period_carry_us = 0U;
 
+/*
+ * 当前10周期判断窗口内的有效周期数和漏周期数。
+ *
+ * 注意：
+ * g_gs358_period_miss_total 是系统运行期间的累计调试值；
+ * s_window_miss_count 只统计当前判断窗口。
+ */
+static volatile uint8_t s_window_valid_count = 0U;
+static volatile uint8_t s_window_miss_count = 0U;
+
+/* 最近一个完整窗口的结果，方便Keil Watch观察。 */
+volatile uint8_t g_gs358_last_window_valid_count = 0U;
+volatile uint8_t g_gs358_last_window_miss_count = 0U;
+volatile uint8_t g_gs358_last_window_light_present = 0U;
+
+/* 完成的窗口总数。 */
+volatile uint32_t g_gs358_window_complete_total = 0U;
+
 /* =========================== 内部状态 =========================== */
 
 static volatile uint8_t s_edge_confirm_count = 0U;
@@ -93,6 +111,10 @@ static void GS358_LightLostTimerRestart(void);
 static uint16_t GS358_AddPeriodCarrySaturated(uint16_t raw_us,
                                               uint16_t carry_us);
 static uint16_t GS358_CalculateNextCarry(uint16_t adjusted_us);
+
+
+static void GS358_ResetDetectionWindow(void);
+static void GS358_CheckDetectionWindowComplete(void);
 
 static uint8_t GS358_IsPeriodValid(uint16_t period_us);
 static void GS358_ResetPeriodFilter(void);
@@ -134,12 +156,18 @@ void GS358_AppInit(void)
     s_edge_confirm_count = 0U;
     s_period_reference_ready = 0U;
 
+
     //== 周期检测初始化变量
     g_gs358_light_present = 0U;
     g_gs358_last_period_us = 0U;
     g_gs358_period_valid_total = 0U;
     g_gs358_period_invalid_total = 0U;
     g_gs358_last_period_valid = 0U;
+    GS358_ResetDetectionWindow();
+    g_gs358_last_window_valid_count = 0U;
+    g_gs358_last_window_miss_count = 0U;
+    g_gs358_last_window_light_present = 0U;
+    g_gs358_window_complete_total = 0U;
 
     /*
      * 上电默认按“遮光/无光”状态输出。
@@ -391,7 +419,65 @@ GS358_LedMode GS358_GetLedMode(void)
 }
 
 /* =========================== 周期判断 =========================== */
+static void GS358_ResetDetectionWindow(void)
+{
+    s_window_valid_count = 0U;
+    s_window_miss_count = 0U;
+}
+static void GS358_CheckDetectionWindowComplete(void)
+{
+    uint16_t total_count;
+    uint8_t light_present;
 
+    total_count =
+        (uint16_t)s_window_valid_count +
+        (uint16_t)s_window_miss_count;
+
+    if (total_count < GS358_DETECT_WINDOW_COUNT)
+    {
+        return;
+    }
+
+    /*
+     * 正常情况下刚好等于10。
+     *
+     * 使用 >= 作为保护，避免后续修改逻辑后因计数超过10，
+     * 导致窗口一直无法结束。
+     */
+    g_gs358_last_window_valid_count =
+        s_window_valid_count;
+
+    g_gs358_last_window_miss_count =
+        s_window_miss_count;
+
+    if (s_window_valid_count >
+        GS358_DETECT_VALID_THRESHOLD)
+    {
+        light_present = 1U;
+    }
+    else
+    {
+        light_present = 0U;
+    }
+
+    g_gs358_last_window_light_present =
+        light_present;
+
+    g_gs358_window_complete_total++;
+
+    /*
+     * 只有完整收集10个结果后才更新输出。
+     */
+    GS358_SetLightState(light_present);
+
+    /*
+     * 当前窗口结束，马上开始下一窗口。
+     *
+     * 周期参考、carry和两个定时器不需要在这里清除，
+     * 下一边沿继续沿用当前周期跟踪状态。
+     */
+    GS358_ResetDetectionWindow();
+}
 static uint8_t GS358_IsPeriodValid(uint16_t period_us)
 {
     uint32_t period_min_us;
@@ -633,6 +719,8 @@ void GS358_ComparatorFallingIRQHandler(void)
         s_period_reference_ready = 1U;
         s_period_carry_us = 0U;
 
+        GS358_ResetDetectionWindow();
+
         g_gs358_last_period_us = 0U;
         g_gs358_last_raw_period_us = 0U;
         g_gs358_last_adjusted_period_us = 0U;
@@ -644,19 +732,21 @@ void GS358_ComparatorFallingIRQHandler(void)
         return;
     }
 
-    raw_period_us =
-        (uint16_t)TIM_GetCounter(GS358_PERIOD_TIMER);
+    raw_period_us = (uint16_t)TIM_GetCounter(GS358_PERIOD_TIMER);
 
-    adjusted_period_us =
-        GS358_AddPeriodCarrySaturated(raw_period_us,
-                                      s_period_carry_us);
+    adjusted_period_us = GS358_AddPeriodCarrySaturated(raw_period_us,s_period_carry_us);
 
     g_gs358_last_raw_period_us = raw_period_us;
+    
     g_gs358_last_adjusted_period_us = adjusted_period_us;
+    
     g_gs358_last_period_us = adjusted_period_us;
+    
 
     period_valid = GS358_IsPeriodValid(adjusted_period_us);
+    
     g_gs358_last_period_valid = period_valid;
+    
 
     if (period_valid != 0U)
     {
@@ -673,17 +763,41 @@ void GS358_ComparatorFallingIRQHandler(void)
         GS358_PeriodTimerRestart();
         GS358_LightLostTimerRestart();
 
+//        g_gs358_period_valid_total++;
+
+//        if (s_edge_confirm_count < GS358_EDGE_CONFIRM_COUNT)
+//        {
+//            s_edge_confirm_count++;
+//        }
+
+//        if (s_edge_confirm_count >= GS358_EDGE_CONFIRM_COUNT)
+//        {
+//            GS358_SetLightState(1U);
+//        }
+
         g_gs358_period_valid_total++;
 
+        /*
+         * 当前周期有效，占用窗口中的一个位置。
+         */
+        if (s_window_valid_count < GS358_DETECT_WINDOW_COUNT)
+        {
+            s_window_valid_count++;
+        }
+
+        /*
+         * 原来的确认计数可以继续保留作为调试信息，
+         * 但不再由它直接更新有光输出。
+         */
         if (s_edge_confirm_count < GS358_EDGE_CONFIRM_COUNT)
         {
             s_edge_confirm_count++;
         }
 
-        if (s_edge_confirm_count >= GS358_EDGE_CONFIRM_COUNT)
-        {
-            GS358_SetLightState(1U);
-        }
+        /*
+         * valid + miss达到10后统一完成本轮判断。
+         */
+        GS358_CheckDetectionWindowComplete();
     }
     else if (adjusted_period_us < period_min_us)
     {
@@ -709,11 +823,37 @@ void GS358_ComparatorFallingIRQHandler(void)
          * 当前边沿作为新的硬件计时起点，所以清零 TIM1；
          * 但不重启 TIM3，1500 us 超时仍以最后一个真正有效边沿为基准。
          */
+//        g_gs358_period_invalid_total++;
+//        g_gs358_period_miss_total++;
+
+//        s_period_carry_us = GS358_CalculateNextCarry(adjusted_period_us);
+//        
+//        g_gs358_last_period_carry_us = s_period_carry_us;
+
+//        GS358_PeriodTimerRestart();
+
+//#if (GS358_PERIOD_ERROR_RESET_CONFIRM != 0U)
+//        s_edge_confirm_count = 0U;
+//#endif
+
+         /*
+         * 迟到边沿：
+         * 1. 认为漏掉一个有效周期；
+         * 2. 当前窗口miss次数加1；
+         * 3. 保存相位余量；
+         * 4. 当前边沿作为新的TIM1计时起点；
+         * 5. 不重启TIM3，超时仍从最后一个有效周期计算。
+         */
         g_gs358_period_invalid_total++;
         g_gs358_period_miss_total++;
 
-        s_period_carry_us =
-            GS358_CalculateNextCarry(adjusted_period_us);
+        if (s_window_miss_count < GS358_DETECT_WINDOW_COUNT)
+        {
+            s_window_miss_count++;
+        }
+
+        s_period_carry_us = GS358_CalculateNextCarry(adjusted_period_us);
+
         g_gs358_last_period_carry_us = s_period_carry_us;
 
         GS358_PeriodTimerRestart();
@@ -721,6 +861,8 @@ void GS358_ComparatorFallingIRQHandler(void)
 #if (GS358_PERIOD_ERROR_RESET_CONFIRM != 0U)
         s_edge_confirm_count = 0U;
 #endif
+
+        GS358_CheckDetectionWindowComplete();
     }
     else
     {
@@ -731,16 +873,22 @@ void GS358_ComparatorFallingIRQHandler(void)
 
 void GS358_LightLostTimerIRQHandler(void)
 {
-    if (TIM_GetITStatus(GS358_TIMEOUT_TIMER, TIM_IT_Update) != RESET)
+    if (TIM_GetITStatus(GS358_TIMEOUT_TIMER,
+                        TIM_IT_Update) != RESET)
     {
-        TIM_ClearITPendingBit(GS358_TIMEOUT_TIMER, TIM_IT_Update);
+        TIM_ClearITPendingBit(GS358_TIMEOUT_TIMER,
+                              TIM_IT_Update);
+
         TIM_Cmd(GS358_TIMEOUT_TIMER, DISABLE);
 
         GS358_PeriodTimerStop();
+
         s_period_carry_us = 0U;
         g_gs358_last_period_carry_us = 0U;
 
         GS358_ResetPeriodFilter();
+        GS358_ResetDetectionWindow();
+
         GS358_SetLightState(0U);
     }
 }

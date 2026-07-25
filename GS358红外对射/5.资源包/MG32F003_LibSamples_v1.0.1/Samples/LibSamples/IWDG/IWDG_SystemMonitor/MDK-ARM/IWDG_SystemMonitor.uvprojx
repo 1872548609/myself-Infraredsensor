@@ -16,7 +16,7 @@
         <TargetCommonOption>
           <Device>MG32F003F4P7</Device>
           <Vendor>Megawin</Vendor>
-          <PackID>Megawin.MG32F003_DFP.1.0.0</PackID>
+          <PackID>Megawin.MG32F003_DFP.1.0.1</PackID>
           <PackURL>https://www.megawin.com.tw/files/Download/megawinDFP/</PackURL>
           <Cpu>IRAM(0x20000000,0x00000800) IROM(0x08000000,0x00004000) CPUTYPE("Cortex-M0") CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
@@ -186,6 +186,7 @@
             <RvdsVP>0</RvdsVP>
             <RvdsMve>0</RvdsMve>
             <RvdsCdeCp>0</RvdsCdeCp>
+            <nBranchProt>0</nBranchProt>
             <hadIRAM2>0</hadIRAM2>
             <hadIROM2>0</hadIROM2>
             <StupSel>8</StupSel>
