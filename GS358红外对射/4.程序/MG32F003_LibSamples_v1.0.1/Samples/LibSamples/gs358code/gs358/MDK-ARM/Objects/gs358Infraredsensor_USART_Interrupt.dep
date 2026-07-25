@@ -41,7 +41,7 @@ I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_syscfg.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_tim.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_usart.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_uid.h)(0x6A59F408)
-I (..\gs358_app.h)(0x6A62E1CA)
+I (..\gs358_app.h)(0x6A6349C6)
 I (..\main.h)(0x6A5ACC3C)
 F (..\platform.c)(0x6A59F408)(-c --cpu Cortex-M0 -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\..\..\..\..\Device\CMSIS\Core\Include -I ..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc -I ..\..\..\..\..\Device\MG32F003\Include -I ..\..\gs358-D__UVISION_VERSION="540" -DUSE_STDPERIPH_DRIVER-o .\objects\platform.o --omf_browse .\objects\platform.crf --depend .\objects\platform.d)
 I (D:\long\Keil_v5\ARM\ARMCC\include\stdio.h)(0x5E8E3CC2)
@@ -126,9 +126,9 @@ I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_syscfg.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_tim.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_usart.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_uid.h)(0x6A59F408)
-I (..\gs358_app.h)(0x6A62E1CA)
+I (..\gs358_app.h)(0x6A6349C6)
 I (..\mg32f003_it.h)(0x6A5B4489)
-F (..\gs358_app.c)(0x6A634395)(-c --cpu Cortex-M0 -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\..\..\..\..\Device\CMSIS\Core\Include -I ..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc -I ..\..\..\..\..\Device\MG32F003\Include -I ..\..\gs358-D__UVISION_VERSION="540" -DUSE_STDPERIPH_DRIVER-o .\objects\gs358_app.o --omf_browse .\objects\gs358_app.crf --depend .\objects\gs358_app.d)
+F (..\gs358_app.c)(0x6A641C54)(-c --cpu Cortex-M0 -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\..\..\..\..\Device\CMSIS\Core\Include -I ..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc -I ..\..\..\..\..\Device\MG32F003\Include -I ..\..\gs358-D__UVISION_VERSION="540" -DUSE_STDPERIPH_DRIVER-o .\objects\gs358_app.o --omf_browse .\objects\gs358_app.crf --depend .\objects\gs358_app.d)
 I (..\platform.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_conf.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\Include\mg32f003_device.h)(0x6A59F408)
@@ -169,7 +169,7 @@ I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_syscfg.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_tim.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_usart.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_uid.h)(0x6A59F408)
-I (..\gs358_app.h)(0x6A62E1CA)
+I (..\gs358_app.h)(0x6A6349C6)
 F (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\src\mg32_adc.c)(0x6A59F408)(-c --cpu Cortex-M0 -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\..\..\..\..\Device\CMSIS\Core\Include -I ..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc -I ..\..\..\..\..\Device\MG32F003\Include -I ..\..\gs358-D__UVISION_VERSION="540" -DUSE_STDPERIPH_DRIVER-o .\objects\mg32_adc.o --omf_browse .\objects\mg32_adc.crf --depend .\objects\mg32_adc.d)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_adc.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\Include\mg32f003_device.h)(0x6A59F408)
@@ -450,7 +450,7 @@ I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_syscfg.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_tim.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_usart.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_uid.h)(0x6A59F408)
-F (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\src\mg32_iwdg.c)(0x6A59F408)(-c --cpu Cortex-M0 -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\..\..\..\..\Device\CMSIS\Core\Include -I ..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc -I ..\..\..\..\..\Device\MG32F003\Include -I ..\..\gs358-D__UVISION_VERSION="540" -DUSE_STDPERIPH_DRIVER-o .\objects\mg32_iwdg.o --omf_browse .\objects\mg32_iwdg.crf --depend .\objects\mg32_iwdg.d)
+F (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\src\mg32_iwdg.c)(0x6A641BEF)(-c --cpu Cortex-M0 -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\..\..\..\..\Device\CMSIS\Core\Include -I ..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc -I ..\..\..\..\..\Device\MG32F003\Include -I ..\..\gs358-D__UVISION_VERSION="540" -DUSE_STDPERIPH_DRIVER-o .\objects\mg32_iwdg.o --omf_browse .\objects\mg32_iwdg.crf --depend .\objects\mg32_iwdg.d)
 I (..\..\..\..\..\Device\MG32F003\MG32F003_Lib\inc\mg32_iwdg.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\Include\mg32f003_device.h)(0x6A59F408)
 I (..\..\..\..\..\Device\MG32F003\Include\mg32f003.h)(0x6A59F408)

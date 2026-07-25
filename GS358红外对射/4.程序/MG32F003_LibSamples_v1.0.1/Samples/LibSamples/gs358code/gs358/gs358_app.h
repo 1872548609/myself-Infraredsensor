@@ -88,6 +88,40 @@ extern "C" {
 /* ADC一帧包含0、1、2、3、5共五个通道。 */
 #define GS358_ADC_CHANNEL_COUNT                      5U
 
+
+/**
+ * 独立看门狗功能开关。
+ *
+ * 1：开启独立看门狗
+ * 0：关闭独立看门狗
+ */
+#define GS358_WATCHDOG_ENABLE               1U
+
+/**
+ * 独立看门狗重装载值。
+ *
+ * 当前配置：
+ * LSI              = 40 kHz
+ * IWDG 预分频       = 32
+ * Reload           = 2499
+ *
+ * 标称超时时间：
+ *
+ * (2499 + 1) × 32 / 40000
+ * = 2 秒
+ *
+ * 注意：LSI 本身存在频率误差，因此实际超时时间会有偏差。
+ */
+#define GS358_WATCHDOG_RELOAD_VALUE          2499U
+
+#if ((GS358_WATCHDOG_ENABLE != 0U) && \
+     (GS358_WATCHDOG_ENABLE != 1U))
+#error "GS358_WATCHDOG_ENABLE must be 0 or 1"
+#endif
+
+#if (GS358_WATCHDOG_RELOAD_VALUE > 0x0FFFU)
+#error "GS358_WATCHDOG_RELOAD_VALUE must be <= 0x0FFF"
+#endif
 /* =========================== 类型定义 =========================== */
 
 typedef enum

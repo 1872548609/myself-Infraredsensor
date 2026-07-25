@@ -6,6 +6,7 @@
 #include "platform.h"
 #include "gs358_app.h"
 #include "mg32_tim.h"
+#include "mg32_iwdg.h"
 
 /* =========================== 引脚定义 =========================== */
 
@@ -77,6 +78,9 @@ static void GS358_ResetPeriodFilter(void);
 static void GS358_SetLightState(uint8_t light_present);
 static void GS358_ApplyOutputs(void);
 
+static void GS358_WatchdogInit(void);
+static void GS358_WatchdogFeed(void);
+
 static void GS358_WriteLogicalOutput(GPIO_TypeDef *port,
                                      uint16_t pin,
                                      uint8_t logical_active,
@@ -117,6 +121,12 @@ void GS358_AppInit(void)
      * TIM3 此时不启动，收到第一个有效下降沿后才开始超时计时。
      */
     GS358_ApplyOutputs();
+    
+    
+    /*
+     * 所有硬件初始化完成后再启动独立看门狗。
+     */
+    GS358_WatchdogInit();
 }
 
 void GS358_AppProcess(void)
@@ -129,6 +139,80 @@ void GS358_AppProcess(void)
      *
      * USER CODE END MAIN_LOOP
      */
+     
+     /*
+     * 只有主循环能够持续正常运行时才喂狗。
+     *
+     * 不要把喂狗放到比较器、TIM3 或 ADC 中断中，
+     * 否则主循环即使跑飞，只要中断仍然进入，
+     * 看门狗就可能无法检测到故障。
+     */
+    //GS358_WatchdogFeed();
+}
+/* =========================== 独立看门狗 =========================== */
+
+static void GS358_WatchdogInit(void)
+{
+#if (GS358_WATCHDOG_ENABLE != 0U)
+
+    /*
+     * 开启 IWDG_PR 和 IWDG_RLR 寄存器写权限。
+     */
+    IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);
+
+    /*
+     * IWDG 时钟源为约 40 kHz 的独立 LSI。
+     *
+     * 预分频设置为 32：
+     * 每次计数约为 32 / 40000 = 0.8 ms。
+     */
+    IWDG->PR = IWDG_Prescaler_32;
+
+    /*
+     * 标称超时时间：
+     *
+     * (Reload + 1) × Prescaler / LSI
+     *
+     * (2499 + 1) × 32 / 40000
+     * = 2 秒
+     */
+   IWDG->RLR = (uint16_t)GS358_WATCHDOG_RELOAD_VALUE;
+
+    /*
+     * 计数器溢出后直接产生系统复位，
+     * 不采用仅产生中断的方式。
+     */
+    IWDG_OverflowConfig(IWDG_Overflow_Reset);
+
+    /*
+     * 启动独立看门狗。
+     *
+     * IWDG 启动后，正常运行期间不能通过普通软件关闭，
+     * 只能通过系统复位重新初始化。
+     */
+    IWDG_Enable();
+
+    /*
+     * 启动后立即装载一次计数器，
+     * 从完整超时时间开始计数。
+     */
+    IWDG_ReloadCounter();
+
+#endif
+}
+
+static void GS358_WatchdogFeed(void)
+{
+#if (GS358_WATCHDOG_ENABLE != 0U)
+
+    /*
+     * 重新装载看门狗计数器。
+     *
+     * 本函数只在主循环 GS358_AppProcess() 中调用。
+     */
+    IWDG_ReloadCounter();
+
+#endif
 }
 
 /* =========================== GPIO =========================== */
@@ -518,12 +602,6 @@ void GS358_ComparatorFallingIRQHandler(void)
         g_gs358_last_period_us = 0U;
         g_gs358_last_period_valid = 0U;
 
-        /*
-         * 第一个边沿必须启动定时器。
-         * 否则 TIM3 仍处于停止状态，后续无法测量周期。
-         */
-        GS358_LightLostTimerRestart();
-
         return;
     }
 
@@ -542,17 +620,12 @@ void GS358_ComparatorFallingIRQHandler(void)
         GS358_IsPeriodValid(measured_period_us);
 
     g_gs358_last_period_valid = period_valid;
+    
+    
+    GS358_LightLostTimerRestart();
 
     if (period_valid != 0U)
     {
-        /*
-         * 只有周期正确的边沿才成为新的时间基准。
-         *
-         * 同时清除可能已经出现的旧更新标志，
-         * 并重新开始一次 1.5 ms 丢光超时检测。
-         */
-        GS358_LightLostTimerRestart();
-
         g_gs358_period_valid_total++;
 
         if (s_edge_confirm_count <
