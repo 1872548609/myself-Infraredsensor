@@ -1,4 +1,4 @@
-C51 COMPILER V9.57.0.0   MAIN                                                              07/23/2026 17:30:30 PAGE 1   
+C51 COMPILER V9.57.0.0   MAIN                                                              07/25/2026 15:52:49 PAGE 1   
 
 
 C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
@@ -62,7 +62,7 @@ line level    source
   51   1          WDOF = 0;
   52   1      
   53   1          /*
-C51 COMPILER V9.57.0.0   MAIN                                                              07/23/2026 17:30:30 PAGE 2   
+C51 COMPILER V9.57.0.0   MAIN                                                              07/25/2026 15:52:49 PAGE 2   
 
   54   1           * 尽早启动 WDT，使后续外设初始化异常也能够恢复。
   55   1           * wdt_load()/wdt_feed() 对 RSTSTAT 的读写会同时清除 WDT 计数。
@@ -73,7 +73,7 @@ line level    source
   60   1          GPIO_Init();
   61   1          wdt_feed(APP_WDT_TIMEOUT);
   62   1      
-  63   1          uart_init();
+  63   1          //uart_init();
   64   1          wdt_feed(APP_WDT_TIMEOUT);
   65   1      
   66   1          gtimer0_count_init(2200, 24 - 1);
@@ -126,7 +126,7 @@ line level    source
  113          
  114          void GPIO_IRQHandler(void) interrupt 0
  115          {
-C51 COMPILER V9.57.0.0   MAIN                                                              07/23/2026 17:30:30 PAGE 3   
+C51 COMPILER V9.57.0.0   MAIN                                                              07/25/2026 15:52:49 PAGE 3   
 
  116   1          if (gpio_irq_get(P1_4))
  117   1          {
@@ -145,7 +145,7 @@ line level    source
  130   2               * 所以必须由 GPIO 中断提供运行心跳。
  131   2               */
  132   2              ir_wdt_feed_count++;
- 133   2              if(ir_wdt_feed_count==100)
+ 133   2              if(ir_wdt_feed_count==50)
  134   2              {
  135   3                  ir_wdt_feed_count = 0;
  136   3                  
@@ -190,7 +190,7 @@ line level    source
  175   1          gpio_dir_set(P1_0, GPIO_DIR_OUT);
  176   1          gpio_dr_set(P1_0, GPIO_SR_HIGH);
  177   1          gpio_io_set(P1_0, GPIO_HIGH);
-C51 COMPILER V9.57.0.0   MAIN                                                              07/23/2026 17:30:30 PAGE 4   
+C51 COMPILER V9.57.0.0   MAIN                                                              07/25/2026 15:52:49 PAGE 4   
 
  178   1      
  179   1          REG_P12_CFG = 0x00;
@@ -204,16 +204,16 @@ line level    source
  187   1          gpio_dir_set(P1_3, GPIO_DIR_OUT);
  188   1          gpio_dr_set(P1_3, GPIO_SR_HIGH);
  189   1          gpio_io_set(P1_3, GPIO_LOW);
- 190   1      
- 191   1          gpio_init(P1_4);
- 192   1          gpio_dir_set(P1_4, GPIO_DIR_IN);
- 193   1          gpio_dr_set(P1_4, GPIO_SR_HIGH);
- 194   1          gpio_in_enable(P1_4, IN_ENABLE);
- 195   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
- 196   1      
- 197   1          P1AH &= ~(0x02);
- 198   1          P1AH |=  (0x01);
- 199   1          REG_P14_CFG = 0x20;
+ 190   1          
+ 191   1          P1AH &= ~(0x02);
+ 192   1          P1AH |=  (0x01);
+ 193   1          REG_P14_CFG = 0x20;
+ 194   1      
+ 195   1          gpio_init(P1_4);
+ 196   1          gpio_dir_set(P1_4, GPIO_DIR_IN);
+ 197   1          gpio_dr_set(P1_4, GPIO_SR_HIGH);
+ 198   1          gpio_in_enable(P1_4, IN_ENABLE);
+ 199   1          gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
  200   1      
  201   1          REG_P15_CFG = 0x00;
  202   1          gpio_init(P1_5);
@@ -223,7 +223,7 @@ line level    source
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =    491    ----
+   CODE SIZE        =    490    ----
    CONSTANT SIZE    =   ----    ----
    XDATA SIZE       =     15    ----
    PDATA SIZE       =   ----    ----

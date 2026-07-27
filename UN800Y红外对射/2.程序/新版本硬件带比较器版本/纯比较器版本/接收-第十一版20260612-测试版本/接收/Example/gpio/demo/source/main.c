@@ -60,7 +60,7 @@ void main(void)
     GPIO_Init();
     wdt_feed(APP_WDT_TIMEOUT);
 
-    uart_init();
+    //uart_init();
     wdt_feed(APP_WDT_TIMEOUT);
 
     gtimer0_count_init(2200, 24 - 1);
@@ -130,7 +130,7 @@ void GPIO_IRQHandler(void) interrupt 0
          * 所以必须由 GPIO 中断提供运行心跳。
          */
         ir_wdt_feed_count++;
-        if(ir_wdt_feed_count==100)
+        if(ir_wdt_feed_count==50)
         {
             ir_wdt_feed_count = 0;
             
@@ -187,16 +187,16 @@ void GPIO_Init(void)
     gpio_dir_set(P1_3, GPIO_DIR_OUT);
     gpio_dr_set(P1_3, GPIO_SR_HIGH);
     gpio_io_set(P1_3, GPIO_LOW);
+    
+    P1AH &= ~(0x02);
+    P1AH |=  (0x01);
+    REG_P14_CFG = 0x20;
 
     gpio_init(P1_4);
     gpio_dir_set(P1_4, GPIO_DIR_IN);
     gpio_dr_set(P1_4, GPIO_SR_HIGH);
     gpio_in_enable(P1_4, IN_ENABLE);
     gpio_irq_set(P1_4, GPIO_IRQ_ENABLE, gpio_UECallBack);
-
-    P1AH &= ~(0x02);
-    P1AH |=  (0x01);
-    REG_P14_CFG = 0x20;
 
     REG_P15_CFG = 0x00;
     gpio_init(P1_5);
