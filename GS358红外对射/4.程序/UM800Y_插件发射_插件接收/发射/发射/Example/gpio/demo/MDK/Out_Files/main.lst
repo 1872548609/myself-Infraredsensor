@@ -1,0 +1,146 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              07/27/2026 17:21:44 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Out_Files\main.obj
+COMPILER INVOKED BY: D:\Keil\Keil_v5\C51\BIN\C51.EXE ..\source\main.c LARGE OMF2 OPTIMIZE(8,SIZE) BROWSE INCDIR(..\..\..
+                    -\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\main.lst) O
+                    -BJECT(.\Out_Files\main.obj)
+
+line level    source
+
+   1          /***********************************************************************
+   2           * Copyright (c) 2017 - 2021, Unicmicro Co.,Ltd .
+   3           *
+   4           * All rights reserved.
+   5           *
+   6           * Filename    : main.c
+   7           * Description : main source file
+   8           * Author(s)   : Will
+   9           * Version     : V1.0
+  10           * Modify date : 2021-04-27
+  11           ***********************************************************************/
+  12          
+  13          #include "system_um800y.h"
+  14          #include "app.h"
+  15          #include "gtimer.h"
+  16          #include "pwm.h"
+  17          #include "common.h"
+  18          #include "config.h"
+  19          #include "gpio.h"
+  20          #include "adc.h"
+  21          
+  22          /*
+  23           * 系统主频：24 MHz
+  24           *
+  25           * PWM周期：
+  26           * 24 MHz × 100 us = 2400
+  27           *
+  28           * PWM有效脉宽：
+  29           * 24 MHz × 10 us = 240
+  30           *
+  31           * 占空比：
+  32           * 10 us / 100 us = 10%
+  33           */
+  34          #define SYSTEM_CLOCK_HZ           24000000UL
+  35          #define PWM_TX_PERIOD_US          100UL
+  36          #define PWM_TX_PULSE_US           5UL
+  37          
+  38          #define PWM_TX_PERIOD_COUNT       \
+  39              ((uint16_t)((SYSTEM_CLOCK_HZ / 1000000UL) * PWM_TX_PERIOD_US))
+  40          
+  41          #define PWM_TX_PULSE_COUNT        \
+  42              ((uint16_t)((SYSTEM_CLOCK_HZ / 1000000UL) * PWM_TX_PULSE_US))
+  43          
+  44          void GPIO_Init(void);
+  45          void ADC_Init(void);
+  46          void gpio_int_pro(void);
+  47          void gtimer0_UECallBack(void);
+  48          
+  49          void main(void)
+  50          {
+  51   1          /*
+  52   1           * 初始化内部RCH时钟。
+  53   1           * system_init()配置系统运行在24 MHz。
+C51 COMPILER V9.57.0.0   MAIN                                                              07/27/2026 17:21:44 PAGE 2   
+
+  54   1           */
+  55   1          clock_init(24000000UL);
+  56   1      
+  57   1      
+  58   1          GPIO_Init();
+  59   1      
+  60   1          /*
+  61   1           * 当前发射程序实际上不需要串口时，
+  62   1           * 可以屏蔽uart_init()，减少无关资源占用。
+  63   1           */
+  64   1          uart_init();
+  65   1      
+  66   1          /*
+  67   1           * PWM2输出参数：
+  68   1           *
+  69   1           * 周期计数：2400，对应100 us
+  70   1           * 脉宽计数：240，对应10 us
+  71   1           * 有效电平：LOW
+  72   1           *
+  73   1           * 最终波形：
+  74   1           * 周期100 us，频率10 kHz；
+  75   1           * 低电平有效10 us，占空比10%。
+  76   1           */
+  77   1          pwm2_init(PWM_TX_PERIOD_COUNT,
+  78   1                    PWM_TX_PULSE_COUNT,
+  79   1                    LOW);
+  80   1      
+  81   1          pwm2_start();
+  82   1      
+  83   1          while (1)
+  84   1          {
+  85   2          }
+  86   1      }
+  87          
+  88          void GPIO_Init(void)
+  89          {
+  90   1          /*
+  91   1           * 红色指示灯：P1.3
+  92   1           */
+  93   1          gpio_init(P1_3);
+  94   1          gpio_dir_set(P1_3, GPIO_DIR_OUT);
+  95   1          gpio_dr_set(P1_3, GPIO_SR_HIGH);
+  96   1          gpio_io_set(P1_3, GPIO_HIGH);
+  97   1      
+  98   1          /*
+  99   1           * 红外脉冲发射端口：
+ 100   1           * P1.4复用为PWM2。
+ 101   1           */
+ 102   1          REG_P14_CFG = 0x02;
+ 103   1          gpio_sr_set(P1_4, GPIO_SR_HIGH);
+ 104   1      
+ 105   1          /*
+ 106   1           * 脉冲测试输入端口：P1.5
+ 107   1           */
+ 108   1          REG_P15_CFG = 0x00;
+ 109   1      
+ 110   1          gpio_init(P1_5);
+ 111   1          gpio_dir_set(P1_5, GPIO_DIR_IN);
+ 112   1          gpio_in_enable(P1_5, IN_ENABLE);
+ 113   1      }
+
+
+C51 COMPILER V9.57.0.0   MAIN                                                              07/27/2026 17:21:44 PAGE 3   
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     97    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+   EDATA SIZE       =   ----    ----
+   HDATA SIZE       =   ----    ----
+   XDATA CONST SIZE =   ----    ----
+   FAR CONST SIZE   =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
