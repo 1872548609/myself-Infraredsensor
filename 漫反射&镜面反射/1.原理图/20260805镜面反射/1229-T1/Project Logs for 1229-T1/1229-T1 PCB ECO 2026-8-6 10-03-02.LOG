@@ -1,0 +1,284 @@
+Change Footprint: Footprint Not Found SOP-8
+Change component parameters: Designator = "C1" ("C1"); Footprint = "0603"; UniqueID = "\KNHVMFDD" ("\KNHVMFDD")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C2" ("C2"); Footprint = "1206"; UniqueID = "\IRKMYEEN" ("\IRKMYEEN")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C6" ("C6"); Footprint = "0402"; UniqueID = "\GDLAMLCZ" ("\GDLAMLCZ")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C7" ("C7"); Footprint = "0402"; UniqueID = "\XLHREQUV" ("\XLHREQUV")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C8" ("C8"); Footprint = "0603"; UniqueID = "\HMRIWIUY" ("\HMRIWIUY")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C9" ("C9"); Footprint = "0603"; UniqueID = "\NWONBHTH" ("\NWONBHTH")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters: Designator = "C10" ("C10"); Footprint = "1206"; UniqueID = "\YBLVVZNB" ("\YBLVVZNB")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters: Designator = "D1" ("D1"); Footprint = "0805"; UniqueID = "\XDFYAMRI" ("\XDFYAMRI")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "D2" ("D2"); Footprint = "1206"; UniqueID = "\DSILAHKD" ("\DSILAHKD")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "D3" ("D3"); Footprint = "0805"; UniqueID = "\MDMUUTUB" ("\MDMUUTUB")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "D4" ("D4"); Footprint = "0805"; UniqueID = "\YCPBNNKE" ("\YCPBNNKE")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "D5" ("D5"); Footprint = "1206"; UniqueID = "\QHIDKSBG" ("\QHIDKSBG")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "F1" ("F1"); Footprint = "0805"; UniqueID = "\HWIUNUOZ" ("\HWIUNUOZ")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "J1" ("J1"); Footprint = "SIP5P"; UniqueID = "\YBWSBAEW" ("\YBWSBAEW")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "40"; VariantName = "[No Variations]"
+Change component parameters: Designator = "J2" ("J2"); Footprint = "SIP4"; UniqueID = "\CSHEOZNT" ("\CSHEOZNT")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "50"; VariantName = "[No Variations]"
+Change component parameters: Designator = "LED1" ("LED1"); Footprint = "0603V"; UniqueID = "\HUMXTIOY" ("\HUMXTIOY")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "40"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "LED2" ("LED2"); Footprint = "0603V"; UniqueID = "\FKUUGIUZ" ("\FKUUGIUZ")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "40"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "LED3" ("LED3"); Footprint = "LED-SMD"; UniqueID = "\NTZRVKIB" ("\NTZRVKIB")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "60"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "40"; VariantName = "[No Variations]"
+Change component parameters: Designator = "LED4" ("LED4"); Footprint = "LED2P"; UniqueID = "\MGBJPWOV" ("\MGBJPWOV")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "40"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "Q1" ("Q1"); Footprint = "SOT-23"; UniqueID = "\HBSCYWAU" ("\HBSCYWAU")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "Q2" ("Q2"); Footprint = "SOT-23"; UniqueID = "\OEFKUPHW" ("\OEFKUPHW")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R1" ("R1"); Footprint = "0603"; UniqueID = "\QVCKLCQJ" ("\QVCKLCQJ")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R2" ("R2"); Footprint = "0402"; UniqueID = "\UENSDKJI" ("\UENSDKJI")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R3" ("R3"); Footprint = "0402"; UniqueID = "\HJCVPTKG" ("\HJCVPTKG")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R4" ("R4"); Footprint = "0402"; UniqueID = "\JVCOQFVI" ("\JVCOQFVI")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R5" ("R5"); Footprint = "0402"; UniqueID = "\DEFBMQAW" ("\DEFBMQAW")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R6" ("R6"); Footprint = "0603"; UniqueID = "\WDRJPSSS" ("\WDRJPSSS")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R8" ("R8"); Footprint = "0402"; UniqueID = "\WHESIYCH" ("\WHESIYCH")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R11" ("R11"); Footprint = "0402"; UniqueID = "\LJROJNVT" ("\LJROJNVT")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R12" ("R12"); Footprint = "0402"; UniqueID = "\HEJZVFPG" ("\HEJZVFPG")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R13" ("R13"); Footprint = "0603"; UniqueID = "\WGXDRLHU" ("\WGXDRLHU")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R14" ("R14"); Footprint = "0402"; UniqueID = "\MIBZATOI" ("\MIBZATOI")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R15" ("R15"); Footprint = "0402"; UniqueID = "\QAEDGURA" ("\QAEDGURA")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R16" ("R16"); Footprint = "0402"; UniqueID = "\OKCDQYSL" ("\OKCDQYSL")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R17" ("R17"); Footprint = "0603V"; UniqueID = "\UFXCPRWG" ("\UFXCPRWG")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R18" ("R18"); Footprint = "0805"; UniqueID = "\VKGPRNFU" ("\VKGPRNFU")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "R19" ("R19"); Footprint = "0402"; UniqueID = "\GVVVUCIR" ("\GVVVUCIR")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Change component parameters: Designator = "TP3" ("TP3"); Footprint = "SIP1"; UniqueID = "\XHIMOQDD" ("\XHIMOQDD")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "TP4" ("TP4"); Footprint = "SIP1"; UniqueID = "\KDTICYBO" ("\KDTICYBO")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "10"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "20"; VariantName = "[No Variations]"
+Change component parameters: Designator = "U2" ("U2"); Footprint = "SOT89"; UniqueID = "\WZTUVHAU" ("\WZTUVHAU")
+Change component parameters (AddParameter): Name = "Text Field1"; Value = "70"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Text Field2"; Value = "30"; VariantName = "[No Variations]"
+Add Component: Footprint Not Found 
+Add Component: Footprint Not Found 0402
+Add Component: Footprint Not Found 0402
+Add Component: Footprint Not Found 
+Add Component: Footprint Not Found 
+Add Component: Footprint Not Found 0402
+Add Component: Footprint Not Found 0402
+Add Component: Footprint Not Found 
+Add Component: Footprint Not Found 
+Add Component: Footprint Not Found 
+Add Component: Footprint Not Found 
+Add Component: Footprint Not Found VR3
+Add Component: Footprint Not Found 
+Add Component: Footprint Not Found SOP-8A
+Added Pin To Net: NetName=GND Pin=C1-1
+Added Pin To Net: NetName=GND Pin=C2-2
+Added Pin To Net: NetName=GND Pin=C8-2
+Added Pin To Net: NetName=GND Pin=C9-2
+Added Pin To Net: NetName=GND Pin=C10-1
+Added Pin To Net: NetName=GND Pin=D1-1
+Added Pin To Net: NetName=GND Pin=D2-1
+Added Pin To Net: NetName=GND Pin=D5-1
+Added Pin To Net: NetName=GND Pin=J1-1
+Added Pin To Net: NetName=GND Pin=J1-2
+Added Pin To Net: NetName=GND Pin=J1-3
+Added Pin To Net: NetName=GND Pin=J2-1
+Added Pin To Net: NetName=GND Pin=LED1-2
+Added Pin To Net: NetName=GND Pin=LED2-2
+Added Pin To Net: NetName=GND Pin=LED4-1
+Added Pin To Net: NetName=GND Pin=R1-2
+Added Pin To Net: NetName=GND Pin=R11-1
+Added Pin To Net: NetName=GND Pin=R17-2
+Added Pin To Net: NetName=GND Pin=R18-2
+Added Pin To Net: NetName=GND Pin=U1-4
+Added Pin To Net: NetName=GND Pin=U2-3
+Added Pin To Net: NetName=GND Pin=U3-14
+Added Net: Name=GND
+Added Pin To Net: NetName=NetC4_1 Pin=U1-1
+Added Net: Name=NetC4_1
+Add Net: Net with name "NetC4_1" already exists
+Add Net: Net with name "NetC4_1" already exists
+Added Pin To Net: NetName=NetC4_2 Pin=U1-2
+Added Net: Name=NetC4_2
+Add Net: Net with name "NetC4_2" already exists
+Added Net: Name=NetC5_1
+Add Net: Net with name "NetC5_1" already exists
+Added Pin To Net: NetName=NetC5_2 Pin=C6-1
+Added Pin To Net: NetName=NetC5_2 Pin=R11-1
+Added Pin To Net: NetName=NetC5_2 Pin=U1-7
+Added Net: Name=NetC5_2
+Add Net: Net with name "NetC5_2" already exists
+Added Pin To Net: NetName=NetC6_2 Pin=C6-2
+Added Pin To Net: NetName=NetC6_2 Pin=R11-2
+Added Pin To Net: NetName=NetC6_2 Pin=R12-2
+Added Pin To Net: NetName=NetC6_2 Pin=U1-6
+Added Net: Name=NetC6_2
+Add Net: Net with name "NetC6_2" already exists
+Added Pin To Net: NetName=NetC7_1 Pin=C7-1
+Added Pin To Net: NetName=NetC7_1 Pin=LED4-2
+Added Pin To Net: NetName=NetC7_1 Pin=R2-1
+Added Net: Name=NetC7_1
+Add Net: Net with name "NetC7_1" already exists
+Added Pin To Net: NetName=NetC7_2 Pin=C7-2
+Added Pin To Net: NetName=NetC7_2 Pin=R12-1
+Added Net: Name=NetC7_2
+Added Pin To Net: NetName=NetC8_1 Pin=C8-1
+Added Pin To Net: NetName=NetC8_1 Pin=R1-1
+Added Pin To Net: NetName=NetC8_1 Pin=R13-1
+Added Pin To Net: NetName=NetC8_1 Pin=U1-3
+Added Pin To Net: NetName=NetC8_1 Pin=U1-5
+Added Net: Name=NetC8_1
+Added Pin To Net: NetName=NetC10_2 Pin=C10-2
+Added Pin To Net: NetName=NetC10_2 Pin=LED3-1
+Added Pin To Net: NetName=NetC10_2 Pin=LED3-2
+Added Pin To Net: NetName=NetC10_2 Pin=R6-1
+Added Net: Name=NetC10_2
+Added Pin To Net: NetName=NetD3_1 Pin=D3-1
+Added Pin To Net: NetName=NetD3_1 Pin=J2-4
+Added Net: Name=NetD3_1
+Added Pin To Net: NetName=NetD3_2 Pin=D3-2
+Added Pin To Net: NetName=NetD3_2 Pin=F1-2
+Added Net: Name=NetD3_2
+Added Pin To Net: NetName=NetD4_1 Pin=D4-1
+Added Pin To Net: NetName=NetD4_1 Pin=R3-2
+Added Pin To Net: NetName=NetD4_1 Pin=R4-2
+Added Net: Name=NetD4_1
+Added Pin To Net: NetName=NetD4_2 Pin=D4-2
+Added Pin To Net: NetName=NetD4_2 Pin=J2-3
+Added Net: Name=NetD4_2
+Added Pin To Net: NetName=NetD5_2 Pin=D5-2
+Added Pin To Net: NetName=NetD5_2 Pin=J2-2
+Added Pin To Net: NetName=NetD5_2 Pin=Q2-3
+Added Net: Name=NetD5_2
+Added Pin To Net: NetName=NetJ1_4 Pin=J1-4
+Added Pin To Net: NetName=NetJ1_4 Pin=U3-1
+Added Pin To Net: NetName=NetJ1_4 Pin=U3-20
+Added Net: Name=NetJ1_4
+Added Pin To Net: NetName=NetJ1_5 Pin=J1-5
+Added Pin To Net: NetName=NetJ1_5 Pin=Q1-1
+Added Net: Name=NetJ1_5
+Added Pin To Net: NetName=NetLED1_1 Pin=LED1-1
+Added Pin To Net: NetName=NetLED1_1 Pin=R15-2
+Added Net: Name=NetLED1_1
+Added Pin To Net: NetName=NetLED2_1 Pin=LED2-1
+Added Pin To Net: NetName=NetLED2_1 Pin=R8-2
+Added Net: Name=NetLED2_1
+Added Pin To Net: NetName=NetLED3_3 Pin=LED3-3
+Added Pin To Net: NetName=NetLED3_3 Pin=LED3-4
+Added Pin To Net: NetName=NetLED3_3 Pin=Q1-3
+Added Net: Name=NetLED3_3
+Added Pin To Net: NetName=NetQ1_2 Pin=Q1-2
+Added Pin To Net: NetName=NetQ1_2 Pin=R17-1
+Added Net: Name=NetQ1_2
+Added Pin To Net: NetName=NetQ2_1 Pin=Q2-1
+Added Pin To Net: NetName=NetQ2_1 Pin=R16-1
+Added Net: Name=NetQ2_1
+Added Pin To Net: NetName=NetQ2_2 Pin=Q2-2
+Added Pin To Net: NetName=NetQ2_2 Pin=R5-1
+Added Pin To Net: NetName=NetQ2_2 Pin=R18-1
+Added Net: Name=NetQ2_2
+Added Pin To Net: NetName=NetR4_1 Pin=R4-1
+Added Pin To Net: NetName=NetR4_1 Pin=U3-18
+Added Net: Name=NetR4_1
+Added Pin To Net: NetName=NetR5_2 Pin=R5-2
+Added Pin To Net: NetName=NetR5_2 Pin=U3-5
+Added Net: Name=NetR5_2
+Added Pin To Net: NetName=NetR15_1 Pin=R15-1
+Added Pin To Net: NetName=NetR15_1 Pin=R16-2
+Added Pin To Net: NetName=NetR15_1 Pin=U3-19
+Added Net: Name=NetR15_1
+Added Pin To Net: NetName=NetR19_1 Pin=R19-1
+Added Pin To Net: NetName=NetR19_1 Pin=U2-1
+Added Net: Name=NetR19_1
+Added Net: Name=NetR?_1
+Added Pin To Net: NetName=NetTP3_1 Pin=TP3-1
+Added Pin To Net: NetName=NetTP3_1 Pin=U3-8
+Added Net: Name=NetTP3_1
+Added Pin To Net: NetName=NetTP4_1 Pin=TP4-1
+Added Pin To Net: NetName=NetTP4_1 Pin=U3-9
+Added Net: Name=NetTP4_1
+Added Pin To Net: NetName=U3_11 Pin=C1-2
+Added Pin To Net: NetName=U3_11 Pin=R2-2
+Added Pin To Net: NetName=U3_11 Pin=R14-1
+Added Pin To Net: NetName=U3_11 Pin=U3-11
+Added Net: Name=U3_11
+Added Pin To Net: NetName=V1 Pin=C2-1
+Added Pin To Net: NetName=V1 Pin=D2-2
+Added Pin To Net: NetName=V1 Pin=F1-1
+Added Pin To Net: NetName=V1 Pin=R6-2
+Added Pin To Net: NetName=V1 Pin=U2-2
+Added Net: Name=V1
+Added Pin To Net: NetName=VCC Pin=C9-1
+Added Pin To Net: NetName=VCC Pin=D1-2
+Added Pin To Net: NetName=VCC Pin=R3-1
+Added Pin To Net: NetName=VCC Pin=R8-1
+Added Pin To Net: NetName=VCC Pin=R13-1
+Added Pin To Net: NetName=VCC Pin=R13-2
+Added Pin To Net: NetName=VCC Pin=R14-2
+Added Pin To Net: NetName=VCC Pin=R19-2
+Added Pin To Net: NetName=VCC Pin=U1-8
+Added Pin To Net: NetName=VCC Pin=U3-16
+Added Net: Name=VCC
+Added Class: Name=1229-T¸Ä
