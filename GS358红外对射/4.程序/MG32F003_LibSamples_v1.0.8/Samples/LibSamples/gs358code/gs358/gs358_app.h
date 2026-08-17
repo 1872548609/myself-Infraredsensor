@@ -34,7 +34,7 @@ extern "C" {
 #define GS358_SIGNAL_PERIOD_US                    100U
 
 /* 周期允许容差。当前有效范围为 995~1005 us。 */
-#define GS358_SIGNAL_PERIOD_TOLERANCE_US            5U
+#define GS358_SIGNAL_PERIOD_TOLERANCE_US            15U
 
 /* 连续得到多少个正确周期后确认有光。 */
 #define GS358_EDGE_CONFIRM_COUNT                   10U
@@ -55,7 +55,7 @@ extern "C" {
 #define GS358_COMPARE_IRQ_TEST_ENABLE                0U
 
 /* 丢光超时，单位us。 */
-#define GS358_LIGHT_LOST_TIMEOUT_US               1500U
+#define GS358_LIGHT_LOST_TIMEOUT_US                 300U
 
 /*
  * 定时器分配：

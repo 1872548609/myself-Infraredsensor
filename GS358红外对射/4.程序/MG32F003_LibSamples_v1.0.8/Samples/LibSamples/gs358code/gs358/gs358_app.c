@@ -74,7 +74,8 @@ static volatile uint8_t s_edge_confirm_count = 0U;
 static volatile uint8_t s_period_reference_ready = 0U;
 static volatile GS358_LedMode s_led_mode = GS358_LED_BLOCKED_ON;
 
-
+volatile uint16_t validcount = 0;
+volatile uint16_t valid_count[100] = {0};
 
 /* =========================== 内部函数声明 =========================== */
 
@@ -152,7 +153,7 @@ void GS358_AppInit(void)
     /*
      * 所有硬件初始化完成后再启动独立看门狗。
      */
-    GS358_WatchdogInit();
+//    GS358_WatchdogInit();
 }
 
 void GS358_AppProcess(void)
@@ -644,6 +645,16 @@ void GS358_ComparatorFallingIRQHandler(void)
 
     period_valid = GS358_IsPeriodValid(measured_period_us);
     g_gs358_last_period_valid = period_valid;
+    
+    validcount++;
+    
+    valid_count[validcount] = g_gs358_last_period_us;
+        
+    if(validcount>=100)
+    {
+        
+        validcount = 0;
+    }
 
     if (period_valid != 0U)
     {
@@ -668,6 +679,7 @@ void GS358_ComparatorFallingIRQHandler(void)
             GS358_SetLightState(1U);
         }
 
+
 #if (GS358_COMPARE_IRQ_TEST_ENABLE != 0U)
         /* 本次相邻边沿周期有效：PA8测试输出释放。 */
         GS358_WriteLogicalOutput(GS358_OUTPUT_NC_PORT,
@@ -675,6 +687,7 @@ void GS358_ComparatorFallingIRQHandler(void)
                                  0U,
                                  GS358_NC_OUTPUT_ACTIVE_HIGH);
 #endif
+
     }
     else
     {
@@ -694,7 +707,16 @@ void GS358_ComparatorFallingIRQHandler(void)
 #if (GS358_PERIOD_ERROR_RESET_CONFIRM != 0U)
         s_edge_confirm_count = 0U;
 #endif
+
     }
+    
+    
+//#if (GS358_COMPARE_IRQ_TEST_ENABLE != 0U)
+//        GS358_WriteLogicalOutput(GS358_OUTPUT_NC_PORT,
+//                                 GS358_OUTPUT_NC_PIN,
+//                                 0U,
+//                                 GS358_NC_OUTPUT_ACTIVE_HIGH);
+//#endif
 }
 
 void GS358_LightLostTimerIRQHandler(void)
