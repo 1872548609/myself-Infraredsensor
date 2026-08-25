@@ -168,17 +168,37 @@
         <Ww>
           <count>0</count>
           <WinNumber>1</WinNumber>
-          <ItemText>\\USART_Interrupt\../gs358_app.c\g_gs358_last_period_us,0x0A</ItemText>
+          <ItemText>g_gs358_last_settlement_valid ,0x0A</ItemText>
         </Ww>
         <Ww>
           <count>1</count>
           <WinNumber>1</WinNumber>
-          <ItemText>g_gs358_last_settlement_valid_count,0x0A</ItemText>
+          <ItemText>g_gs358_last_settlement_period_us    ,0x0A</ItemText>
         </Ww>
         <Ww>
           <count>2</count>
           <WinNumber>1</WinNumber>
-          <ItemText>g_gs358_last_settlement_noise_count,0x0A</ItemText>
+          <ItemText>g_gs358_fall_record_adc,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>3</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_gs358_fall_record_time_us,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>4</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_gs358_fall_record_interval_us,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>5</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_gs358_fall_record_type,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>6</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_gs358_fall_record_group_id,0x0A</ItemText>
         </Ww>
       </WatchWindow1>
       <Tracepoint>

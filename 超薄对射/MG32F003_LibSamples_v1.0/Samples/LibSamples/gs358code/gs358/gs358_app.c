@@ -29,8 +29,13 @@
 #define GS358_ADC_GPIOA_PINS         (GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_12)
 #define GS358_ADC_GPIOB_PINS         (GPIO_Pin_0 | GPIO_Pin_1)
 
-/* ADC 任意通道扫描数量寄存器填写 N-1：5 路对应 4。 */
+/* ADC 任意通道扫描数量寄存器填写N-1。 */
+#if ((GS358_ADC_CAPTURE_TEST_ENABLE != 0U) || \
+     (GS358_ADC_SINGLE_CHANNEL_ENABLE != 0U))
+#define GS358_ADC_CHANNEL_NUM_FIELD  0U
+#else
 #define GS358_ADC_CHANNEL_NUM_FIELD  (GS358_ADC_CHANNEL_COUNT - 1U)
+#endif
 
 /* =========================== 定时器分配 =========================== */
 
@@ -47,6 +52,38 @@
 
 volatile uint16_t g_gs358_adc_values[GS358_ADC_CHANNEL_COUNT] = {0U};
 volatile uint32_t g_gs358_adc_frame_count = 0U;
+
+volatile uint16_t g_gs358_adc_capture_buffer[GS358_ADC_CAPTURE_BUFFER_SIZE] = {0U};
+volatile uint16_t g_gs358_adc_capture_write_index = 0U;
+volatile uint32_t g_gs358_adc_capture_total = 0U;
+volatile uint16_t g_gs358_adc_capture_min = 0xFFFFU;
+volatile uint16_t g_gs358_adc_capture_max = 0U;
+
+volatile uint16_t g_gs358_adc_trigger_value = 0U;
+volatile int16_t  g_gs358_adc_trigger_delta = 0;
+volatile uint16_t g_gs358_adc_trigger_high_threshold = 0U;
+volatile uint16_t g_gs358_adc_trigger_low_threshold = 0U;
+volatile uint16_t g_gs358_adc_trigger_event_value = 0U;
+volatile uint16_t g_gs358_adc_trigger_event_time_us = 0U;
+volatile uint32_t g_gs358_adc_trigger_rise_total = 0U;
+volatile uint32_t g_gs358_adc_trigger_fall_total = 0U;
+volatile uint16_t g_gs358_adc_trigger_high_frame_count = 0U;
+volatile uint16_t g_gs358_adc_trigger_last_high_frame_count = 0U;
+volatile uint16_t g_gs358_adc_trigger_max_high_frame_count = 0U;
+volatile uint8_t  g_gs358_adc_trigger_high_state = 0U;
+
+#if (GS358_FALL_RECORD_ENABLE != 0U)
+volatile uint16_t g_gs358_fall_record_adc[GS358_FALL_RECORD_BUFFER_SIZE] = {0U};
+volatile uint16_t g_gs358_fall_record_time_us[GS358_FALL_RECORD_BUFFER_SIZE] = {0U};
+volatile uint16_t g_gs358_fall_record_interval_us[GS358_FALL_RECORD_BUFFER_SIZE] = {0U};
+volatile uint16_t g_gs358_fall_record_group_id[GS358_FALL_RECORD_BUFFER_SIZE] = {0U};
+volatile uint8_t  g_gs358_fall_record_type[GS358_FALL_RECORD_BUFFER_SIZE] = {0U};
+volatile uint8_t  g_gs358_fall_record_write_index = 0U;
+volatile uint32_t g_gs358_fall_record_total = 0U;
+volatile uint16_t g_gs358_fall_record_current_group_id = 0U;
+volatile uint8_t  g_gs358_fall_record_current_group_count = 0U;
+#endif
+
 volatile uint32_t g_gs358_compare_edge_total = 0U;
 volatile uint8_t  g_gs358_light_present = 0U;
 
@@ -103,6 +140,14 @@ static volatile uint8_t  s_period_sample_count = 0U;
 static volatile uint8_t  s_edge_confirm_count = 0U;
 static volatile uint16_t s_last_edge_time_us = 0U;
 static volatile uint8_t  s_period_reference_ready = 0U;
+static volatile uint32_t s_valid_period_sum_us = 0U;
+
+/* ADC阈值状态：只在高->低下穿时生成一次检测事件。 */
+static volatile uint8_t  s_adc_trigger_high = 0U;
+static volatile uint16_t s_adc_trigger_last_value = 0U;
+#if (GS358_FALL_RECORD_ENABLE != 0U)
+static volatile uint16_t s_fall_record_last_time_us = 0U;
+#endif
 
 /* 当前1000us窗口内被忽略的提前毛刺数量。 */
 static volatile uint8_t  s_window_noise_edge_count = 0U;
@@ -116,7 +161,6 @@ volatile uint16_t valid_count[100] = {0};
 
 //static void GS358_SysTickInit(void);
 static void GS358_GPIOInit(void);
-static void GS358_EXTIInit(void);
 static void GS358_ADCInit(void);
 
 static void GS358_PeriodTimerInit(void);
@@ -126,6 +170,7 @@ static void GS358_LightLostTimerInit(void);
 static void GS358_LightLostTimerRestart(void);
 
 static uint8_t GS358_IsPeriodValid(uint16_t period_us);
+static uint8_t GS358_IsTotalDurationValid(uint32_t total_us);
 static void GS358_ResetPeriodFilter(void);
 static void GS358_SetLightState(uint8_t light_present);
 static void GS358_ApplyOutputs(void);
@@ -139,6 +184,13 @@ static void GS358_WriteLogicalOutput(GPIO_TypeDef *port,
                                      uint16_t pin,
                                      uint8_t logical_active,
                                      uint8_t active_high);
+static void GS358_ADCThresholdEventIRQHandler(void);
+#if (GS358_FALL_RECORD_ENABLE != 0U)
+static void GS358_RecordFallingEvent(uint16_t edge_time_us,
+                                     uint16_t adc_value,
+                                     uint8_t record_type,
+                                     uint8_t start_new_group);
+#endif
 
 
 /* =========================== 初始化 =========================== */
@@ -155,12 +207,11 @@ void GS358_AppInit(void)
 
     /*
      * 先初始化TIM3周期计时和TIM1丢光超时，
-     * 再开启PA7外部中断，避免边沿提前到来。
+     * ADC连续扫描启动后，由ADC阈值下穿产生检测事件。
      */
     GS358_PeriodTimerInit();
     GS358_LightLostTimerInit();
 
-    GS358_EXTIInit();
     GS358_ADCInit();
 
     /* 周期检测状态初始化。 */
@@ -169,6 +220,38 @@ void GS358_AppInit(void)
     s_last_edge_time_us = 0U;
     s_window_noise_edge_count = 0U;
     s_period_reference_ready = 0U;
+    s_valid_period_sum_us = 0U;
+    s_adc_trigger_high = 0U;
+    s_adc_trigger_last_value = 0U;
+
+    g_gs358_adc_trigger_value = 0U;
+    g_gs358_adc_trigger_delta = 0;
+    /* 低阈值触发，有光下穿；高阈值释放，回到无光基线后重新布防。 */
+    g_gs358_adc_trigger_low_threshold = GS358_ADC_TRIGGER_THRESHOLD;
+    g_gs358_adc_trigger_high_threshold =
+        (uint16_t)(GS358_ADC_TRIGGER_THRESHOLD +
+                   GS358_ADC_TRIGGER_HYSTERESIS);
+    g_gs358_adc_trigger_event_value = 0U;
+    g_gs358_adc_trigger_event_time_us = 0U;
+    g_gs358_adc_trigger_rise_total = 0U;
+    g_gs358_adc_trigger_fall_total = 0U;
+    g_gs358_adc_trigger_high_frame_count = 0U;
+    g_gs358_adc_trigger_last_high_frame_count = 0U;
+    g_gs358_adc_trigger_max_high_frame_count = 0U;
+    g_gs358_adc_trigger_high_state = 0U;
+
+#if (GS358_FALL_RECORD_ENABLE != 0U)
+    g_gs358_fall_record_write_index = 0U;
+    g_gs358_fall_record_total = 0U;
+    g_gs358_fall_record_current_group_id = 0U;
+    g_gs358_fall_record_current_group_count = 0U;
+    s_fall_record_last_time_us = 0U;
+#endif
+
+    g_gs358_adc_capture_write_index = 0U;
+    g_gs358_adc_capture_total = 0U;
+    g_gs358_adc_capture_min = 0xFFFFU;
+    g_gs358_adc_capture_max = 0U;
     
     g_gs358_last_settlement_period_us = 0U;
     g_gs358_last_settlement_sample_count = 0U;
@@ -500,6 +583,29 @@ static uint8_t GS358_IsPeriodValid(uint16_t period_us)
     return 0U;
 }
 
+static uint8_t GS358_IsTotalDurationValid(uint32_t total_us)
+{
+    uint32_t total_min_us;
+    uint32_t total_max_us;
+
+    if (GS358_CONFIRM_TOTAL_US >
+        GS358_CONFIRM_TOTAL_TOLERANCE_US)
+    {
+        total_min_us = GS358_CONFIRM_TOTAL_US -
+                       GS358_CONFIRM_TOTAL_TOLERANCE_US;
+    }
+    else
+    {
+        total_min_us = 0U;
+    }
+
+    total_max_us = GS358_CONFIRM_TOTAL_US +
+                   GS358_CONFIRM_TOTAL_TOLERANCE_US;
+
+    return ((total_us >= total_min_us) &&
+            (total_us <= total_max_us)) ? 1U : 0U;
+}
+
 static void GS358_ResetPeriodFilter(void)
 {
     s_period_reference_ready = 0U;
@@ -508,6 +614,7 @@ static void GS358_ResetPeriodFilter(void)
     s_edge_confirm_count = 0U;
     s_last_edge_time_us = 0U;
     s_window_noise_edge_count = 0U;
+    s_valid_period_sum_us = 0U;
 
     g_gs358_last_period_us = 0U;
     g_gs358_last_period_valid = 0U;
@@ -515,7 +622,7 @@ static void GS358_ResetPeriodFilter(void)
 
 /*
  * TIM3：第一个下降沿到来时启动，
- * 连续计时1000us后产生更新中断并自动停止。
+ * 连续计时GS358_DETECTION_WINDOW_US后产生更新中断并自动停止。
  */
 static void GS358_PeriodTimerInit(void)
 {
@@ -639,35 +746,68 @@ static void GS358_LightLostTimerRestart(void)
 }
 
 
-/* =========================== PA7 外部中断 =========================== */
+/* =========================== ADC阈值事件 =========================== */
 
-static void GS358_EXTIInit(void)
+/*
+ * 保留旧接口，避免工程中mg32f003_it.c仍调用它时编译失败。
+ * 本版本没有开启EXTI7，因此此函数不会参与信号判定。
+ */
+void GS358_ComparatorFallingIRQHandler(void)
 {
-    EXTI_InitTypeDef exti_init;
-
-    RCC_APB1PeriphClockCmd(RCC_APB1PERIPH_SYSCFG,
-                           ENABLE);
-
-    /* 将 EXTI7 映射到 PA7。 */
-    SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOA,
-                          EXTI_PinSource7);
-
-    EXTI_ClearITPendingBit(EXTI_Line7);
-
-    EXTI_StructInit(&exti_init);
-    exti_init.EXTI_Line = EXTI_Line7;
-    exti_init.EXTI_Mode = EXTI_Mode_Interrupt;
-    exti_init.EXTI_Trigger = EXTI_Trigger_Falling;
-    exti_init.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&exti_init);
-
-    NVIC_ClearPendingIRQ(EXTI4_15_IRQn);
-    NVIC_SetPriority(EXTI4_15_IRQn, 0U);
-    NVIC_EnableIRQ(EXTI4_15_IRQn);
 }
 
- 
-void GS358_ComparatorFallingIRQHandler(void)
+#if (GS358_FALL_RECORD_ENABLE != 0U)
+/* 记录每次真实ADC下穿，供Keil Watch查看脉冲是否连续。 */
+static void GS358_RecordFallingEvent(uint16_t edge_time_us,
+                                     uint16_t adc_value,
+                                     uint8_t record_type,
+                                     uint8_t start_new_group)
+{
+    uint8_t index;
+    uint16_t interval_us;
+
+    if (start_new_group != 0U)
+    {
+        g_gs358_fall_record_current_group_id++;
+        g_gs358_fall_record_current_group_count = 0U;
+        s_fall_record_last_time_us = edge_time_us;
+        interval_us = 0U;
+    }
+    else
+    {
+        interval_us = (uint16_t)(edge_time_us - s_fall_record_last_time_us);
+        s_fall_record_last_time_us = edge_time_us;
+    }
+
+    index = g_gs358_fall_record_write_index;
+    g_gs358_fall_record_adc[index] = adc_value;
+    g_gs358_fall_record_time_us[index] = edge_time_us;
+    g_gs358_fall_record_interval_us[index] = interval_us;
+    g_gs358_fall_record_group_id[index] =
+        g_gs358_fall_record_current_group_id;
+    g_gs358_fall_record_type[index] = record_type;
+
+    if (g_gs358_fall_record_write_index <
+        (GS358_FALL_RECORD_BUFFER_SIZE - 1U))
+    {
+        g_gs358_fall_record_write_index++;
+    }
+    else
+    {
+        g_gs358_fall_record_write_index = 0U;
+    }
+
+    g_gs358_fall_record_total++;
+
+    if (g_gs358_fall_record_current_group_count < 255U)
+    {
+        g_gs358_fall_record_current_group_count++;
+    }
+}
+#endif
+
+/* 只由ADC EOC中断在检测通道出现高->低阈值下穿时调用。 */
+static void GS358_ADCThresholdEventIRQHandler(void)
 {
     uint16_t current_edge_time_us;
     uint16_t measured_period_us;
@@ -683,7 +823,7 @@ void GS358_ComparatorFallingIRQHandler(void)
 
     g_gs358_compare_edge_total++;
 
-    /* 第一条边沿建立基准并开启固定1000us窗口。 */
+    /* 第一个ADC阈值事件建立时间基准并启动TIM3。 */
     if (s_period_reference_ready == 0U)
     {
         s_period_reference_ready = 1U;
@@ -691,6 +831,7 @@ void GS358_ComparatorFallingIRQHandler(void)
         s_period_sample_count = 0U;
         s_edge_confirm_count = 0U;
         s_window_noise_edge_count = 0U;
+        s_valid_period_sum_us = 0U;
 
         g_gs358_last_period_us = 0U;
         g_gs358_last_raw_period_us = 0U;
@@ -700,6 +841,13 @@ void GS358_ComparatorFallingIRQHandler(void)
 
         GS358_PeriodTimerRestart();
         GS358_LightLostTimerRestart();
+        g_gs358_adc_trigger_event_time_us = 0U;
+#if (GS358_FALL_RECORD_ENABLE != 0U)
+        GS358_RecordFallingEvent(0U,
+                                 g_gs358_adc_trigger_event_value,
+                                 GS358_FALL_RECORD_FIRST,
+                                 1U);
+#endif
 
 #if (GS358_COMPARE_IRQ_TEST_ENABLE != 0U)
         GS358_WriteLogicalOutput(GS358_OUTPUT_NC_PORT,
@@ -711,15 +859,15 @@ void GS358_ComparatorFallingIRQHandler(void)
     }
 
     /*
-     * TIM3在整个1000us窗口内连续运行，
-     * 后续边沿只读取CNT，不能重启TIM3。
+     * TIM3在整组确认期间连续运行，后续ADC事件只读取CNT，不能重启TIM3。
      */
     current_edge_time_us =
         (uint16_t)TIM_GetCounter(GS358_PERIOD_TIMER);
+    g_gs358_adc_trigger_event_time_us = current_edge_time_us;
         
         
     /*
-     * 1000/1050us窗口已经结束，但TIM3结算中断
+     * 确认窗口已经结束，但TIM3结算中断
      * 尚未完成时，CNT可能已经回到0或小于上次边沿时间。
      *
      * 此时不能执行无符号减法，否则会得到接近65535的大数。
@@ -762,6 +910,12 @@ void GS358_ComparatorFallingIRQHandler(void)
         g_gs358_last_period_us = measured_period_us;
         g_gs358_last_period_carry_us = 0U;
         g_gs358_last_period_valid = 0U;
+#if (GS358_FALL_RECORD_ENABLE != 0U)
+        GS358_RecordFallingEvent(current_edge_time_us,
+                                 g_gs358_adc_trigger_event_value,
+                                 GS358_FALL_RECORD_EARLY_NOISE,
+                                 0U);
+#endif
 
 #if (GS358_COMPARE_IRQ_TEST_ENABLE != 0U)
         GS358_WriteLogicalOutput(GS358_OUTPUT_NC_PORT,
@@ -772,9 +926,6 @@ void GS358_ComparatorFallingIRQHandler(void)
         return;
     }
 
-    /* 只有非提前毛刺边沿才成为下一次周期的参考。 */
-    s_last_edge_time_us = current_edge_time_us;
-
     g_gs358_last_raw_period_us = measured_period_us;
     g_gs358_last_adjusted_period_us = measured_period_us;
     g_gs358_last_period_us = measured_period_us;
@@ -782,6 +933,15 @@ void GS358_ComparatorFallingIRQHandler(void)
 
     period_valid = GS358_IsPeriodValid(measured_period_us);
     g_gs358_last_period_valid = period_valid;
+
+#if (GS358_FALL_RECORD_ENABLE != 0U)
+    GS358_RecordFallingEvent(
+        current_edge_time_us,
+        g_gs358_adc_trigger_event_value,
+        (period_valid != 0U) ? GS358_FALL_RECORD_PERIOD_VALID :
+                               GS358_FALL_RECORD_PERIOD_INVALID,
+        0U);
+#endif
     
 #if (GS358_PERIOD_RECORD_ENABLE != 0) 
    
@@ -796,19 +956,50 @@ void GS358_ComparatorFallingIRQHandler(void)
     }
 #endif
 
-    if (s_period_sample_count < 255U)
-    {
-        s_period_sample_count++;
-    }
-
     if (period_valid != 0U)
     {
+        /* 仅有效周期更新参考点；10个周期必须连续有效。 */
+        s_last_edge_time_us = current_edge_time_us;
+
+        if (s_period_sample_count < 255U)
+        {
+            s_period_sample_count++;
+        }
+
         GS358_LightLostTimerRestart();
         g_gs358_period_valid_total++;
 
         if (s_edge_confirm_count < 255U)
         {
             s_edge_confirm_count++;
+        }
+
+        s_valid_period_sum_us += (uint32_t)measured_period_us;
+
+        /*
+         * 满足10个有效100us周期后立即结算，不等待TIM3溢出。
+         * 这样总时间判定的是实际首末事件间隔，而不是固定窗口长度。
+         */
+        if (s_edge_confirm_count >= GS358_EDGE_CONFIRM_COUNT)
+        {
+            g_gs358_last_settlement_period_us = s_valid_period_sum_us;
+            g_gs358_last_settlement_sample_count = s_period_sample_count;
+            g_gs358_last_settlement_valid_count = s_edge_confirm_count;
+            g_gs358_last_settlement_noise_count = s_window_noise_edge_count;
+
+            if (GS358_IsTotalDurationValid(s_valid_period_sum_us) != 0U)
+            {
+                g_gs358_last_settlement_valid = 1U;
+                GS358_SetLightState(1U);
+            }
+            else
+            {
+                g_gs358_last_settlement_valid = 0U;
+                g_gs358_period_invalid_total++;
+            }
+
+            GS358_PeriodTimerStop();
+            GS358_ResetPeriodFilter();
         }
     }
     else
@@ -821,6 +1012,10 @@ void GS358_ComparatorFallingIRQHandler(void)
         {
             g_gs358_period_miss_total++;
         }
+
+        /* 非提前且不合周期：本组连续10周期确认立即失败。 */
+        GS358_PeriodTimerStop();
+        GS358_ResetPeriodFilter();
     }
 
 #if (GS358_COMPARE_IRQ_TEST_ENABLE != 0U)
@@ -840,7 +1035,7 @@ void GS358_ComparatorFallingIRQHandler(void)
 //#endif
 }
 
-/* =========================== TIM3 1000us窗口结算 =========================== */
+/* =========================== TIM3确认窗口超时结算 =========================== */
 
 void GS358_PeriodWindowTimerIRQHandler(void)
 {
@@ -852,8 +1047,7 @@ void GS358_PeriodWindowTimerIRQHandler(void)
 
         TIM_Cmd(GS358_PERIOD_TIMER, DISABLE);
 
-        g_gs358_last_settlement_period_us =
-            GS358_DETECTION_WINDOW_US;
+        g_gs358_last_settlement_period_us = s_valid_period_sum_us;
         g_gs358_last_settlement_sample_count =
             s_period_sample_count;
         g_gs358_last_settlement_valid_count =
@@ -861,23 +1055,16 @@ void GS358_PeriodWindowTimerIRQHandler(void)
         g_gs358_last_settlement_noise_count =
             s_window_noise_edge_count;
 
-        if (s_edge_confirm_count >=
-            GS358_EDGE_CONFIRM_COUNT)
-        {
-            g_gs358_last_settlement_valid = 1U;
-            GS358_SetLightState(1U);
-        }
-        else
-        {
-            g_gs358_last_settlement_valid = 0U;
-        }
+        /* 到达最大允许总时长仍未完成10个有效周期，判定本组失败。 */
+        g_gs358_last_settlement_valid = 0U;
 
-        /* 下一个下降沿开启新的1000us窗口。 */
+        /* 下一个下降沿开启新的确认窗口。 */
         s_period_reference_ready = 0U;
         s_last_edge_time_us = 0U;
         s_period_sample_count = 0U;
         s_edge_confirm_count = 0U;
         s_window_noise_edge_count = 0U;
+        s_valid_period_sum_us = 0U;
 
         TIM_SetCounter(GS358_PERIOD_TIMER, 0U);
     }
@@ -941,7 +1128,8 @@ static void GS358_ADCInit(void)
 
     ADC_StructInit(&adc_init);
     adc_init.ADC_Resolution = ADC_Resolution_12b;
-    adc_init.ADC_Prescaler = ADC_Prescaler_16;
+    /* PCLK=48MHz时，/3得到16MHz，正好是ADC允许的最高时钟。 */
+    adc_init.ADC_Prescaler = ADC_Prescaler_3;
     adc_init.ADC_Mode = ADC_Mode_Scan;
 
     /*
@@ -957,13 +1145,20 @@ static void GS358_ADCInit(void)
     ADC_Init(ADC1, &adc_init);
 
     /*
-     * 使用最长采样时间，提高对板上分压、电流检测和偏置节点的兼容性。
-     * 后续确认源阻抗较低后，可以缩短以提高帧率。
+     * 最短2.5个ADC时钟采样时间，用于尽可能快地捕获100us脉冲。
+     * 前提：GS358_ADC_TRIGGER_CHANNEL_INDEX对应的模拟前级输出阻抗足够低。
      */
     ADC_SampleTimeConfig(ADC1,
-                         ADC_SampleTime_240_5);
+                         ADC_SampleTime_2_5);
 
-    /* 固定扫描顺序：0 -> 1 -> 2 -> 3 -> 5。 */
+    /* 抓取或单通道检测时，只扫描PA12对应的检测通道。 */
+#if ((GS358_ADC_CAPTURE_TEST_ENABLE != 0U) || \
+     (GS358_ADC_SINGLE_CHANNEL_ENABLE != 0U))
+    ADC_AnyChannelSelect(ADC1,
+                         ADC_AnyChannel_0,
+                         GS358_ADC_TRIGGER_ADC_CHANNEL);
+#else
+    /* 正常模式固定扫描顺序：0 -> 1 -> 2 -> 3 -> 5。 */
     ADC_AnyChannelSelect(ADC1,
                          ADC_AnyChannel_0,
                          ADC_Channel_0);
@@ -983,6 +1178,7 @@ static void GS358_ADCInit(void)
     ADC_AnyChannelSelect(ADC1,
                          ADC_AnyChannel_4,
                          ADC_Channel_5);
+#endif
 
     ADC_AnyChannelNumCfg(ADC1,
                          GS358_ADC_CHANNEL_NUM_FIELD);
@@ -1029,6 +1225,12 @@ void GS358_ADC_EOCIRQHandler(void)
         ADC_ClearITPendingBit(ADC1,
                               ADC_IT_EOC);
 
+ #if ((GS358_ADC_CAPTURE_TEST_ENABLE != 0U) || \
+      (GS358_ADC_SINGLE_CHANNEL_ENABLE != 0U))
+        g_gs358_adc_values[GS358_ADC_TRIGGER_CHANNEL_INDEX] =
+            ADC_GetChannelConvertedValue(ADC1,
+                                         GS358_ADC_TRIGGER_ADC_CHANNEL);
+#else
         g_gs358_adc_values[0] =
             ADC_GetChannelConvertedValue(ADC1,
                                          ADC_Channel_0);
@@ -1048,6 +1250,7 @@ void GS358_ADC_EOCIRQHandler(void)
         g_gs358_adc_values[4] =
             ADC_GetChannelConvertedValue(ADC1,
                                          ADC_Channel_5);
+#endif
 
         g_gs358_adc_frame_count++;
 
@@ -1067,6 +1270,100 @@ void GS358_ADC_EOCIRQHandler(void)
 
 void GS358_ADC_ScanCompleteIRQHook(void)
 {
+    uint16_t adc_value;
+    uint16_t trigger_high;
+    uint16_t trigger_low;
+
+    adc_value =
+        g_gs358_adc_values[GS358_ADC_TRIGGER_CHANNEL_INDEX];
+
+    /* 低阈值用于脉冲下穿触发，高阈值用于回升释放。 */
+    trigger_low = GS358_ADC_TRIGGER_THRESHOLD;
+    trigger_high = (uint16_t)(GS358_ADC_TRIGGER_THRESHOLD +
+                              GS358_ADC_TRIGGER_HYSTERESIS);
+
+    /* 每一帧更新：用于确认ADC数值、阈值和相邻帧跳变是否合理。 */
+    g_gs358_adc_trigger_value = adc_value;
+    g_gs358_adc_trigger_delta =
+        (int16_t)((int32_t)adc_value - (int32_t)s_adc_trigger_last_value);
+    s_adc_trigger_last_value = adc_value;
+    g_gs358_adc_trigger_high_threshold = trigger_high;
+    g_gs358_adc_trigger_low_threshold = trigger_low;
+
+#if (GS358_ADC_CAPTURE_TEST_ENABLE != 0U)
+    /* 最近256个原始样本循环保存；Watch中从write_index位置绕回读取。 */
+    g_gs358_adc_capture_buffer[g_gs358_adc_capture_write_index] = adc_value;
+
+    if (g_gs358_adc_capture_write_index <
+        (GS358_ADC_CAPTURE_BUFFER_SIZE - 1U))
+    {
+        g_gs358_adc_capture_write_index++;
+    }
+    else
+    {
+        g_gs358_adc_capture_write_index = 0U;
+    }
+
+    g_gs358_adc_capture_total++;
+
+    if (adc_value < g_gs358_adc_capture_min)
+    {
+        g_gs358_adc_capture_min = adc_value;
+    }
+
+    if (adc_value > g_gs358_adc_capture_max)
+    {
+        g_gs358_adc_capture_max = adc_value;
+    }
+
+    /* 抓波形阶段只采样，禁止ADC噪声影响周期判定或输出。 */
+    return;
+#endif
+
+    /*
+     * 阈值下穿=一次原先的“比较器下降沿”。
+     * 低电平脉冲区只锁存一次，必须先上升到高阈值以上才允许下一次触发。
+     */
+    if (s_adc_trigger_high == 0U)
+    {
+        if (adc_value <= trigger_low)
+        {
+            s_adc_trigger_high = 1U;
+            g_gs358_adc_trigger_high_state = 1U;
+            g_gs358_adc_trigger_fall_total++;
+            g_gs358_adc_trigger_event_value = adc_value;
+            g_gs358_adc_trigger_high_frame_count = 1U;
+            if (g_gs358_adc_trigger_max_high_frame_count < 1U)
+            {
+                g_gs358_adc_trigger_max_high_frame_count = 1U;
+            }
+            GS358_ADCThresholdEventIRQHandler();
+        }
+    }
+    else if (adc_value >= trigger_high)
+    {
+        s_adc_trigger_high = 0U;
+        g_gs358_adc_trigger_high_state = 0U;
+        g_gs358_adc_trigger_rise_total++;
+        g_gs358_adc_trigger_last_high_frame_count =
+            g_gs358_adc_trigger_high_frame_count;
+        g_gs358_adc_trigger_high_frame_count = 0U;
+    }
+    else
+    {
+        if (g_gs358_adc_trigger_high_frame_count < 0xFFFFU)
+        {
+            g_gs358_adc_trigger_high_frame_count++;
+        }
+
+        if (g_gs358_adc_trigger_high_frame_count >
+            g_gs358_adc_trigger_max_high_frame_count)
+        {
+            g_gs358_adc_trigger_max_high_frame_count =
+                g_gs358_adc_trigger_high_frame_count;
+        }
+    }
+
     /*
      * USER CODE BEGIN ADC_SCAN_COMPLETE_IRQ
      *
@@ -1078,7 +1375,7 @@ void GS358_ADC_ScanCompleteIRQHook(void)
      * g_gs358_adc_values[4] = ADC_IN5
      *
      * 注意：本函数在 ADC 中断内运行，不要加入长延时、printf、
-     * Flash 擦写或复杂排序。推荐只复制数据或置位处理标志。
+     * Flash 擦写或复杂排序。
      *
      * USER CODE END ADC_SCAN_COMPLETE_IRQ
      */
