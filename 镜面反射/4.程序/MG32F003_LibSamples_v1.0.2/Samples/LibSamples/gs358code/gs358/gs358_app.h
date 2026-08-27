@@ -79,7 +79,7 @@ extern "C" {
 #define GS358_PWM_ENABLE                            1U
 #define GS358_PWM_TIMER_TICK_HZ               1000000UL
 #define GS358_PWM_PERIOD_US                       100UL
-#define GS358_PWM_DUTY_PERMILLE                    50UL
+#define GS358_PWM_DUTY_PERMILLE                     5UL
 #define GS358_PWM_ACTIVE_HIGH                       1U
 
 /* 原理图中PA8、PA9经电阻驱动NPN，高电平表示通道动作。 */
