@@ -180,6 +180,16 @@
           <WinNumber>1</WinNumber>
           <ItemText>g_gs358_last_settlement_noise_count,0x0A</ItemText>
         </Ww>
+        <Ww>
+          <count>3</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_gs358_last_settlement_valid,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>4</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>g_gs358_last_settlement_valid_count,0x0A</ItemText>
+        </Ww>
       </WatchWindow1>
       <Tracepoint>
         <THDelay>0</THDelay>
