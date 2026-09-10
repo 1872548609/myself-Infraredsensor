@@ -76,7 +76,7 @@ extern "C" {
 #define GS358_NC_OUTPUT_ACTIVE_HIGH                 1U
 
 /* 红灯有效电平。 */
-#define GS358_RED_LED_ACTIVE_HIGH                   1U
+#define GS358_RED_LED_ACTIVE_HIGH                   0U
 
 /* ADC一帧包含0、1、2、3、5共五个通道。 */
 #define GS358_ADC_CHANNEL_COUNT                     5U
