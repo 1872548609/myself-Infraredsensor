@@ -31,7 +31,7 @@ extern "C" {
 /* =========================== 可调参数 =========================== */
 
 /* 发射信号目标周期，单位us。 */
-#define GS358_SIGNAL_PERIOD_US                     70U
+#define GS358_SIGNAL_PERIOD_US                     100U
 
 /* 周期允许容差；当前有效范围为70±12，即58~82 us。 */
 #define GS358_SIGNAL_PERIOD_TOLERANCE_US            12U
@@ -46,7 +46,7 @@ extern "C" {
  * [GS358_CONFIRM_TOTAL_US - GS358_CONFIRM_TOTAL_TOLERANCE_US,
  *  GS358_CONFIRM_TOTAL_US + GS358_CONFIRM_TOTAL_TOLERANCE_US] 内。
  */
-#define GS358_CONFIRM_TOTAL_US                     700U
+#define GS358_CONFIRM_TOTAL_US                     1000U
 #define GS358_CONFIRM_TOTAL_TOLERANCE_US            80U
 
 /* TIM3的单次计时上限；必须覆盖累计总时长允许的最大值。 */
