@@ -31,7 +31,7 @@ extern "C" {
 /* =========================== 可调参数 =========================== */
 
 /* 发射信号目标周期，单位us。 */
-#define GS358_SIGNAL_PERIOD_US                     70U   //100U
+#define GS358_SIGNAL_PERIOD_US                     100U   //100U
 
 /* 周期允许容差。当前有效范围为 85~115 us。 */
 #define GS358_SIGNAL_PERIOD_TOLERANCE_US            15U
@@ -40,7 +40,7 @@ extern "C" {
  * 固定检测窗口：第一个下降沿到来后启动TIM3，
  * 1000us到达时由TIM3更新中断结算。
  */
-#define GS358_DETECTION_WINDOW_US                 750U  //1050U
+#define GS358_DETECTION_WINDOW_US                 1050U  //1050U
 
 /* 1000us窗口内至少需要的有效单周期数。 */
 #define GS358_EDGE_CONFIRM_COUNT                    8U

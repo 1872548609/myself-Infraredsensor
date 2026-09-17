@@ -1,0 +1,23 @@
+--cpu Cortex-M0+
+".\objects\main.o"
+".\objects\common.o"
+".\objects\ciu32f003_std.o"
+".\objects\ciu32f003_std_adc.o"
+".\objects\ciu32f003_std_comp.o"
+".\objects\ciu32f003_std_crc.o"
+".\objects\ciu32f003_std_exti.o"
+".\objects\ciu32f003_std_flash.o"
+".\objects\ciu32f003_std_gpio.o"
+".\objects\ciu32f003_std_i2c.o"
+".\objects\ciu32f003_std_lptim.o"
+".\objects\ciu32f003_std_pmu.o"
+".\objects\ciu32f003_std_rcc.o"
+".\objects\ciu32f003_std_spi.o"
+".\objects\ciu32f003_std_tim.o"
+".\objects\ciu32f003_std_uart.o"
+".\objects\system_ciu32f003.o"
+".\objects\startup_ciu32f003.o"
+--library_type=microlib --strict --scatter ".\Objects\GPIO_Toggle.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\Listings\GPIO_Toggle.map" -o .\Objects\GPIO_Toggle.axf
