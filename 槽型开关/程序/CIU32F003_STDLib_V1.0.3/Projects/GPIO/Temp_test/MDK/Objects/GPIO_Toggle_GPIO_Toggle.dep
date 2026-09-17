@@ -1,8 +1,8 @@
 Dependencies for Project 'GPIO_Toggle', Target 'GPIO_Toggle': (DO NOT MODIFY !)
 CompilerVersion: 5060960::V5.06 update 7 (build 960)::.\ARMCC
-F (..\Source\main.c)(0x6AAB58DF)(--c99 -c --cpu Cortex-M0+ -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\Include -I ..\..\..\..\Drivers\CIU32F003_Lib\Include -I ..\..\..\..\Drivers\CMSIS\Core -I ..\..\..\..\Drivers\CMSIS\Device-ID:\long\Arm\Packs\HED\CIU32F003_DFP\1.0.0\Drivers\CMSIS\Device\CIU32F003\Include-D__UVISION_VERSION="540" -DCIU32F003 -DCIU32F003-o .\objects\main.o --omf_browse .\objects\main.crf --depend .\objects\main.d)
+F (..\Source\main.c)(0x6AAB907B)(--c99 -c --cpu Cortex-M0+ -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\Include -I ..\..\..\..\Drivers\CIU32F003_Lib\Include -I ..\..\..\..\Drivers\CMSIS\Core -I ..\..\..\..\Drivers\CMSIS\Device-ID:\long\Arm\Packs\HED\CIU32F003_DFP\1.0.0\Drivers\CMSIS\Device\CIU32F003\Include-D__UVISION_VERSION="540" -DCIU32F003 -DCIU32F003-o .\objects\main.o --omf_browse .\objects\main.crf --depend .\objects\main.d)
 I (..\Include\main.h)(0x686CFADF)
-I (..\Include\common.h)(0x686CFADF)
+I (..\Include\common.h)(0x6AAB9173)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std.h)(0x672C4CBF)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std_config.h)(0x672C4CBF)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std_rcc.h)(0x672C4CBF)
@@ -31,8 +31,8 @@ I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std_pmu.h)(0x672C4CBF)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std_spi.h)(0x672C4CBF)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std_tim.h)(0x68565447)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std_uart.h)(0x686B903E)
-F (..\Source\common.c)(0x686CFAE0)(--c99 -c --cpu Cortex-M0+ -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\Include -I ..\..\..\..\Drivers\CIU32F003_Lib\Include -I ..\..\..\..\Drivers\CMSIS\Core -I ..\..\..\..\Drivers\CMSIS\Device-ID:\long\Arm\Packs\HED\CIU32F003_DFP\1.0.0\Drivers\CMSIS\Device\CIU32F003\Include-D__UVISION_VERSION="540" -DCIU32F003 -DCIU32F003-o .\objects\common.o --omf_browse .\objects\common.crf --depend .\objects\common.d)
-I (..\Include\common.h)(0x686CFADF)
+F (..\Source\common.c)(0x6AAB916D)(--c99 -c --cpu Cortex-M0+ -D__MICROLIB -g -O0 --apcs=interwork --split_sections -I ..\Include -I ..\..\..\..\Drivers\CIU32F003_Lib\Include -I ..\..\..\..\Drivers\CMSIS\Core -I ..\..\..\..\Drivers\CMSIS\Device-ID:\long\Arm\Packs\HED\CIU32F003_DFP\1.0.0\Drivers\CMSIS\Device\CIU32F003\Include-D__UVISION_VERSION="540" -DCIU32F003 -DCIU32F003-o .\objects\common.o --omf_browse .\objects\common.crf --depend .\objects\common.d)
+I (..\Include\common.h)(0x6AAB9173)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std.h)(0x672C4CBF)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std_config.h)(0x672C4CBF)
 I (..\..\..\..\Drivers\CIU32F003_Lib\Include\ciu32f003_std_rcc.h)(0x672C4CBF)
