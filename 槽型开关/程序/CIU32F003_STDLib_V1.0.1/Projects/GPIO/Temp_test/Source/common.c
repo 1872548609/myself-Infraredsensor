@@ -9,8 +9,12 @@
 /*==============================================================================================*/
 /* 1. Keil Watch调试变量                                                                        */
 /*==============================================================================================*/
-__IO uint16_t g_adc_value = 0U;
-__IO uint32_t g_adc_sample_count = 0U;
+__IO uint16_t g_adc_value = 0U;             // ADC原始值，可以看到电机干扰脉冲
+__IO uint16_t g_adc_filtered_value = 0U;    // 滤波后的真实电平，实际用于阈值判断      // 滤波后的真实电平，实际用于阈值判断
+__IO uint16_t g_adc_window_min = 0U;        // 当前9点中的最低值
+__IO uint16_t g_adc_window_max = 0U;        // 当前9点中的最高值
+__IO uint8_t g_adc_filter_ready = 0U;       // 9点收满后变为1
+__IO uint32_t g_adc_sample_count = 0U;      // 当前检测状态
 __IO uint32_t g_adc_overrun_count = 0U;
 __IO uint32_t g_threshold_switch_count = 0U;
 
@@ -288,34 +292,106 @@ void detection_state_set(uint8_t detection_state)
 }
 
 /*==============================================================================================*/
-/* 6. 新增功能：ADC阈值、回差和互补输出                                                        */
+/* 6. 抗脉冲滤波、ADC阈值及互补输出                                                     */
 /*==============================================================================================*/
+static uint16_t s_adc_filter_buffer[ADC_FILTER_WINDOW_SIZE];
+static uint8_t s_adc_filter_index = 0U;
+static uint8_t s_adc_filter_count = 0U;
+
+static uint8_t adc_pulse_filter_update(uint16_t adc_value)
+{
+    uint16_t sorted[ADC_FILTER_WINDOW_SIZE];
+    uint16_t temp;
+    uint32_t sum = 0U;
+    uint8_t i;
+    uint8_t j;
+
+    s_adc_filter_buffer[s_adc_filter_index] = adc_value;
+    s_adc_filter_index++;
+    if(s_adc_filter_index >= ADC_FILTER_WINDOW_SIZE)
+    {
+        s_adc_filter_index = 0U;
+    }
+
+    if(s_adc_filter_count < ADC_FILTER_WINDOW_SIZE)
+    {
+        s_adc_filter_count++;
+        if(s_adc_filter_count < ADC_FILTER_WINDOW_SIZE)
+        {
+            return 0U;
+        }
+    }
+
+    /* 9点插入排序。 */
+    for(i = 0U; i < ADC_FILTER_WINDOW_SIZE; i++)
+    {
+        sorted[i] = s_adc_filter_buffer[i];
+    }
+
+    for(i = 1U; i < ADC_FILTER_WINDOW_SIZE; i++)
+    {
+        temp = sorted[i];
+        j = i;
+        while((j > 0U) && (sorted[j - 1U] > temp))
+        {
+            sorted[j] = sorted[j - 1U];
+            j--;
+        }
+        sorted[j] = temp;
+    }
+
+    /* 去掉最低2点和最高2点，只平均中间5点。 */
+    for(i = ADC_FILTER_TRIM_COUNT;
+        i < (ADC_FILTER_WINDOW_SIZE - ADC_FILTER_TRIM_COUNT);
+        i++)
+    {
+        sum += sorted[i];
+    }
+
+    g_adc_filtered_value = (uint16_t)(sum /
+        (ADC_FILTER_WINDOW_SIZE - (2U * ADC_FILTER_TRIM_COUNT)));
+    g_adc_filter_ready = 1U;
+
+#if (ADC_FILTER_DEBUG_ENABLE == FUNCTION_ENABLE)
+    g_adc_window_min = sorted[0];
+    g_adc_window_max = sorted[ADC_FILTER_WINDOW_SIZE - 1U];
+#endif
+
+    return 1U;
+}
+
 void slot_switch_adc_process(uint16_t adc_value)
 {
 #if (ADC_THRESHOLD_CONTROL_ENABLE == FUNCTION_ENABLE)
-    uint8_t new_state = g_detection_state;
+    uint16_t value_for_judgement;
 
-    if(g_detection_state == STATE_OFF)
+#if (ADC_PULSE_FILTER_ENABLE == FUNCTION_ENABLE)
+    if(adc_pulse_filter_update(adc_value) == 0U)
     {
-        /* ADC大于阈值：NO有效、NC无效、LED亮。 */
-        if(adc_value > ADC_SWITCH_THRESHOLD)
-        {
-            new_state = STATE_ON;
-        }
+        return;
+    }
+    value_for_judgement = g_adc_filtered_value;
+#else
+    g_adc_filtered_value = adc_value;
+    g_adc_filter_ready = 1U;
+    value_for_judgement = adc_value;
+#endif
+
+    if((g_detection_state == STATE_OFF) &&
+       (value_for_judgement > ADC_SWITCH_THRESHOLD))
+    {
+        g_threshold_switch_count++;
+        detection_state_set(STATE_ON);
+    }
+    else if((g_detection_state != STATE_OFF) &&
+            (value_for_judgement <
+             (ADC_SWITCH_THRESHOLD - ADC_SWITCH_HYSTERESIS)))
+    {
+        g_threshold_switch_count++;
+        detection_state_set(STATE_OFF);
     }
     else
     {
-        /* ADC低于“阈值-回差”：NO无效、NC有效、LED灭。 */
-        if(adc_value < (ADC_SWITCH_THRESHOLD - ADC_SWITCH_HYSTERESIS))
-        {
-            new_state = STATE_OFF;
-        }
-    }
-
-    if(new_state != g_detection_state)
-    {
-        g_threshold_switch_count++;
-        detection_state_set(new_state);
     }
 #else
     (void)adc_value;

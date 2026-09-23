@@ -47,7 +47,7 @@ extern "C" {
 #define DETECTION_POWER_ON_STATE            STATE_OFF
 
 /* 定时器触发ADC的周期，单位us；默认10us，即100kS/s。 */
-#define ADC_SAMPLE_PERIOD_US                (10U)
+#define ADC_SAMPLE_PERIOD_US                (100U)
 
 /*----------------------------------------------------------------------------------------------*/
 /* 新增功能：ADC阈值自动切换NO、NC和LED                                                         */
@@ -55,10 +55,22 @@ extern "C" {
 #define ADC_THRESHOLD_CONTROL_ENABLE        FUNCTION_ENABLE
 
 /* 12位ADC范围为0~4095。ADC大于阈值时切换为检测状态1。 */
-#define ADC_SWITCH_THRESHOLD                (2048U)
+#define ADC_SWITCH_THRESHOLD                (3048U)
 
 /* ADC小于“阈值-回差”时恢复为检测状态0。 */
-#define ADC_SWITCH_HYSTERESIS               (50U)
+#define ADC_SWITCH_HYSTERESIS               (1000U)
+
+/*----------------------------------------------------------------------------------------------*/
+/* 抗脉冲滤波：9点窗口去掉最高2点和最低2点，对中间5点求平均。                    */
+/*----------------------------------------------------------------------------------------------*/
+#define ADC_PULSE_FILTER_ENABLE             FUNCTION_ENABLE
+
+/* 开启后更新窗口最小值、最大值等调试变量；量产可设为FUNCTION_DISABLE。 */
+#define ADC_FILTER_DEBUG_ENABLE             FUNCTION_ENABLE
+
+/* 为保持算法简单可预期，点数和去掉高低个数可选*/
+#define ADC_FILTER_WINDOW_SIZE    (9U)
+#define ADC_FILTER_TRIM_COUNT     (3U)
 
 /*==============================================================================================*/
 /* 3. 配置合法性检查                                                                            */
@@ -73,6 +85,15 @@ extern "C" {
 
 #if (ADC_SWITCH_HYSTERESIS > ADC_SWITCH_THRESHOLD)
 #error "ADC_SWITCH_HYSTERESIS must not exceed ADC_SWITCH_THRESHOLD"
+#endif
+
+#if ((ADC_FILTER_WINDOW_SIZE < 3U) || \
+     (ADC_FILTER_WINDOW_SIZE > 31U))
+#error "ADC_FILTER_WINDOW_SIZE must be between 3 and 31"
+#endif
+
+#if ((2U * ADC_FILTER_TRIM_COUNT) >= ADC_FILTER_WINDOW_SIZE)
+#error "ADC_FILTER_TRIM_COUNT is too large"
 #endif
 
 #if ((DETECTION_POWER_ON_STATE != STATE_OFF) && (DETECTION_POWER_ON_STATE != STATE_ON))
@@ -104,6 +125,10 @@ extern "C" {
 /* 5. Keil Watch调试变量                                                                        */
 /*==============================================================================================*/
 extern __IO uint16_t g_adc_value;
+extern __IO uint16_t g_adc_filtered_value;
+extern __IO uint16_t g_adc_window_min;
+extern __IO uint16_t g_adc_window_max;
+extern __IO uint8_t g_adc_filter_ready;
 extern __IO uint32_t g_adc_sample_count;
 extern __IO uint32_t g_adc_overrun_count;
 extern __IO uint32_t g_threshold_switch_count;
