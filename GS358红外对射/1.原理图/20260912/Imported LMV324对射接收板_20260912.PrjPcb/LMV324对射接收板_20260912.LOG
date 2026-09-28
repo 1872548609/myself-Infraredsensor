@@ -1,0 +1,282 @@
+Importer Log Report
+Project : LMV324对射接收板_20260912.PrjPcb
+
+Section : Document - C:\Users\bc\Desktop\LMV324对射接收板_20260912.asc
+
+    Section : Import Messages
+        Event   : Net Added: $$$1
+        Event   : Net Added: $$$12
+        Event   : Net Added: $$$12813
+        Event   : Net Added: $$$14
+        Event   : Net Added: $$$15
+        Event   : Net Added: $$$15607
+        Event   : Net Added: $$$16
+        Event   : Net Added: $$$18
+        Event   : Net Added: $$$2
+        Event   : Net Added: $$$27
+        Event   : Net Added: $$$3
+        Event   : Net Added: $$$30618
+        Event   : Net Added: $$$30627
+        Event   : Net Added: $$$4871
+        Event   : Net Added: $$$4957
+        Event   : Net Added: GND
+        Event   : Net Added: IN1-
+        Event   : Net Added: IN2-
+        Event   : Net Added: IN2+
+        Event   : Net Added: IN3-
+        Event   : Net Added: IN3+
+        Event   : Net Added: IO_OUTPUT_NC
+        Event   : Net Added: IO_OUTPUT_NO
+        Event   : Net Added: OUT_NPN_NC
+        Event   : Net Added: OUT_NPN_NO
+        Event   : Net Added: OUT1
+        Event   : Net Added: OUT2
+        Event   : Net Added: OUT3
+        Event   : Net Added: RED
+        Event   : Net Added: SIGN
+        Event   : Net Added: SWCLK
+        Event   : Net Added: SWDIO
+        Event   : Net Added: VC
+        Event   : Net Added: VCC
+        Event   : Net Added: VIN
+        Event   : Created RoutingLayers from PADS routing rule: (3).
+        Event   : Created RoutingVias from PADS routing rule: (3).
+        Event   : Created ParallelSegment from PADS routing rule: (2).
+        Event   : Created ComponentClearance from PADS routing rule: (1).
+        Event   : Created Width from PADS routing rule: (1).
+        Event   : Created Clearance from PADS routing rule: (1).
+        Event   : Created SMDToCorner from PADS routing rule: (1).
+        Event   : Created Clearance from PADS clearance rule: (1).
+        Event   : Created Clearance from PADS routing rule: (1).
+        Event   : Created HoleToHoleClearance from PADS clearance rule: (1).
+        Event   : Created Default Pad
+        Event   : Created Default SMT
+        Event   : Created default rule for Pads for PlaneConnect.
+        Event   : Text: 'GND' added to the board.
+        Event   : Text: 'VIN' added to the board.
+        Event   : Text: 'NO' added to the board.
+        Event   : Text: 'NC' added to the board.
+        Event   : Text: 'LM324_20260912' added to the board.
+        Event   : Text: 'VCC' added to the board.
+        Event   : Text: 'CLK' added to the board.
+        Event   : Text: 'DIO' added to the board.
+        Event   : Text: 'GND' added to the board.
+        Event   : Text: 'GND' added to the board.
+        Event   : Component: 'C1' added to the board.
+        Event   : Component: 'C10' added to the board.
+        Event   : Component: 'C11' added to the board.
+        Event   : Component: 'C13' added to the board.
+        Event   : Component: 'C2' added to the board.
+        Event   : Component: 'C3' added to the board.
+        Event   : Component: 'C4' added to the board.
+        Event   : Component: 'C5' added to the board.
+        Event   : Component: 'C7' added to the board.
+        Event   : Component: 'C8' added to the board.
+        Event   : Component: 'C9' added to the board.
+        Error   : No comment found for component: D1
+        Event   : Component: 'D1' added to the board.
+        Error   : No comment found for component: F1
+        Event   : Component: 'F1' added to the board.
+        Event   : Component: 'F2' added to the board.
+        Event   : Component: 'F3' added to the board.
+        Error   : No comment found for component: J1
+        Event   : Component: 'J1' added to the board.
+        Error   : No comment found for component: J2
+        Event   : Component: 'J2' added to the board.
+        Error   : No comment found for component: J3
+        Event   : Component: 'J3' added to the board.
+        Error   : No comment found for component: J4
+        Event   : Component: 'J4' added to the board.
+        Error   : No comment found for component: J5
+        Event   : Component: 'J5' added to the board.
+        Error   : No designator found for component: J6
+        Error   : No comment found for component: J6
+        Event   : Component: 'J6' added to the board.
+        Error   : No comment found for component: LED1
+        Event   : Component: 'LED1' added to the board.
+        Error   : No comment found for component: LED5
+        Event   : Component: 'LED5' added to the board.
+        Error   : No designator found for component: P1
+        Event   : Component: 'P1' added to the board.
+        Error   : No designator found for component: P2
+        Event   : Component: 'P2' added to the board.
+        Error   : No designator found for component: P3
+        Event   : Component: 'P3' added to the board.
+        Error   : No designator found for component: P4
+        Event   : Component: 'P4' added to the board.
+        Event   : Component: 'PS2' added to the board.
+        Error   : Undisplayed signal layer part type omitted for component: Q1
+        Event   : Component: 'Q1' added to the board.
+        Error   : Undisplayed signal layer part type omitted for component: Q3
+        Event   : Component: 'Q3' added to the board.
+        Event   : Component: 'R1' added to the board.
+        Event   : Component: 'R10' added to the board.
+        Event   : Component: 'R12' added to the board.
+        Error   : No comment found for component: R14
+        Event   : Component: 'R14' added to the board.
+        Event   : Component: 'R17' added to the board.
+        Event   : Component: 'R18' added to the board.
+        Event   : Component: 'R19' added to the board.
+        Event   : Component: 'R2' added to the board.
+        Event   : Component: 'R20' added to the board.
+        Event   : Component: 'R21' added to the board.
+        Event   : Component: 'R22' added to the board.
+        Event   : Component: 'R23' added to the board.
+        Event   : Component: 'R25' added to the board.
+        Error   : No comment found for component: R3
+        Event   : Component: 'R3' added to the board.
+        Event   : Component: 'R31' added to the board.
+        Event   : Component: 'R32' added to the board.
+        Event   : Component: 'R33' added to the board.
+        Event   : Component: 'R34' added to the board.
+        Event   : Component: 'R39' added to the board.
+        Error   : No comment found for component: R4
+        Event   : Component: 'R4' added to the board.
+        Event   : Component: 'R6' added to the board.
+        Event   : Component: 'R7' added to the board.
+        Event   : Component: 'R8' added to the board.
+        Event   : Component: 'R9' added to the board.
+        Error   : No comment found for component: TVS1
+        Event   : Component: 'TVS1' added to the board.
+        Error   : No comment found for component: TVS2
+        Event   : Component: 'TVS2' added to the board.
+        Error   : No comment found for component: TVS3
+        Event   : Component: 'TVS3' added to the board.
+        Warning : WARNING: Cut-out region created from PADS keep-out on layer: Top Layer
+        Event   : Component: 'U1' added to the board.
+        Error   : Undisplayed signal layer part type omitted for component: U2
+        Event   : Component: 'U2' added to the board.
+        Event   : Component: 'U3' added to the board.
+        Event   : Via added to the board at loation:    (66.929mil; 370.472mil) .
+        Event   : Via added to the board at loation:    (114.173mil; 86.614mil) .
+        Event   : Via added to the board at loation:    (342.126mil; 230.709mil) .
+        Event   : Via added to the board at loation:    (330.709mil; 118.11mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (322.835mil; 472.441mil) to 331.118mil; 480.724mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (331.118mil; 480.724mil) to 331.118mil; 543.452mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (314.387mil; 560.183mil) to 331.118mil; 543.452mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (314.387mil; 560.183mil) to 314.387mil; 594.143mil) .
+        Event   : Via added to the board at loation:    (205.512mil; 782.283mil) .
+        Event   : Via added to the board at loation:    (234.646mil; 362.205mil) .
+        Event   : Via added to the board at loation:    (137.795mil; 433.071mil) .
+        Event   : Via added to the board at loation:    (169.291mil; 598.819mil) .
+        Event   : Via added to the board at loation:    (193.701mil; 929.134mil) .
+        Event   : Via added to the board at loation:    (192.913mil; 899.606mil) .
+        Event   : Via added to the board at loation:    (163.78mil; 1018.898mil) .
+        Event   : Via added to the board at loation:    (312.205mil; 1090.551mil) .
+        Event   : Via added to the board at loation:    (326.378mil; 961.811mil) .
+        Event   : Via added to the board at loation:    (96.063mil; 992.52mil) .
+        Event   : Via added to the board at loation:    (197.244mil; 598.425mil) .
+        Event   : Via added to the board at loation:    (165.354mil; 567.323mil) .
+        Event   : Via added to the board at loation:    (196.85mil; 566.535mil) .
+        Event   : Via added to the board at loation:    (162.599mil; 929.921mil) .
+        Event   : Via added to the board at loation:    (162.599mil; 899.606mil) .
+        Event   : Via added to the board at loation:    (340.551mil; 86.22mil) .
+        Event   : Via added to the board at loation:    (181.102mil; 26.772mil) .
+        Event   : Via added to the board at loation:    (286.614mil; 33.465mil) .
+        Event   : Via added to the board at loation:    (181.102mil; 74.803mil) .
+        Event   : Via added to the board at loation:    (180.315mil; 293.701mil) .
+        Event   : Via added to the board at loation:    (108.268mil; 347.638mil) .
+        Event   : Via added to the board at loation:    (183.858mil; 342.913mil) .
+        Event   : Via added to the board at loation:    (311.024mil; 267.716mil) .
+        Event   : Via added to the board at loation:    (205.906mil; 744.882mil) .
+        Event   : Via added to the board at loation:    (322.835mil; 476.378mil) .
+        Event   : Via added to the board at loation:    (221.654mil; 438.976mil) .
+        Event   : Via added to the board at loation:    (326.772mil; 629.921mil) .
+        Event   : Via added to the board at loation:    (80.315mil; 37.795mil) .
+        Event   : Via added to the board at loation:    (114.173mil; 524.016mil) .
+        Event   : Via added to the board at loation:    (21.26mil; 373.228mil) .
+        Event   : Via added to the board at loation:    (19.685mil; 653.543mil) .
+        Event   : Via added to the board at loation:    (16.535mil; 622.441mil) .
+        Event   : Via added to the board at loation:    (19.685mil; 944.882mil) .
+        Event   : Via added to the board at loation:    (175.197mil; 1094.488mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (171.26mil; 559.055mil) to 177.165mil; 559.055mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (171.26mil; 527.559mil) to 171.26mil; 559.055mil) .
+        Event   : Via added to the board at loation:    (125.984mil; 637.795mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (127.165mil; 637.795mil) to 127.559mil; 635.827mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (266.88mil; 594.143mil) to 276.985mil; 594.143mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (235.039mil; 625.984mil) to 266.88mil; 594.143mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (235.039mil; 625.984mil) to 235.039mil; 637.795mil) .
+        Event   : Via added to the board at loation:    (232.677mil; 635.433mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (317.244mil; 511.811mil) to 317.244mil; 519.638mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (312.276mil; 511.811mil) to 317.244mil; 511.811mil) .
+        Event   : Via added to the board at loation:    (225.591mil; 492.52mil) .
+        Event   : Via added to the board at loation:    (240.551mil; 531.102mil) .
+        Event   : Via added to the board at loation:    (341.732mil; 442.126mil) .
+        Event   : Via added to the board at loation:    (224.41mil; 814.961mil) .
+        Event   : Via added to the board at loation:    (86.221mil; 811.024mil) .
+        Event   : Via added to the board at loation:    (43.701mil; 480.709mil) .
+        Event   : Via added to the board at loation:    (36.221mil; 771.26mil) .
+        Event   : Via added to the board at loation:    (39.37mil; 917.323mil) .
+        Event   : Via added to the board at loation:    (94.488mil; 964.567mil) .
+        Event   : Via added to the board at loation:    (187.008mil; 1001.181mil) .
+        Event   : Via added to the board at loation:    (326.772mil; 889.764mil) .
+        Event   : Via added to the board at loation:    (286.614mil; 638.583mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (283.444mil; 641.359mil) to 286.417mil; 638.386mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (286.417mil; 638.386mil) to 286.614mil; 638.583mil) .
+        Event   : Via added to the board at loation:    (285.827mil; 892.52mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (120.472mil; 748.032mil) to 123.57mil; 748.032mil) .
+        Event   : Via added to the board at loation:    (60.236mil; 583.465mil) .
+        Event   : Via added to the board at loation:    (91.339mil; 837.008mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (61.285mil; 837.642mil) to 61.301mil; 837.642mil) .
+        Event   : Via added to the board at loation:    (248.031mil; 857.874mil) .
+        Event   : Via added to the board at loation:    (262.205mil; 966.929mil) .
+        Event   : Via added to the board at loation:    (66.929mil; 748.032mil) .
+        Event   : Via added to the board at loation:    (31.496mil; 976.378mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (31.496mil; 976.378mil) to 31.496mil; 977.604mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (28.785mil; 980.315mil) to 31.496mil; 977.604mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (28.785mil; 980.315mil) to 28.785mil; 1019.685mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (28.785mil; 1019.685mil) to 42.1mil; 1033mil) .
+        Event   : Via added to the board at loation:    (86.614mil; 582.677mil) .
+        Event   : Via added to the board at loation:    (92.913mil; 677.953mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (98.425mil; 685.039mil) to 170.686mil; 685.039mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (170.686mil; 685.039mil) to 170.686mil; 689.321mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (25.884mil; 544.559mil) to 25.884mil; 592.813mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (25.884mil; 592.813mil) to 39.37mil; 606.299mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (39.37mil; 606.299mil) to 74.803mil; 606.299mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (74.803mil; 606.299mil) to 86.614mil; 594.488mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (86.614mil; 582.677mil) to 86.614mil; 594.488mil) .
+        Event   : Duplicate track object found, second instance will be removed. Track position: (82.677mil; 578.74mil) to 86.614mil; 582.677mil) .
+        Event   : Via added to the board at loation:    (232.284mil; 401.575mil) .
+        Event   : Via added to the board at loation:    (273.228mil; 363.779mil) .
+        Event   : Added track to board from:    (337.365mil; 789.017mil) to 337.391mil; 789.017mil) .
+        Event   : Added track to board from:    (257.741mil; 1118.343mil) to 257.767mil; 1118.343mil) .
+        Event   : Added track to board from:    (700mil; 639.017mil) to 700mil; 789.017mil) .
+        Event   : Added track to board from:    (700mil; 789.017mil) to 725mil; 689.017mil) .
+        Event   : Added track to board from:    (675mil; 689.017mil) to 725mil; 689.017mil) .
+        Event   : Added track to board from:    (675mil; 689.017mil) to 700mil; 789.017mil) .
+        Event   : Added track to board from:    (700mil; 1118.343mil) to 700mil; 1268.343mil) .
+        Event   : Added track to board from:    (675mil; 1218.343mil) to 700mil; 1118.343mil) .
+        Event   : Added track to board from:    (675mil; 1218.343mil) to 725mil; 1218.343mil) .
+        Event   : Added track to board from:    (700mil; 1118.343mil) to 725mil; 1218.343mil) .
+        Event   : Added track to board from:    (387.365mil; 789.017mil) to 750mil; 789.017mil) .
+        Event   : Added track to board from:    (307.741mil; 1118.343mil) to 750mil; 1118.343mil) .
+        Event   : Added track to board from:    (12877.383mil; 6885.348mil) to 12880.883mil; 6885.348mil) .
+        Event   : Added track to board from:    (12880.883mil; 6885.348mil) to 12880.883mil; 6888.148mil) .
+        Event   : Added track to board from:    (12877.383mil; 6888.148mil) to 12880.883mil; 6888.148mil) .
+        Event   : Added track to board from:    (12877.383mil; 6885.348mil) to 12877.383mil; 6888.148mil) .
+        Event   : Added track to board from:    (15077.383mil; 6085.348mil) to 15080.883mil; 6085.348mil) .
+        Event   : Added track to board from:    (15080.883mil; 6085.348mil) to 15080.883mil; 6088.148mil) .
+        Event   : Added track to board from:    (15077.383mil; 6088.148mil) to 15080.883mil; 6088.148mil) .
+        Event   : Added track to board from:    (15077.383mil; 6085.348mil) to 15077.383mil; 6088.148mil) .
+        Event   : Added track to board from:    (15075.383mil; 6106.148mil) to 15082.883mil; 6106.148mil) .
+        Event   : Added track to board from:    (15083.683mil; 6077.748mil) to 15083.683mil; 6105.348mil) .
+        Event   : Added track to board from:    (15074.584mil; 6077.748mil) to 15083.683mil; 6077.748mil) .
+        Event   : Added track to board from:    (15074.584mil; 6077.748mil) to 15074.584mil; 6105.348mil) .
+        Event   : Added track to board from:    (0mil; 0mil) to 358.267mil; 0mil) .
+        Event   : Added track to board from:    (0mil; 0mil) to 0mil; 1086.612mil) .
+        Event   : Added track to board from:    (31.496mil; 1118.108mil) to 326.771mil; 1118.108mil) .
+        Event   : Added track to board from:    (358.267mil; 0mil) to 358.267mil; 1086.612mil) .
+        Event   : Added track to board from:    (151.575mil; 464.566mil) to 206.693mil; 464.566mil) .
+        Event   : Added track to board from:    (151.575mil; 181.102mil) to 206.693mil; 181.102mil) .
+        Event   : Added track to board from:    (12875.383mil; 6906.148mil) to 12882.883mil; 6906.148mil) .
+        Event   : Added track to board from:    (12883.683mil; 6877.748mil) to 12883.683mil; 6905.348mil) .
+        Event   : Added track to board from:    (12874.584mil; 6877.748mil) to 12883.683mil; 6877.748mil) .
+        Event   : Added track to board from:    (12874.584mil; 6877.748mil) to 12874.584mil; 6905.348mil) .
+        Event   : Added track to board from:    (120.079mil; 845.669mil) to 120.079mil; 995.275mil) .
+        Event   : Added track to board from:    (120.079mil; 995.275mil) to 238.189mil; 995.275mil) .
+        Event   : Added track to board from:    (238.189mil; 845.669mil) to 238.189mil; 995.275mil) .
+        Event   : Added track to board from:    (120.079mil; 845.669mil) to 238.189mil; 845.669mil) .
+        Event   : Polygon Added, Bounding Rect: -154.724mil, -57.48mil   501.181mil, 1153.937mil
+        Event   : Polygon Added, Bounding Rect: -120.079mil, -49.606mil   535.827mil, 1161.811mil
+    EndSection
+EndSection

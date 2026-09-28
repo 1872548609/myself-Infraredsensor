@@ -1,0 +1,33 @@
+GS358 绝对时间戳窗口检测版本移植说明
+
+替换文件：
+1. gs358_app.c
+2. gs358_app.h
+3. mg32f003_it.c
+
+定时器分配：
+- TIM1：1 MHz 时间戳计数，从本轮第一个 PA7 下降沿开始连续运行；
+- TIM3：1 MHz 单次判定窗口，到期后统一输出本轮结果；
+- TIM14：继续保留给 PA11 PWM_OUT，不参与接收检测。
+
+默认参数：
+- 信号周期：70 us
+- 容差：±5 us
+- 同步：前三个实际下降沿必须依次对应 0T、1T、2T
+- 判定窗口：10 个目标周期
+- 有光阈值：至少 7 个有效周期槽
+- 窗口长度：10 * 70 + 5 = 705 us
+
+计数定义：
+- 第一个边沿只建立参考，不计入有效次数；
+- 后续有效槽为 1...10，因此单轮最大有效次数为 10；
+- g_gs358_round_missed_count = 10 - 本轮有效次数；
+- 外部中断到来但时间不正确或落入重复周期槽，记入 invalid；
+- 完全没有到来的边沿不会产生中断，最终通过 missed_count 体现。
+
+参数修改主要集中在 gs358_app.h：
+- GS358_SIGNAL_PERIOD_US
+- GS358_SIGNAL_PERIOD_TOLERANCE_US
+- GS358_SYNC_REQUIRED_EDGE_COUNT
+- GS358_EVALUATION_PERIOD_COUNT
+- GS358_LIGHT_VALID_THRESHOLD
