@@ -1,0 +1,43 @@
+Importer Log Report
+Project : LMV324收发一体_20260920.PrjPcb
+
+Section : Document - C:\Users\bc\Desktop\myself-Infraredsensor\镜面反射\1.原理图\20260929\pads\LMV324收发一体_20260920.txt
+    Section : Load Messages
+        Error   : Error, expected keyword: 'ASSOCIATED_NET' in line: 596
+        Error   : Error, expected keyword: 'DATA' in line: 596
+        Error   : Layer information out of range for ruleset :(2) in line: 674
+        Error   : Layer information out of range for ruleset :(2) in line: 675
+        Warning : Optional alphanumeric pin map is missing for part type RES.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type CAP_2.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type MG32F003-QFN20.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type CAP.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type FUSE.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type RAS.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type LED.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type DIODE.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type DIODE_V.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type LED2.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type HT7530-1.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type $GND_SYMS.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type $PWR_SYMS.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type $OSR_SYMS.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type NPNSOT23.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type TEST_POINTB+.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type ADJ_SMD.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type R0402.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type PHOTO_SEN.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type CAP_NP.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type LM324_QFN16.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type SOD523.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type RAS0402.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type CAP0402.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type FPAD_3C.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type CAP0603.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type LED0.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type Q2N2369_0.  Default pin numbers are assigned.
+        Warning : Optional alphanumeric pin map is missing for part type RES0603.  Default pin numbers are assigned.
+    EndSection
+
+    Section : Import Messages
+    EndSection
+EndSection

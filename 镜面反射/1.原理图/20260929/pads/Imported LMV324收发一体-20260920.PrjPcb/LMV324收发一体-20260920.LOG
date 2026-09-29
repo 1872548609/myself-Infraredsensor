@@ -1,0 +1,36 @@
+Importer Log Report
+Project : LMV324收发一体-20260920.PrjPcb
+
+Section : Document - C:\Users\bc\Desktop\myself-Infraredsensor\镜面反射\1.原理图\20260929\pads\LMV324收发一体-20260920.asc
+
+    Section : Import Messages
+        Error   : No comment found for component: C6
+        Error   : No comment found for component: C7
+        Error   : No comment found for component: D1
+        Error   : No comment found for component: D2
+        Error   : No comment found for component: F1
+        Error   : No designator found for component: J1
+        Error   : No comment found for component: J1
+        Error   : No designator found for component: J2
+        Error   : No comment found for component: J2
+        Error   : No designator found for component: J3
+        Error   : No comment found for component: J3
+        Error   : No designator found for component: J4
+        Error   : No comment found for component: J4
+        Error   : No comment found for component: LED1
+        Error   : No comment found for component: LED5
+        Error   : No designator found for component: P1
+        Error   : No designator found for component: P2
+        Error   : No designator found for component: P3
+        Error   : No designator found for component: P4
+        Error   : No designator found for component: P5
+        Error   : No comment found for component: Q2
+        Error   : Undisplayed signal layer part type omitted for component: Q3
+        Error   : No comment found for component: R28
+        Error   : No comment found for component: R5
+        Error   : No comment found for component: TVS1
+        Error   : No comment found for component: TVS2
+        Warning : WARNING: Cut-out region created from PADS keep-out on layer: Top Layer
+        Error   : Undisplayed signal layer part type omitted for component: U2
+    EndSection
+EndSection

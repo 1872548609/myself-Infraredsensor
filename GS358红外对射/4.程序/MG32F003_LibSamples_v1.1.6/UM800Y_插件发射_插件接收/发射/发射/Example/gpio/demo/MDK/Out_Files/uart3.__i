@@ -1,0 +1,1 @@
+"..\..\..\..\Driver\src\uart3.c" LARGE OMF2 OPTIMIZE (8,SIZE) BROWSE INCDIR(..\..\..\..\Driver\inc;..\..\..\..\Driver\src;..\..\..\..\MCU\Common;..\..\..\..\MCU\Device) DEBUG PRINT(.\Out_Files\uart3.lst) TABS (2) OBJECT(.\Out_Files\uart3.obj)
