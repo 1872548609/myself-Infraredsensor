@@ -3,7 +3,7 @@
 <title>Static Call Graph - [.\Objects\USART_Interrupt.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image .\Objects\USART_Interrupt.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Thu Sep 24 15:41:54 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Tue Sep 29 14:58:07 2026
 <BR><P>
 <H3>Maximum Stack Usage =        184 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -343,7 +343,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM1_BRK_UP_TRG_COM_IRQHandler
 </UL>
 
-<P><STRONG><a name="[64]"></a>GS358_PeriodWindowTimerIRQHandler</STRONG> (Thumb, 118 bytes, Stack size 8 bytes, gs358_app.o(i.GS358_PeriodWindowTimerIRQHandler))
+<P><STRONG><a name="[64]"></a>GS358_PeriodWindowTimerIRQHandler</STRONG> (Thumb, 136 bytes, Stack size 8 bytes, gs358_app.o(i.GS358_PeriodWindowTimerIRQHandler))
 <BR><BR>[Stack]<UL><LI>Max Depth = 72<LI>Call Chain = GS358_PeriodWindowTimerIRQHandler &rArr; GS358_SetLightState &rArr; GS358_ApplyOutputs &rArr; GS358_WriteLogicalOutput
 </UL>
 <BR>[Calls]<UL><LI><a href="#[5c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM_SetCounter
@@ -676,7 +676,7 @@ Local Symbols
 <BR>[Called By]<UL><LI><a href="#[26]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GS358_ComparatorFallingIRQHandler
 </UL>
 
-<P><STRONG><a name="[3b]"></a>GS358_LightLostTimerInit</STRONG> (Thumb, 168 bytes, Stack size 32 bytes, gs358_app.o(i.GS358_LightLostTimerInit))
+<P><STRONG><a name="[3b]"></a>GS358_LightLostTimerInit</STRONG> (Thumb, 174 bytes, Stack size 32 bytes, gs358_app.o(i.GS358_LightLostTimerInit))
 <BR><BR>[Stack]<UL><LI>Max Depth = 104<LI>Call Chain = GS358_LightLostTimerInit &rArr; TIM_GetTIMxClock &rArr; RCC_GetClocksFreq
 </UL>
 <BR>[Calls]<UL><LI><a href="#[58]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM_TimeBaseStructInit

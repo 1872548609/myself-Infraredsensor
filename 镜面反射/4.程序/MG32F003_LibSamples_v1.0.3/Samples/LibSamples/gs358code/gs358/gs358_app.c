@@ -606,6 +606,7 @@ static void GS358_LightLostTimerInit(void)
     prescaler_div = timer_clock_hz / GS358_TIMER_TICK_HZ;
 
     if ((prescaler_div == 0U) ||
+        (prescaler_div > 65536UL) ||
         ((timer_clock_hz % GS358_TIMER_TICK_HZ) != 0U) ||
         (GS358_LIGHT_LOST_TIMEOUT_US == 0U) ||
         (GS358_LIGHT_LOST_TIMEOUT_US > 65536UL))
@@ -873,6 +874,11 @@ void GS358_PeriodWindowTimerIRQHandler(void)
         {
             g_gs358_last_settlement_valid = 1U;
             GS358_SetLightState(1U);
+        }
+        else if (s_edge_confirm_count < GS358_EDGE_LOST_COUNT)
+        {
+            g_gs358_last_settlement_valid = 0U;
+            GS358_SetLightState(0U);
         }
         else
         {

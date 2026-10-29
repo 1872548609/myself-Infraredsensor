@@ -34,7 +34,7 @@ extern "C" {
 #define GS358_SIGNAL_PERIOD_US                     100U   //100U
 
 /* 周期允许容差。当前有效范围为 85~115 us。 */
-#define GS358_SIGNAL_PERIOD_TOLERANCE_US            15U
+#define GS358_SIGNAL_PERIOD_TOLERANCE_US            10U
 
 /*
  * 固定检测窗口：第一个下降沿到来后启动TIM3，
@@ -43,7 +43,10 @@ extern "C" {
 #define GS358_DETECTION_WINDOW_US                 1050U  //1050U
 
 /* 1000us窗口内至少需要的有效单周期数。 */
-#define GS358_EDGE_CONFIRM_COUNT                    8U
+#define GS358_EDGE_CONFIRM_COUNT                    10U
+
+/* 单个检测窗口有效周期数低于此值时，立即判定遮光。 */
+#define GS358_EDGE_LOST_COUNT                        1U
 
 /*
  * 比较器中断测试输出：
@@ -56,8 +59,8 @@ extern "C" {
 #define GS358_PERIOD_RECORD_ENABLE                  0U
 
 
-/* 丢光超时，单位us。 */
-#define GS358_LIGHT_LOST_TIMEOUT_US                 400U
+/* 最后一个有效周期后丢光超时，单位us；TIM1独立计时。 */
+#define GS358_LIGHT_LOST_TIMEOUT_US                 1200U
 
 /*
  * 定时器分配：
@@ -72,15 +75,20 @@ extern "C" {
 /* TIM1、TIM3均使用1 MHz时基。 */
 #define GS358_TIMER_TICK_HZ                  1000000UL
 
+#if ((GS358_EDGE_LOST_COUNT == 0U) || \
+     (GS358_EDGE_LOST_COUNT > GS358_EDGE_CONFIRM_COUNT))
+#error "GS358_EDGE_LOST_COUNT must be 1..GS358_EDGE_CONFIRM_COUNT"
+#endif
+
 /*
  * PA11 / TIM14_CH1 发射PWM配置。
  * 默认周期1000us（1kHz）、高电平有效、占空比5%（脉宽50us）。
  */
-#define GS358_PWM_ENABLE                            1U
+#define GS358_PWM_ENABLE                             1U
 #define GS358_PWM_TIMER_TICK_HZ               1000000UL
 #define GS358_PWM_PERIOD_US                       100UL
 #define GS358_PWM_DUTY_PERMILLE                     5UL
-#define GS358_PWM_ACTIVE_HIGH                       1U
+#define GS358_PWM_ACTIVE_HIGH                        1U
 
 /* 原理图中PA8、PA9经电阻驱动NPN，高电平表示通道动作。 */
 #define GS358_NO_OUTPUT_ACTIVE_HIGH                 1U
