@@ -1,0 +1,50 @@
+
+/*------------------------V1.0.0（2024.5）------------------------*/
+1、初始版本
+
+/*------------------------V1.0.1（2024.10）------------------------*/
+1、ADC；
+     - Example: 
+        所有example完善校准实现，为提高ADC转换数据精度，校准过程增加校准系数补偿值处理；
+        ADC_SingleConversion_TriggerSW_Poll、ADC_SingleConversion_TriggerSW_Interrupt、ADC_SingleConversion_TriggerSW_BGRCalibration：三个示例完善对输入信号采样的实现，采用10次取平均的方式，提高ADC采样精度， 减小测量误差;
+        增加ADC_DiscontinuousConversion_TriggerTime_Poll示例，展示循环间断转换模式的使用；
+        增加ADC_Wakeup_SingleConversion_TriggerSW_Poll示例，展示进退低功耗前后，ADC校准、ADC使能/禁止、转换、BGR校准参考电压以及10次采样取平均等的全流程相关操作；
+2、PMU：
+     - Example:
+        增加PMU_Deepstop_WFE示例，该示例展示WFE方式进入Deepstop模式后，通过EXTI（按键）方式唤醒芯片的功能；
+3、IWDG：
+     - Example:
+        IWDG_Reset：IWDG配置流程中增加喂狗操作，确保当前配置的溢出值生效；
+
+/*------------------------V1.0.2（2025.01）------------------------*/
+1、IRTIM：
+     - Example：
+       IRTIM_Modulation：释放UART1_TX pin脚资源，可用作GPIO或其他复用功能；
+2、COMP：
+     - Example：
+       COMP_EXTI_Wakeup：低功耗模式改为Deepstop，展示低功耗进退流程；
+3、LPTIM：
+     - Example：
+       LPTIM1_Wakeup_WFI_Continuous_Counter：低功耗模式改为Deepstop，并修改LPTIM唤醒周期为1s，便于用户更好地观测低功耗进退效果；
+4、修改所有示例的MDK优化等级为Level0，IAR优化等级为Low（Balanced）。
+
+
+/*------------------------V1.0.3（2025.07）------------------------*/
+1、Flash：
+     - ciu32f003_std_flash.c、ciu32f003_std_flash.h
+       增加std_status_t std_flash_option_bytes_config(std_flash_option_config_t *flash_option_config)函数，实现选项字节更新功能，方便用户更好的理解和使用选项字节更新功能；
+     - Example：
+       Flash_OptionByte_Update：根据新增的API函数，展示选项字节更新API的使用流程；
+2、COMP：
+     - Example：
+       COMP_EXTI_Wakeup：删除冗余的COMP时钟配置流程，在不使能COMP滤波的情况下，可不配置COMP滤波时钟；
+3、PMU：
+     - Example：
+       将PMU_Deepstop_WFE改为PMU_Deepstop_WFI示例，展示常用进退低功耗的使用方式；
+       修改PMU_Flash_NoWait_Wakeup示例的唤醒方式为LPTIM ARRM中断挂起唤醒；
+4、TIM：
+      - ciu32f003_std_tim.h
+       修正计数模式宏定义：TIM_COUNTER_MODE_CENT_MODE1和TIM_COUNTER_MODE_CENT_MODE2；
+     - Example：
+       TIM_ExtTrigger_Synchronization：修改tim3初始化流程中配置通道2的实例为TIM3；
+       TIM3_PWMOutput：更改PWM输出为2通道，精度16bit。
